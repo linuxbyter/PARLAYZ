@@ -19,15 +19,28 @@ interface Bet {
   status: string
 }
 
+const BASE_STAKE = 200
+const PLATFORM_FEE_PERCENT = 3 // 3% like Polymarket
+
 function App() {
   const [events, setEvents] = useState<Event[]>([])
   const [bets, setBets] = useState<Bet[]>([])
   const [loading, setLoading] = useState(true)
-  const [betAmount, setBetAmount] = useState(100)
+  const [selectedOutcome, setSelectedOutcome] = useState<{eventId: string, idx: number} | null>(null)
 
   useEffect(() => {
     fetchEvents()
     fetchBets()
+    
+    // Real-time updates
+    const channel = supabase
+      .channel('bets')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bets' }, () => {
+        fetchBets()
+      })
+      .subscribe()
+    
+    return () => { channel.unsubscribe() }
   }, [])
 
   const fetchEvents = async () => {
@@ -46,11 +59,13 @@ function App() {
     setBets(data || [])
   }
 
-  const placeBet = async (eventId: string, outcomeIndex: number) => {
+  const placeBet = async () => {
+    if (!selectedOutcome) return
+    
     const { error } = await supabase.from('bets').insert({
-      event_id: eventId,
-      outcome_index: outcomeIndex,
-      stake: betAmount,
+      event_id: selectedOutcome.eventId,
+      outcome_index: selectedOutcome.idx,
+      stake: BASE_STAKE,
       odds: 200,
       status: 'open'
     })
@@ -58,7 +73,8 @@ function App() {
     if (error) {
       alert('Error: ' + error.message)
     } else {
-      alert(`Bet placed! ${betAmount} credits`)
+      alert(`Bet placed! ${BASE_STAKE} credits`)
+      setSelectedOutcome(null)
       fetchBets()
     }
   }
@@ -69,6 +85,21 @@ function App() {
     const allBets = bets.filter(b => b.event_id === eventId)
     const total = allBets.reduce((sum, b) => sum + b.stake, 0)
     return total === 0 ? 50 : Math.round((totalStake / total) * 100)
+  }
+
+  const calculatePayout = (oddsPercent: number) => {
+    // Odds as decimal (50% = 2.0x)
+    const oddsDecimal = oddsPercent === 0 ? 2 : 100 / oddsPercent
+    const grossPayout = BASE_STAKE * oddsDecimal
+    const fee = grossPayout * (PLATFORM_FEE_PERCENT / 100)
+    const netPayout = grossPayout - fee
+    
+    return {
+      gross: Math.round(grossPayout),
+      fee: Math.round(fee),
+      net: Math.round(netPayout),
+      odds: oddsDecimal.toFixed(2)
+    }
   }
 
   if (loading) {
@@ -96,16 +127,8 @@ function App() {
       <main className="max-w-6xl mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-8">
           <h2 className="text-2xl font-semibold text-white">Live Markets</h2>
-          <div className="flex items-center gap-2">
-            <span className="text-gray-400 text-sm">Bet amount:</span>
-            <input
-              type="number"
-              value={betAmount}
-              onChange={(e) => setBetAmount(Number(e.target.value))}
-              className="bg-matte-800 border border-matte-600 rounded-lg px-3 py-1 text-white w-24"
-              min="10"
-              step="10"
-            />
+          <div className="text-sm text-gray-400">
+            Base Stake: <span className="text-gold-400 font-bold">{BASE_STAKE}</span> credits
           </div>
         </div>
 
@@ -124,23 +147,64 @@ function App() {
               <h3 className="text-xl font-bold text-white mb-2">{event.title}</h3>
               <p className="text-gray-400 text-sm mb-6">{event.description}</p>
 
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {event.outcomes.map((outcome, idx) => {
-                  const odds = getOdds(event.id, idx)
+                  const oddsPercent = getOdds(event.id, idx)
+                  const payout = calculatePayout(oddsPercent)
+                  const isSelected = selectedOutcome?.eventId === event.id && selectedOutcome?.idx === idx
+
                   return (
-                    <button
-                      key={idx}
-                      onClick={() => placeBet(event.id, idx)}
-                      className="w-full flex items-center justify-between bg-matte-900 hover:bg-gold-500/20 border border-matte-600 hover:border-gold-500 rounded-xl px-4 py-3 transition group"
-                    >
-                      <span className="text-white font-medium group-hover:text-gold-400">{outcome}</span>
-                      <div className="flex items-center gap-2">
-                        <div className="w-16 h-2 bg-matte-700 rounded-full overflow-hidden">
-                          <div className="h-full bg-gold-500" style={{ width: `${odds}%` }} />
+                    <div key={idx} className="space-y-2">
+                      <button
+                        onClick={() => setSelectedOutcome({eventId: event.id, idx})}
+                        className={`w-full flex items-center justify-between rounded-xl px-4 py-3 transition border ${
+                          isSelected 
+                            ? 'bg-gold-500/20 border-gold-500' 
+                            : 'bg-matte-900 border-matte-600 hover:border-gold-500/50'
+                        }`}
+                      >
+                        <span className={`font-medium ${isSelected ? 'text-gold-400' : 'text-white'}`}>
+                          {outcome}
+                        </span>
+                        <div className="flex items-center gap-3">
+                          <div className="w-16 h-2 bg-matte-700 rounded-full overflow-hidden">
+                            <div className="h-full bg-gold-500" style={{ width: `${oddsPercent}%` }} />
+                          </div>
+                          <span className="text-gold-400 font-bold text-sm w-12 text-right">{oddsPercent}%</span>
                         </div>
-                        <span className="text-gold-400 font-bold text-sm w-10 text-right">{odds}%</span>
-                      </div>
-                    </button>
+                      </button>
+                      
+                      {isSelected && (
+                        <div className="bg-matte-900 rounded-lg p-3 text-sm space-y-1 border border-gold-500/30">
+                          <div className="flex justify-between text-gray-400">
+                            <span>Your Stake:</span>
+                            <span className="text-white">{BASE_STAKE}</span>
+                          </div>
+                          <div className="flex justify-between text-gray-400">
+                            <span>Odds:</span>
+                            <span className="text-white">{payout.odds}x</span>
+                          </div>
+                          <div className="flex justify-between text-gray-400">
+                            <span>Gross Payout:</span>
+                            <span className="text-white">{payout.gross}</span>
+                          </div>
+                          <div className="flex justify-between text-red-400">
+                            <span>Platform Fee ({PLATFORM_FEE_PERCENT}%):</span>
+                            <span>-{payout.fee}</span>
+                          </div>
+                          <div className="flex justify-between text-gold-400 font-bold pt-1 border-t border-matte-700">
+                            <span>You Receive:</span>
+                            <span>{payout.net} credits</span>
+                          </div>
+                          <button
+                            onClick={placeBet}
+                            className="w-full mt-3 bg-gold-500 hover:bg-gold-400 text-matte-900 font-bold py-2 rounded-lg transition"
+                          >
+                            Confirm Bet
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   )
                 })}
               </div>
