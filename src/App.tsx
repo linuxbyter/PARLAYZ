@@ -170,22 +170,23 @@ function App() {
   return (
     <div className="min-h-screen bg-matte-900">
       <header className="border-b border-matte-700 bg-matte-800/50 backdrop-blur sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-gold-400 tracking-tight">PARLAYZ</h1>
-          <div className="flex items-center gap-4">
-            <span className="text-gray-400">
-              Balance: <span className="text-gold-400 font-bold">{profile?.wallet_balance.toLocaleString() || '0'}</span>
-            </span>
-            <button 
-              onClick={handleLogout}
-              className="bg-matte-700 hover:bg-matte-600 text-white font-bold px-4 py-2 rounded-lg transition text-sm"
-            >
-              Logout
-            </button>
-          </div>
-        </div>
-      </header>
-
+  <div className="max-w-6xl mx-auto px-4 py-3 sm:py-4 flex items-center justify-between">
+    <h1 className="text-2xl sm:text-3xl font-bold text-gold-400 tracking-tight">PARLAYZ</h1>
+    <div className="flex items-center gap-2 sm:gap-4">
+      <span className="text-gray-400 text-sm sm:text-base">
+        <span className="hidden sm:inline">Balance: </span>
+        <span className="text-gold-400 font-bold">{profile?.wallet_balance.toLocaleString() || '0'}</span>
+      </span>
+      <button 
+        onClick={handleLogout}
+        className="bg-matte-700 hover:bg-matte-600 text-white font-bold px-3 sm:px-4 py-2 rounded-lg transition text-sm"
+      >
+        <span className="hidden sm:inline">Logout</span>
+        <span className="sm:hidden">→</span>
+      </button>
+    </div>
+  </div>
+</header>
       <main className="max-w-6xl mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-8">
           <h2 className="text-2xl font-semibold text-white">Live Markets</h2>
