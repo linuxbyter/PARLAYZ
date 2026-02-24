@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
+import Auth from './components/Auth'
 
 interface Event {
   id: string
@@ -17,31 +18,67 @@ interface Bet {
   outcome_index: number
   stake: number
   status: string
+  user_id: string
+}
+
+interface Profile {
+  id: string
+  username: string
+  wallet_balance: number
 }
 
 const BASE_STAKE = 200
-const PLATFORM_FEE_PERCENT = 3 // 3% like Polymarket
+const PLATFORM_FEE_PERCENT = 3
 
 function App() {
+  const [session, setSession] = useState<any>(null)
+  const [profile, setProfile] = useState<Profile | null>(null)
   const [events, setEvents] = useState<Event[]>([])
   const [bets, setBets] = useState<Bet[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedOutcome, setSelectedOutcome] = useState<{eventId: string, idx: number} | null>(null)
 
   useEffect(() => {
-    fetchEvents()
-    fetchBets()
-    
-    // Real-time updates
-    const channel = supabase
-      .channel('bets')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'bets' }, () => {
-        fetchBets()
-      })
-      .subscribe()
-    
-    return () => { channel.unsubscribe() }
+    // Check auth status
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session)
+    })
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session)
+    })
+
+    return () => subscription.unsubscribe()
   }, [])
+
+  useEffect(() => {
+    if (session?.user) {
+      fetchProfile()
+      fetchEvents()
+      fetchBets()
+      
+      const channel = supabase
+        .channel('bets')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'bets' }, () => {
+          fetchBets()
+          fetchProfile() // Update balance
+        })
+        .subscribe()
+      
+      return () => { channel.unsubscribe() }
+    }
+  }, [session])
+
+  const fetchProfile = async () => {
+    const { data } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', session.user.id)
+      .single()
+    
+    if (data) setProfile(data)
+  }
 
   const fetchEvents = async () => {
     const { data, error } = await supabase
@@ -60,23 +97,39 @@ function App() {
   }
 
   const placeBet = async () => {
-    if (!selectedOutcome) return
+    if (!selectedOutcome || !session?.user) return
     
+    if (!profile || profile.wallet_balance < BASE_STAKE) {
+      alert('Insufficient balance!')
+      return
+    }
+
     const { error } = await supabase.from('bets').insert({
       event_id: selectedOutcome.eventId,
       outcome_index: selectedOutcome.idx,
       stake: BASE_STAKE,
       odds: 200,
-      status: 'open'
+      status: 'open',
+      user_id: session.user.id
     })
 
     if (error) {
       alert('Error: ' + error.message)
     } else {
-      alert(`Bet placed! ${BASE_STAKE} credits`)
+      // Deduct balance
+      await supabase.from('profiles').update({
+        wallet_balance: profile.wallet_balance - BASE_STAKE
+      }).eq('id', session.user.id)
+      
+      alert(`Bet placed! ${BASE_STAKE} credits deducted`)
       setSelectedOutcome(null)
       fetchBets()
+      fetchProfile()
     }
+  }
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
   }
 
   const getOdds = (eventId: string, outcomeIndex: number) => {
@@ -88,7 +141,6 @@ function App() {
   }
 
   const calculatePayout = (oddsPercent: number) => {
-    // Odds as decimal (50% = 2.0x)
     const oddsDecimal = oddsPercent === 0 ? 2 : 100 / oddsPercent
     const grossPayout = BASE_STAKE * oddsDecimal
     const fee = grossPayout * (PLATFORM_FEE_PERCENT / 100)
@@ -100,6 +152,11 @@ function App() {
       net: Math.round(netPayout),
       odds: oddsDecimal.toFixed(2)
     }
+  }
+
+  // Show auth screen if not logged in
+  if (!session) {
+    return <Auth />
   }
 
   if (loading) {
@@ -116,9 +173,14 @@ function App() {
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <h1 className="text-3xl font-bold text-gold-400 tracking-tight">PARLAYZ</h1>
           <div className="flex items-center gap-4">
-            <span className="text-gray-400">Balance: <span className="text-gold-400 font-bold">10,000</span></span>
-            <button className="bg-gold-500 hover:bg-gold-400 text-matte-900 font-bold px-6 py-2 rounded-lg transition">
-              Connect
+            <span className="text-gray-400">
+              Balance: <span className="text-gold-400 font-bold">{profile?.wallet_balance.toLocaleString() || '0'}</span>
+            </span>
+            <button 
+              onClick={handleLogout}
+              className="bg-matte-700 hover:bg-matte-600 text-white font-bold px-4 py-2 rounded-lg transition text-sm"
+            >
+              Logout
             </button>
           </div>
         </div>
@@ -189,7 +251,7 @@ function App() {
                             <span className="text-white">{payout.gross}</span>
                           </div>
                           <div className="flex justify-between text-red-400">
-                            <span>Platform Fee ({PLATFORM_FEE_PERCENT}%):</span>
+                            <span>Fee ({PLATFORM_FEE_PERCENT}%):</span>
                             <span>-{payout.fee}</span>
                           </div>
                           <div className="flex justify-between text-gold-400 font-bold pt-1 border-t border-matte-700">
@@ -198,9 +260,10 @@ function App() {
                           </div>
                           <button
                             onClick={placeBet}
-                            className="w-full mt-3 bg-gold-500 hover:bg-gold-400 text-matte-900 font-bold py-2 rounded-lg transition"
+                            disabled={!profile || profile.wallet_balance < BASE_STAKE}
+                            className="w-full mt-3 bg-gold-500 hover:bg-gold-400 disabled:bg-matte-600 disabled:text-gray-400 text-matte-900 font-bold py-2 rounded-lg transition"
                           >
-                            Confirm Bet
+                            {!profile ? 'Loading...' : profile.wallet_balance < BASE_STAKE ? 'Insufficient Balance' : 'Confirm Bet'}
                           </button>
                         </div>
                       )}
