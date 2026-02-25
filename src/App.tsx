@@ -19,7 +19,6 @@ interface Bet {
   stake: number
   status: string
   user_id: string
-  created_at: string
 }
 
 interface Profile {
@@ -31,20 +30,17 @@ interface Profile {
 const MIN_STAKE = 200
 const PLATFORM_FEE_PERCENT = 3
 
-const COLORS = ['#22c55e', '#ef4444', '#3b82f6', '#f59e0b']
-
 function App() {
   const [session, setSession] = useState<any>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [events, setEvents] = useState<Event[]>([])
   const [bets, setBets] = useState<Bet[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
-  const [selectedOutcome, setSelectedOutcome] = useState<number | null>(null)
-  const [stakeAmount, setStakeAmount] = useState(MIN_STAKE)
-  const [stakeAmount, setStakeAmount] = useState(200)
+  const [selectedOutcome, setSelectedOutcome] = useState<{eventId: string, idx: number} | null>(null)
+  
+  const [stakeAmount, setStakeAmount] = useState<number>(MIN_STAKE)
   const [showSuccessModal, setShowSuccessModal] = useState(false)
-
+  const [lastBetDetails, setLastBetDetails] = useState<{stake: number, payout: number, outcomeName: string} | null>(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -102,30 +98,29 @@ function App() {
     setBets(data || [])
   }
 
-  const openEventModal = (event: Event) => {
-    setSelectedEvent(event)
-    setSelectedOutcome(null)
-    setStakeAmount(MIN_STAKE)
-  }
-
-  const closeModal = () => {
-    setSelectedEvent(null)
-    setSelectedOutcome(null)
-  }
-
   const placeBet = async () => {
-    if (!selectedEvent || selectedOutcome === null || !session?.user) return
+    if (!selectedOutcome || !session?.user) return
     
     if (!profile || profile.wallet_balance < stakeAmount) {
       alert('Insufficient balance!')
       return
     }
 
+    if (stakeAmount < MIN_STAKE) {
+      alert(`Minimum stake is ${MIN_STAKE} credits`)
+      return
+    }
+
+    const event = events.find(e => e.id === selectedOutcome.eventId)
+    const outcomeName = event?.outcomes[selectedOutcome.idx] || 'Unknown Outcome'
+    const oddsPercent = getOdds(selectedOutcome.eventId, selectedOutcome.idx)
+    const payoutInfo = calculatePayout(oddsPercent, stakeAmount)
+
     const { error } = await supabase.from('bets').insert({
-      event_id: selectedEvent.id,
-      outcome_index: selectedOutcome,
+      event_id: selectedOutcome.eventId,
+      outcome_index: selectedOutcome.idx,
       stake: stakeAmount,
-      odds: 200,
+      odds: 200, 
       status: 'open',
       user_id: session.user.id
     })
@@ -137,7 +132,13 @@ function App() {
         wallet_balance: profile.wallet_balance - stakeAmount
       }).eq('id', session.user.id)
       
-      alert(`Bet placed! ${stakeAmount} credits on ${selectedEvent.outcomes[selectedOutcome]}`)
+      setLastBetDetails({
+        stake: stakeAmount,
+        payout: payoutInfo.net,
+        outcomeName: outcomeName
+      })
+      
+      setShowSuccessModal(true)
       setSelectedOutcome(null)
       setStakeAmount(MIN_STAKE)
       fetchBets()
@@ -157,31 +158,9 @@ function App() {
     return total === 0 ? 50 : Math.round((totalStake / total) * 100)
   }
 
-  const getBetHistory = (eventId: string, outcomeIndex: number) => {
-    const eventBets = bets
-      .filter(b => b.event_id === eventId && b.outcome_index === outcomeIndex)
-      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
-    
-    if (eventBets.length === 0) return [50, 50, 50, 50, 50, 50, 50]
-    
-    const history: number[] = []
-    let runningTotal = 0
-    let totalAll = 0
-    
-    eventBets.forEach((bet) => {
-      runningTotal += bet.stake
-      totalAll += bet.stake
-      const odds = Math.round((runningTotal / totalAll) * 100)
-      history.push(odds)
-    })
-    
-    while (history.length < 7) history.unshift(50)
-    return history.slice(-7)
-  }
-
-  const calculatePayout = (stake: number, oddsPercent: number) => {
+  const calculatePayout = (oddsPercent: number, currentStake: number) => {
     const oddsDecimal = oddsPercent === 0 ? 2 : 100 / oddsPercent
-    const grossPayout = stake * oddsDecimal
+    const grossPayout = currentStake * oddsDecimal
     const fee = grossPayout * (PLATFORM_FEE_PERCENT / 100)
     const netPayout = grossPayout - fee
     
@@ -193,69 +172,6 @@ function App() {
     }
   }
 
-  const MarketChart = ({ event }: { event: Event }) => {
-    const allHistories = event.outcomes.map((_, i) => getBetHistory(event.id, i))
-    const allOdds = event.outcomes.map((_, i) => getOdds(event.id, i))
-    
-    const maxVal = Math.max(...allHistories.flat(), ...allOdds, 100)
-    const minVal = Math.min(...allHistories.flat(), ...allOdds, 0)
-    const range = maxVal - minVal || 100
-
-    return (
-      <div className="relative h-40 w-full bg-matte-900/50 rounded-lg p-4">
-        {[0, 25, 50, 75, 100].map((tick) => (
-          <div 
-            key={tick} 
-            className="absolute w-full border-t border-matte-700/50 text-xs text-gray-600"
-            style={{ bottom: `${tick}%` }}
-          >
-            <span className="absolute -left-8 -top-2">{tick}%</span>
-          </div>
-        ))}
-        
-        <svg viewBox="0 0 100 100" className="absolute inset-4 w-[calc(100%-2rem)] h-[calc(100%-2rem)]" preserveAspectRatio="none">
-          {event.outcomes.map((_, outcomeIdx) => {
-            const history = allHistories[outcomeIdx]
-            const points = history.map((val, i) => {
-              const x = (i / (history.length - 1)) * 100
-              const y = 100 - ((val - minVal) / range) * 100
-              return `${x},${y}`
-            }).join(' ')
-            
-            return (
-              <g key={outcomeIdx}>
-                <polyline 
-                  fill="none" 
-                  stroke={COLORS[outcomeIdx % COLORS.length]} 
-                  strokeWidth="2" 
-                  points={points}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-                <circle 
-                  cx="100" 
-                  cy={100 - ((allOdds[outcomeIdx] - minVal) / range) * 100} 
-                  r="3" 
-                  fill={COLORS[outcomeIdx % COLORS.length]}
-                />
-              </g>
-            )
-          })}
-        </svg>
-        
-        <div className="absolute top-2 right-2 flex flex-col gap-1">
-          {event.outcomes.map((outcome, i) => (
-            <div key={i} className="flex items-center gap-2 text-xs">
-              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-              <span className="text-gray-400 truncate max-w-[100px]">{outcome}</span>
-              <span className="text-white font-bold">{allOdds[i]}%</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    )
-  }
-
   if (!session) {
     return <Auth />
   }
@@ -263,175 +179,194 @@ function App() {
   if (loading) {
     return (
       <div className="min-h-screen bg-matte-900 flex items-center justify-center">
-        <div className="text-gold-400 text-2xl font-bold">Loading markets...</div>
+        <div className="text-gold-400 text-2xl font-bold">Loading...</div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-matte-900">
+    <div className="min-h-screen bg-matte-900 relative">
       <header className="border-b border-matte-700 bg-matte-800/50 backdrop-blur sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-          <h1 className="text-xl font-bold text-gold-400 tracking-tight">PARLAYZ</h1>
-          
-          <div className="flex items-center gap-3">
-            <div className="bg-matte-900 border border-matte-600 rounded-lg px-3 py-1.5 flex items-center gap-2">
-              <span className="text-xs text-gray-400">Balance</span>
-              <span className="text-gold-400 font-bold text-sm">
-                {profile?.wallet_balance.toLocaleString() || '0'}
-              </span>
-            </div>
-            
+        <div className="max-w-6xl mx-auto px-4 py-3 sm:py-4 flex items-center justify-between">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gold-400 tracking-tight">PARLAYZ</h1>
+          <div className="flex items-center gap-2 sm:gap-4">
+            <span className="text-gray-400 text-sm sm:text-base">
+              <span className="hidden sm:inline">Balance: </span>
+              <span className="text-gold-400 font-bold">{profile?.wallet_balance.toLocaleString() || '0'}</span>
+            </span>
             <button 
               onClick={handleLogout}
-              className="text-gray-400 hover:text-white text-sm"
+              className="bg-matte-700 hover:bg-matte-600 text-white font-bold px-3 sm:px-4 py-2 rounded-lg transition text-sm"
             >
-              Logout
+              <span className="hidden sm:inline">Logout</span>
+              <span className="sm:hidden">→</span>
             </button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 py-6">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-semibold text-white">Live Markets</h2>
-          <span className="text-xs text-gray-400">Min: {MIN_STAKE} credits</span>
+      <main className="max-w-6xl mx-auto px-4 py-6 sm:py-8">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 sm:mb-8 gap-4">
+          <h2 className="text-xl sm:text-2xl font-semibold text-white">Live Markets</h2>
+          <div className="text-sm text-gray-400">
+            Min Stake: <span className="text-gold-400 font-bold">{MIN_STAKE}</span> credits
+          </div>
         </div>
 
-        <div className="space-y-3">
-          {events.map((event) => {
-            const totalVolume = bets
-              .filter(b => b.event_id === event.id)
-              .reduce((sum, b) => sum + b.stake, 0)
-            
-            return (
-              <div 
-                key={event.id} 
-                onClick={() => openEventModal(event)}
-                className="bg-matte-800 border border-matte-700 rounded-lg p-4 hover:border-gold-500/30 transition cursor-pointer"
-              >
-                <div className="flex items-start justify-between mb-2">
-                  <div>
-                    <span className="text-xs text-gold-400 font-medium uppercase tracking-wider">
-                      {event.category}
-                    </span>
-                    <h3 className="text-base font-semibold text-white mt-0.5">{event.title}</h3>
-                  </div>
-                  <span className="text-xs text-gray-500">
-                    {new Date(event.closes_at).toLocaleDateString('en-KE')}
-                  </span>
-                </div>
-                
-                <div className="my-3">
-                  <MarketChart event={event} />
-                </div>
-                
-                <div className="flex items-center justify-between text-xs text-gray-500 pt-2 border-t border-matte-700">
-                  <span>Volume: {totalVolume.toLocaleString()} credits</span>
-                  <span className="text-gold-400">{event.outcomes.length} outcomes</span>
-                </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
+          {events.map((event) => (
+            <div key={event.id} className="bg-matte-800 border border-matte-700 rounded-xl sm:rounded-2xl p-4 sm:p-6 hover:border-gold-500/50 transition">
+              <div className="flex items-start justify-between mb-3 sm:mb-4">
+                <span className="text-xs font-semibold text-gold-400 uppercase tracking-wider bg-gold-400/10 px-2 sm:px-3 py-1 rounded-full">
+                  {event.category}
+                </span>
+                <span className="text-xs text-gray-500">
+                  {new Date(event.closes_at).toLocaleDateString()}
+                </span>
               </div>
-            )
-          })}
-        </div>
-      </main>
-
-      {selectedEvent && (
-        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={closeModal}>
-          <div 
-            className="bg-matte-800 rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-matte-700"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="sticky top-0 bg-matte-800 border-b border-matte-700 p-4 flex justify-between items-center">
-              <div>
-                <span className="text-xs text-gold-400 font-medium uppercase">{selectedEvent.category}</span>
-                <h2 className="text-lg font-semibold text-white">{selectedEvent.title}</h2>
-              </div>
-              <button onClick={closeModal} className="text-gray-400 hover:text-white text-2xl">×</button>
-            </div>
-
-            <div className="p-4 space-y-4">
-              <p className="text-sm text-gray-300">{selectedEvent.description}</p>
               
-              <div className="text-xs text-gray-400">
-                Closes: {new Date(selectedEvent.closes_at).toLocaleString('en-KE')}
-              </div>
+              <h3 className="text-lg sm:text-xl font-bold text-white mb-2">{event.title}</h3>
+              <p className="text-gray-400 text-sm mb-4 sm:mb-6 line-clamp-2">{event.description}</p>
 
-              <div className="bg-matte-900 rounded-lg p-3">
-                <MarketChart event={selectedEvent} />
-              </div>
-
-              <div className="bg-matte-900 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-gray-400">Your Stake</span>
-                  <span className="text-gold-400 font-bold">{stakeAmount} credits</span>
-                </div>
-                <input
-                  type="range"
-                  min={MIN_STAKE}
-                  max={Math.min(profile?.wallet_balance || MIN_STAKE, 10000)}
-                  step={100}
-                  value={stakeAmount}
-                  onChange={(e) => setStakeAmount(Number(e.target.value))}
-                  className="w-full h-2 bg-matte-700 rounded-lg appearance-none cursor-pointer accent-gold-500"
-                />
-                <div className="flex justify-between text-xs text-gray-500 mt-1">
-                  <span>{MIN_STAKE}</span>
-                  <span>{profile?.wallet_balance || 0}</span>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                {selectedEvent.outcomes.map((outcome, i) => {
-                  const odds = getOdds(selectedEvent.id, i)
-                  const payout = calculatePayout(stakeAmount, odds)
-                  const isSelected = selectedOutcome === i
+              <div className="space-y-2 sm:space-y-3">
+                {event.outcomes.map((outcome, idx) => {
+                  const oddsPercent = getOdds(event.id, idx)
+                  const payout = calculatePayout(oddsPercent, stakeAmount)
+                  const isSelected = selectedOutcome?.eventId === event.id && selectedOutcome?.idx === idx
 
                   return (
-                    <button
-                      key={i}
-                      onClick={() => setSelectedOutcome(i)}
-                      className={`w-full p-3 rounded-lg border text-left transition ${
-                        isSelected 
-                          ? 'border-gold-500 bg-gold-500/10' 
-                          : 'border-matte-600 hover:border-matte-500 bg-matte-900'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div 
-                            className="w-3 h-3 rounded-full" 
-                            style={{ backgroundColor: COLORS[i % COLORS.length] }} 
-                          />
-                          <span className="text-white font-medium">{outcome}</span>
+                    <div key={idx} className="space-y-2">
+                      <button
+                        onClick={() => {
+                          setSelectedOutcome({eventId: event.id, idx})
+                          setStakeAmount(MIN_STAKE)
+                        }}
+                        className={`w-full flex items-center justify-between rounded-lg sm:rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 transition border ${
+                          isSelected 
+                            ? 'bg-gold-500/20 border-gold-500' 
+                            : 'bg-matte-900 border-matte-600 hover:border-gold-500/50'
+                        }`}
+                      >
+                        <span className={`font-medium text-sm sm:text-base ${isSelected ? 'text-gold-400' : 'text-white'}`}>
+                          {outcome}
+                        </span>
+                        <div className="flex items-center gap-2 sm:gap-3">
+                          <div className="w-12 sm:w-16 h-2 bg-matte-700 rounded-full overflow-hidden">
+                            <div className="h-full bg-gold-500" style={{ width: `${oddsPercent}%` }} />
+                          </div>
+                          <span className="text-gold-400 font-bold text-xs sm:text-sm w-10 sm:w-12 text-right">{oddsPercent}%</span>
                         </div>
-                        <div className="text-right">
-                          <div className="text-gold-400 font-bold">{odds}%</div>
-                          {isSelected && (
-                            <div className="text-xs text-gray-400">
-                              Win {payout.net} credits
+                      </button>
+                      
+                      {isSelected && (
+                        <div className="bg-matte-900 rounded-lg p-3 sm:p-4 text-xs sm:text-sm space-y-3 border border-gold-500/30 mt-2">
+                          
+                          <div className="bg-matte-800 p-3 rounded-lg border border-matte-700">
+                            <div className="flex justify-between items-center mb-2">
+                              <span className="text-gray-400">Wager Amount</span>
+                              <div className="flex items-center">
+                                <input
+                                  type="number"
+                                  value={stakeAmount || ''}
+                                  onChange={(e) => setStakeAmount(Number(e.target.value))}
+                                  className="bg-transparent text-gold-400 font-bold text-right w-20 focus:outline-none text-base"
+                                  min={MIN_STAKE}
+                                />
+                                <span className="text-gray-500 ml-1 text-base">KSh</span>
+                              </div>
                             </div>
-                          )}
+                            <input
+                              type="range"
+                              min={MIN_STAKE}
+                              max={profile?.wallet_balance ? Math.max(profile.wallet_balance, 1000) : 10000}
+                              step="100"
+                              value={stakeAmount}
+                              onChange={(e) => setStakeAmount(Number(e.target.value))}
+                              className="w-full h-1.5 bg-matte-900 rounded-lg appearance-none cursor-pointer accent-gold-500"
+                            />
+                          </div>
+
+                          <div className="space-y-1.5 px-1">
+                            <div className="flex justify-between text-gray-400">
+                              <span>Odds:</span>
+                              <span className="text-white">{payout.odds}x</span>
+                            </div>
+                            <div className="flex justify-between text-gray-400">
+                              <span>Gross Payout:</span>
+                              <span className="text-white">{payout.gross.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between text-red-400">
+                              <span>Fee ({PLATFORM_FEE_PERCENT}%):</span>
+                              <span>-{payout.fee.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between text-gold-400 font-bold pt-2 border-t border-matte-700 mt-2">
+                              <span>You Receive:</span>
+                              <span className="text-lg">{payout.net.toLocaleString()} credits</span>
+                            </div>
+                          </div>
+
+                          <button
+                            onClick={placeBet}
+                            disabled={!profile || profile.wallet_balance < stakeAmount || stakeAmount < MIN_STAKE}
+                            className="w-full mt-4 bg-gold-500 hover:bg-gold-400 disabled:bg-matte-700 disabled:text-gray-500 text-matte-900 font-bold py-3 rounded-xl transition text-sm sm:text-base shadow-[0_0_15px_rgba(251,191,36,0.2)] hover:shadow-[0_0_20px_rgba(251,191,36,0.4)]"
+                          >
+                            {!profile ? 'Loading...' : profile.wallet_balance < stakeAmount ? 'Insufficient Balance' : stakeAmount < MIN_STAKE ? `Min ${MIN_STAKE} KSh` : 'Confirm Bet'}
+                          </button>
                         </div>
-                      </div>
-                    </button>
+                      )}
+                    </div>
                   )
                 })}
               </div>
 
-              {selectedOutcome !== null && (
-                <button
-                  onClick={placeBet}
-                  disabled={!profile || (profile?.wallet_balance || 0) < stakeAmount}
-                  className="w-full bg-gold-500 hover:bg-gold-400 disabled:bg-matte-600 disabled:text-gray-400 text-matte-900 py-3 rounded-lg font-bold transition"
-                >
-                  {!profile ? 'Loading...' : (profile?.wallet_balance || 0) < stakeAmount ? 'Insufficient Balance' : `Bet ${stakeAmount} credits`}
-                </button>
-              )}
+              <div className="mt-4 pt-4 border-t border-matte-700 flex items-center justify-between text-xs text-gray-500">
+                <span>Vol: {bets.filter(b => b.event_id === event.id).reduce((sum, b) => sum + b.stake, 0).toLocaleString()}</span>
+                <span>{bets.filter(b => b.event_id === event.id).length} bets</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </main>
+
+      {showSuccessModal && lastBetDetails && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-matte-800 border border-gold-500/50 rounded-2xl p-6 sm:p-8 w-full max-w-sm text-center shadow-[0_0_50px_rgba(251,191,36,0.15)] relative overflow-hidden">
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-32 bg-gold-500/20 rounded-full blur-3xl"></div>
+            
+            <div className="relative z-10">
+              <div className="w-16 h-16 bg-gold-500/10 border-2 border-gold-500 text-gold-400 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl shadow-[0_0_15px_rgba(251,191,36,0.3)]">
+                ✓
+              </div>
+              <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">Wager Locked</h3>
+              <p className="text-gray-400 text-sm mb-6">Your position is secured on the network.</p>
+              
+              <div className="bg-matte-900 rounded-xl p-4 mb-6 text-left border border-matte-700">
+                <div className="text-xs text-gray-500 mb-1 uppercase tracking-wider font-semibold">Prediction</div>
+                <div className="text-white font-medium mb-4 line-clamp-1">{lastBetDetails.outcomeName}</div>
+                
+                <div className="flex justify-between items-center text-sm mb-2">
+                  <span className="text-gray-400">Stake Placed:</span>
+                  <span className="text-white font-bold">{lastBetDetails.stake.toLocaleString()} KSh</span>
+                </div>
+                <div className="flex justify-between items-center text-sm pt-2 border-t border-matte-700">
+                  <span className="text-gray-400">To Win:</span>
+                  <span className="text-gold-400 font-bold text-lg">
+                    {lastBetDetails.payout.toLocaleString()} KSh
+                  </span>
+                </div>
+              </div>
+
+              <button 
+                onClick={() => setShowSuccessModal(false)}
+                className="w-full bg-gradient-to-r from-gold-600 to-gold-400 hover:from-gold-500 hover:to-gold-300 text-black font-bold py-3.5 rounded-xl transition shadow-[0_0_20px_rgba(251,191,36,0.3)]"
+              >
+                Return to Markets
+              </button>
             </div>
           </div>
         </div>
       )}
+
     </div>
   )
 }
