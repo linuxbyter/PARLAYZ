@@ -304,7 +304,7 @@ function App() {
                     <span className="text-gold-400">Live</span>
                   </div>
                   <div className="flex gap-2">
-                    {event.outcomes.slice(0, 2).map((_, idx) => {
+                    {event.outcomes.slice(0, 2).map(() => {
                       const history = getBetHistory(event.id, idx)
                       const currentOdds = getOdds(event.id, idx)
                       return (
