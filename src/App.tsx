@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
 import Auth from './components/Auth'
-import EventDetailModal from './components/EventDetailModal'
 
 interface Event {
   id: string
@@ -38,7 +37,6 @@ function App() {
   const [bets, setBets] = useState<Bet[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
-  const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedOutcome, setSelectedOutcome] = useState<number | null>(null)
 
   useEffect(() => {
@@ -99,12 +97,10 @@ function App() {
 
   const openEventModal = (event: Event) => {
     setSelectedEvent(event)
-    setIsModalOpen(true)
     setSelectedOutcome(null)
   }
 
   const closeModal = () => {
-    setIsModalOpen(false)
     setSelectedEvent(null)
     setSelectedOutcome(null)
   }
@@ -212,7 +208,7 @@ function App() {
           </div>
         </div>
 
-        {/* Events Grid - Kalshi Style */}
+        {/* Events Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {events.map((event) => {
             const totalVolume = bets
@@ -225,7 +221,6 @@ function App() {
                 onClick={() => openEventModal(event)}
                 className="bg-matte-800 border border-matte-700 rounded-xl p-5 hover:border-gold-500/50 hover:shadow-lg hover:shadow-gold-500/10 transition cursor-pointer group"
               >
-                {/* Category & Date */}
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-xs font-semibold text-gold-400 uppercase tracking-wider bg-gold-400/10 px-2 py-1 rounded">
                     {event.category}
@@ -235,17 +230,14 @@ function App() {
                   </span>
                 </div>
                 
-                {/* Title */}
                 <h3 className="text-lg font-bold text-white mb-2 group-hover:text-gold-400 transition line-clamp-2">
                   {event.title}
                 </h3>
                 
-                {/* Description Preview */}
                 <p className="text-gray-400 text-sm mb-4 line-clamp-2">
                   {event.description}
                 </p>
 
-                {/* Outcomes Preview */}
                 <div className="space-y-2 mb-4">
                   {event.outcomes.slice(0, 2).map((outcome, idx) => {
                     const odds = getOdds(event.id, idx)
@@ -268,7 +260,6 @@ function App() {
                   )}
                 </div>
 
-                {/* Footer */}
                 <div className="pt-3 border-t border-matte-700 flex items-center justify-between text-xs text-gray-500">
                   <span>Vol: {totalVolume.toLocaleString()}</span>
                   <span className="text-gold-400 group-hover:underline">View Details →</span>
@@ -281,7 +272,7 @@ function App() {
 
       {/* Event Detail Modal */}
       {selectedEvent && (
-        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={closeModal}>
           <div 
             className="bg-matte-800 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-matte-700"
             onClick={(e) => e.stopPropagation()}
@@ -304,13 +295,11 @@ function App() {
 
             {/* Body */}
             <div className="p-6">
-              {/* Description */}
               <div className="mb-6">
                 <h3 className="font-semibold text-lg text-white mb-2">About This Market</h3>
                 <p className="text-gray-300 leading-relaxed">{selectedEvent.description}</p>
               </div>
 
-              {/* Closing Time */}
               <div className="mb-6 bg-gold-500/10 border border-gold-500/30 rounded-lg p-4">
                 <p className="text-sm text-gray-300">
                   <strong className="text-gold-400">Closes:</strong>{' '}
@@ -322,7 +311,6 @@ function App() {
                 </p>
               </div>
 
-              {/* Outcomes */}
               <div className="mb-6">
                 <h3 className="font-semibold text-lg text-white mb-3">Choose Outcome</h3>
                 <div className="space-y-3">
@@ -361,7 +349,6 @@ function App() {
                 </div>
               </div>
 
-              {/* Bet Confirmation */}
               {selectedOutcome !== null && (
                 <div className="bg-matte-900 rounded-xl p-6 border-2 border-gold-500/30">
                   <div className="flex items-center justify-between mb-4">
