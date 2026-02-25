@@ -1,285 +1,165 @@
-import { useState, useEffect } from 'react'
-import { supabase } from './lib/supabase'
-import Auth from './components/Auth'
+import { useState } from 'react'
+import { supabase } from '../lib/supabase'
 
-interface Event {
-  id: string
-  title: string
-  description: string
-  category: string
-  outcomes: string[]
-  closes_at: string
-  created_at: string
-}
+export default function Auth() {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [mode, setMode] = useState<'signup' | 'signin' | 'forgot'>('signup')
+  const [message, setMessage] = useState('')
 
-interface Bet {
-  id: string
-  event_id: string
-  outcome_index: number
-  stake: number
-  status: string
-  user_id: string
-}
-
-interface Profile {
-  id: string
-  username: string
-  wallet_balance: number
-}
-
-const BASE_STAKE = 200
-const PLATFORM_FEE_PERCENT = 3
-
-function App() {
-  const [session, setSession] = useState<any>(null)
-  const [profile, setProfile] = useState<Profile | null>(null)
-  const [events, setEvents] = useState<Event[]>([])
-  const [bets, setBets] = useState<Bet[]>([])
-  const [loading, setLoading] = useState(true)
-  const [selectedOutcome, setSelectedOutcome] = useState<{eventId: string, idx: number} | null>(null)
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
+  const handleGoogleAuth = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin,
+      },
     })
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
-    })
-
-    return () => subscription.unsubscribe()
-  }, [])
-
-  useEffect(() => {
-    if (session?.user) {
-      fetchProfile()
-      fetchEvents()
-      fetchBets()
-      
-      const channel = supabase
-        .channel('bets')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'bets' }, () => {
-          fetchBets()
-          fetchProfile()
-        })
-        .subscribe()
-      
-      return () => { channel.unsubscribe() }
-    }
-  }, [session])
-
-  const fetchProfile = async () => {
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', session.user.id)
-      .single()
-    
-    if (data) setProfile(data)
+    if (error) setMessage(error.message)
   }
 
-  const fetchEvents = async () => {
-    const { data, error } = await supabase
-      .from('events')
-      .select('*')
-      .eq('resolved', false)
-      .order('created_at', { ascending: false })
+  const handleEmailAuth = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setMessage('')
 
-    if (!error) setEvents(data || [])
-    setLoading(false)
-  }
-
-  const fetchBets = async () => {
-    const { data } = await supabase.from('bets').select('*')
-    setBets(data || [])
-  }
-
-  const placeBet = async () => {
-    if (!selectedOutcome || !session?.user) return
-    
-    if (!profile || profile.wallet_balance < BASE_STAKE) {
-      alert('Insufficient balance!')
+    if (mode === 'forgot') {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: window.location.origin,
+      })
+      if (error) setMessage(error.message)
+      else setMessage('Reset email sent!')
+      setLoading(false)
       return
     }
 
-    const { error } = await supabase.from('bets').insert({
-      event_id: selectedOutcome.eventId,
-      outcome_index: selectedOutcome.idx,
-      stake: BASE_STAKE,
-      odds: 200,
-      status: 'open',
-      user_id: session.user.id
-    })
-
-    if (error) {
-      alert('Error: ' + error.message)
+    if (mode === 'signup') {
+      const { error } = await supabase.auth.signUp({ email, password })
+      if (error) setMessage(error.message)
+      else setMessage('Account created! Check email.')
     } else {
-      await supabase.from('profiles').update({
-        wallet_balance: profile.wallet_balance - BASE_STAKE
-      }).eq('id', session.user.id)
-      
-      alert(`Bet placed! ${BASE_STAKE} credits deducted`)
-      setSelectedOutcome(null)
-      fetchBets()
-      fetchProfile()
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) setMessage(error.message)
     }
-  }
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut()
-  }
-
-  const getOdds = (eventId: string, outcomeIndex: number) => {
-    const outcomeBets = bets.filter(b => b.event_id === eventId && b.outcome_index === outcomeIndex)
-    const totalStake = outcomeBets.reduce((sum, b) => sum + b.stake, 0)
-    const allBets = bets.filter(b => b.event_id === eventId)
-    const total = allBets.reduce((sum, b) => sum + b.stake, 0)
-    return total === 0 ? 50 : Math.round((totalStake / total) * 100)
-  }
-
-  const calculatePayout = (oddsPercent: number) => {
-    const oddsDecimal = oddsPercent === 0 ? 2 : 100 / oddsPercent
-    const grossPayout = BASE_STAKE * oddsDecimal
-    const fee = grossPayout * (PLATFORM_FEE_PERCENT / 100)
-    const netPayout = grossPayout - fee
-    
-    return {
-      gross: Math.round(grossPayout),
-      fee: Math.round(fee),
-      net: Math.round(netPayout),
-      odds: oddsDecimal.toFixed(2)
-    }
-  }
-
-  if (!session) {
-    return <Auth />
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-matte-900 flex items-center justify-center">
-        <div className="text-gold-400 text-2xl font-bold">Loading...</div>
-      </div>
-    )
+    setLoading(false)
   }
 
   return (
-    <div className="min-h-screen bg-matte-900">
-      <header className="border-b border-matte-700 bg-matte-800/50 backdrop-blur sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-4 py-3 sm:py-4 flex items-center justify-between">
-          <h1 className="text-2xl sm:text-3xl font-bold text-gold-400 tracking-tight">PARLAYZ</h1>
-          <div className="flex items-center gap-2 sm:gap-4">
-            <span className="text-gray-400 text-sm sm:text-base">
-              <span className="hidden sm:inline">Balance: </span>
-              <span className="text-gold-400 font-bold">{profile?.wallet_balance.toLocaleString() || '0'}</span>
-            </span>
-            <button 
-              onClick={handleLogout}
-              className="bg-matte-700 hover:bg-matte-600 text-white font-bold px-3 sm:px-4 py-2 rounded-lg transition text-sm"
-            >
-              <span className="hidden sm:inline">Logout</span>
-              <span className="sm:hidden">→</span>
-            </button>
+    <div className="min-h-screen bg-matte-900 flex items-center justify-center p-4">
+      <div className="bg-matte-800 border border-matte-700 rounded-2xl p-6 sm:p-8 w-full max-w-md mx-4">
+        <h2 className="text-2xl sm:text-3xl font-bold text-gold-400 mb-2 text-center">
+          {mode === 'forgot' ? 'Reset Password' : mode === 'signup' ? 'Join Parlayz' : 'Welcome Back'}
+        </h2>
+        <p className="text-gray-400 text-center mb-6 text-sm sm:text-base">
+          {mode === 'forgot' ? 'Enter your email' : 'Play money markets. 10K free credits.'}
+        </p>
+
+        {message && (
+          <div className={`mb-4 p-3 rounded-lg text-sm text-center ${
+            message.includes('Error') ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'
+          }`}>
+            {message}
+          </div>
+        )}
+
+        {/* GOOGLE BUTTON */}
+        <button
+          onClick={handleGoogleAuth}
+          className="w-full bg-white hover:bg-gray-100 text-gray-900 font-bold py-3 rounded-lg transition flex items-center justify-center gap-3 mb-6"
+        >
+          <svg className="w-5 h-5" viewBox="0 0 24 24">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+          </svg>
+          Continue with Google
+        </button>
+
+        <div className="relative mb-6">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-matte-600"></div>
+          </div>
+          <div className="relative flex justify-center text-sm">
+            <span className="px-2 bg-matte-800 text-gray-400">Or use email</span>
           </div>
         </div>
-      </header>
 
-      <main className="max-w-6xl mx-auto px-4 py-6 sm:py-8">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 sm:mb-8 gap-4">
-          <h2 className="text-xl sm:text-2xl font-semibold text-white">Live Markets</h2>
-          <div className="text-sm text-gray-400">
-            Base Stake: <span className="text-gold-400 font-bold">{BASE_STAKE}</span> credits
+        <form onSubmit={handleEmailAuth} className="space-y-4">
+          <div>
+            <label className="block text-sm text-gray-400 mb-1.5">Email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full bg-matte-900 border border-matte-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-gold-500 text-base"
+              placeholder="you@email.com"
+              required
+            />
           </div>
-        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
-          {events.map((event) => (
-            <div key={event.id} className="bg-matte-800 border border-matte-700 rounded-xl sm:rounded-2xl p-4 sm:p-6 hover:border-gold-500/50 transition">
-              <div className="flex items-start justify-between mb-3 sm:mb-4">
-                <span className="text-xs font-semibold text-gold-400 uppercase tracking-wider bg-gold-400/10 px-2 sm:px-3 py-1 rounded-full">
-                  {event.category}
-                </span>
-                <span className="text-xs text-gray-500">
-                  {new Date(event.closes_at).toLocaleDateString()}
-                </span>
-              </div>
-              
-              <h3 className="text-lg sm:text-xl font-bold text-white mb-2">{event.title}</h3>
-              <p className="text-gray-400 text-sm mb-4 sm:mb-6 line-clamp-2">{event.description}</p>
-
-              <div className="space-y-2 sm:space-y-3">
-                {event.outcomes.map((outcome, idx) => {
-                  const oddsPercent = getOdds(event.id, idx)
-                  const payout = calculatePayout(oddsPercent)
-                  const isSelected = selectedOutcome?.eventId === event.id && selectedOutcome?.idx === idx
-
-                  return (
-                    <div key={idx} className="space-y-2">
-                      <button
-                        onClick={() => setSelectedOutcome({eventId: event.id, idx})}
-                        className={`w-full flex items-center justify-between rounded-lg sm:rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 transition border ${
-                          isSelected 
-                            ? 'bg-gold-500/20 border-gold-500' 
-                            : 'bg-matte-900 border-matte-600 hover:border-gold-500/50'
-                        }`}
-                      >
-                        <span className={`font-medium text-sm sm:text-base ${isSelected ? 'text-gold-400' : 'text-white'}`}>
-                          {outcome}
-                        </span>
-                        <div className="flex items-center gap-2 sm:gap-3">
-                          <div className="w-12 sm:w-16 h-2 bg-matte-700 rounded-full overflow-hidden">
-                            <div className="h-full bg-gold-500" style={{ width: `${oddsPercent}%` }} />
-                          </div>
-                          <span className="text-gold-400 font-bold text-xs sm:text-sm w-10 sm:w-12 text-right">{oddsPercent}%</span>
-                        </div>
-                      </button>
-                      
-                      {isSelected && (
-                        <div className="bg-matte-900 rounded-lg p-3 text-xs sm:text-sm space-y-1 border border-gold-500/30">
-                          <div className="flex justify-between text-gray-400">
-                            <span>Your Stake:</span>
-                            <span className="text-white">{BASE_STAKE}</span>
-                          </div>
-                          <div className="flex justify-between text-gray-400">
-                            <span>Odds:</span>
-                            <span className="text-white">{payout.odds}x</span>
-                          </div>
-                          <div className="flex justify-between text-gray-400">
-                            <span>Gross Payout:</span>
-                            <span className="text-white">{payout.gross}</span>
-                          </div>
-                          <div className="flex justify-between text-red-400">
-                            <span>Fee ({PLATFORM_FEE_PERCENT}%):</span>
-                            <span>-{payout.fee}</span>
-                          </div>
-                          <div className="flex justify-between text-gold-400 font-bold pt-1 border-t border-matte-700">
-                            <span>You Receive:</span>
-                            <span>{payout.net} credits</span>
-                          </div>
-                          <button
-                            onClick={placeBet}
-                            disabled={!profile || profile.wallet_balance < BASE_STAKE}
-                            className="w-full mt-3 bg-gold-500 hover:bg-gold-400 disabled:bg-matte-600 disabled:text-gray-400 text-matte-900 font-bold py-2 rounded-lg transition text-sm"
-                          >
-                            {!profile ? 'Loading...' : profile.wallet_balance < BASE_STAKE ? 'Insufficient Balance' : 'Confirm Bet'}
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-
-              <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-matte-700 flex items-center justify-between text-xs text-gray-500">
-                <span>Vol: {bets.filter(b => b.event_id === event.id).reduce((sum, b) => sum + b.stake, 0).toLocaleString()}</span>
-                <span>{bets.filter(b => b.event_id === event.id).length} bets</span>
-              </div>
+          {mode !== 'forgot' && (
+            <div>
+              <label className="block text-sm text-gray-400 mb-1.5">Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full bg-matte-900 border border-matte-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-gold-500 text-base"
+                placeholder="••••••••"
+                required
+              />
             </div>
-          ))}
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-gold-500 hover:bg-gold-400 disabled:bg-matte-600 text-matte-900 font-bold py-3.5 rounded-lg transition text-base"
+          >
+            {loading ? 'Loading...' : mode === 'forgot' ? 'Send Reset Link' : mode === 'signup' ? 'Create Account' : 'Sign In'}
+          </button>
+        </form>
+
+        <div className="text-center mt-6 space-y-3">
+          {mode !== 'forgot' && (
+            <button
+              onClick={() => {
+                setMode(mode === 'signup' ? 'signin' : 'signup')
+                setMessage('')
+              }}
+              className="text-gray-400 hover:text-gold-400 block w-full text-sm"
+            >
+              {mode === 'signup' ? 'Already have account? Sign In' : "Don't have account? Sign Up"}
+            </button>
+          )}
+          
+          {mode === 'signin' && (
+            <button
+              onClick={() => {
+                setMode('forgot')
+                setMessage('')
+              }}
+              className="text-gold-400 hover:underline text-sm block w-full"
+            >
+              Forgot Password?
+            </button>
+          )}
+          
+          {mode === 'forgot' && (
+            <button
+              onClick={() => {
+                setMode('signin')
+                setMessage('')
+              }}
+              className="text-gray-400 hover:text-gold-400 text-sm block w-full"
+            >
+              Back to Sign In
+            </button>
+          )}
         </div>
-      </main>
+      </div>
     </div>
   )
 }
-
-export default App
