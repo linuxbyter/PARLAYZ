@@ -39,12 +39,10 @@ function App() {
   const [selectedOutcome, setSelectedOutcome] = useState<{eventId: string, idx: number} | null>(null)
 
   useEffect(() => {
-    // Check auth status
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
     })
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
     })
@@ -62,7 +60,7 @@ function App() {
         .channel('bets')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'bets' }, () => {
           fetchBets()
-          fetchProfile() // Update balance
+          fetchProfile()
         })
         .subscribe()
       
@@ -116,7 +114,6 @@ function App() {
     if (error) {
       alert('Error: ' + error.message)
     } else {
-      // Deduct balance
       await supabase.from('profiles').update({
         wallet_balance: profile.wallet_balance - BASE_STAKE
       }).eq('id', session.user.id)
@@ -154,7 +151,6 @@ function App() {
     }
   }
 
-  // Show auth screen if not logged in
   if (!session) {
     return <Auth />
   }
@@ -170,36 +166,37 @@ function App() {
   return (
     <div className="min-h-screen bg-matte-900">
       <header className="border-b border-matte-700 bg-matte-800/50 backdrop-blur sticky top-0 z-10">
-  <div className="max-w-6xl mx-auto px-4 py-3 sm:py-4 flex items-center justify-between">
-    <h1 className="text-2xl sm:text-3xl font-bold text-gold-400 tracking-tight">PARLAYZ</h1>
-    <div className="flex items-center gap-2 sm:gap-4">
-      <span className="text-gray-400 text-sm sm:text-base">
-        <span className="hidden sm:inline">Balance: </span>
-        <span className="text-gold-400 font-bold">{profile?.wallet_balance.toLocaleString() || '0'}</span>
-      </span>
-      <button 
-        onClick={handleLogout}
-        className="bg-matte-700 hover:bg-matte-600 text-white font-bold px-3 sm:px-4 py-2 rounded-lg transition text-sm"
-      >
-        <span className="hidden sm:inline">Logout</span>
-        <span className="sm:hidden">→</span>
-      </button>
-    </div>
-  </div>
-</header>
-      <main className="max-w-6xl mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-8">
-          <h2 className="text-2xl font-semibold text-white">Live Markets</h2>
+        <div className="max-w-6xl mx-auto px-4 py-3 sm:py-4 flex items-center justify-between">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gold-400 tracking-tight">PARLAYZ</h1>
+          <div className="flex items-center gap-2 sm:gap-4">
+            <span className="text-gray-400 text-sm sm:text-base">
+              <span className="hidden sm:inline">Balance: </span>
+              <span className="text-gold-400 font-bold">{profile?.wallet_balance.toLocaleString() || '0'}</span>
+            </span>
+            <button 
+              onClick={handleLogout}
+              className="bg-matte-700 hover:bg-matte-600 text-white font-bold px-3 sm:px-4 py-2 rounded-lg transition text-sm"
+            >
+              <span className="hidden sm:inline">Logout</span>
+              <span className="sm:hidden">→</span>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-6xl mx-auto px-4 py-6 sm:py-8">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 sm:mb-8 gap-4">
+          <h2 className="text-xl sm:text-2xl font-semibold text-white">Live Markets</h2>
           <div className="text-sm text-gray-400">
             Base Stake: <span className="text-gold-400 font-bold">{BASE_STAKE}</span> credits
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
           {events.map((event) => (
-            <div key={event.id} className="bg-matte-800 border border-matte-700 rounded-2xl p-6 hover:border-gold-500/50 transition">
-              <div className="flex items-start justify-between mb-4">
-                <span className="text-xs font-semibold text-gold-400 uppercase tracking-wider bg-gold-400/10 px-3 py-1 rounded-full">
+            <div key={event.id} className="bg-matte-800 border border-matte-700 rounded-xl sm:rounded-2xl p-4 sm:p-6 hover:border-gold-500/50 transition">
+              <div className="flex items-start justify-between mb-3 sm:mb-4">
+                <span className="text-xs font-semibold text-gold-400 uppercase tracking-wider bg-gold-400/10 px-2 sm:px-3 py-1 rounded-full">
                   {event.category}
                 </span>
                 <span className="text-xs text-gray-500">
@@ -207,10 +204,10 @@ function App() {
                 </span>
               </div>
               
-              <h3 className="text-xl font-bold text-white mb-2">{event.title}</h3>
-              <p className="text-gray-400 text-sm mb-6">{event.description}</p>
+              <h3 className="text-lg sm:text-xl font-bold text-white mb-2">{event.title}</h3>
+              <p className="text-gray-400 text-sm mb-4 sm:mb-6 line-clamp-2">{event.description}</p>
 
-              <div className="space-y-3">
+              <div className="space-y-2 sm:space-y-3">
                 {event.outcomes.map((outcome, idx) => {
                   const oddsPercent = getOdds(event.id, idx)
                   const payout = calculatePayout(oddsPercent)
@@ -220,25 +217,25 @@ function App() {
                     <div key={idx} className="space-y-2">
                       <button
                         onClick={() => setSelectedOutcome({eventId: event.id, idx})}
-                        className={`w-full flex items-center justify-between rounded-xl px-4 py-3 transition border ${
+                        className={`w-full flex items-center justify-between rounded-lg sm:rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 transition border ${
                           isSelected 
                             ? 'bg-gold-500/20 border-gold-500' 
                             : 'bg-matte-900 border-matte-600 hover:border-gold-500/50'
                         }`}
                       >
-                        <span className={`font-medium ${isSelected ? 'text-gold-400' : 'text-white'}`}>
+                        <span className={`font-medium text-sm sm:text-base ${isSelected ? 'text-gold-400' : 'text-white'}`}>
                           {outcome}
                         </span>
-                        <div className="flex items-center gap-3">
-                          <div className="w-16 h-2 bg-matte-700 rounded-full overflow-hidden">
+                        <div className="flex items-center gap-2 sm:gap-3">
+                          <div className="w-12 sm:w-16 h-2 bg-matte-700 rounded-full overflow-hidden">
                             <div className="h-full bg-gold-500" style={{ width: `${oddsPercent}%` }} />
                           </div>
-                          <span className="text-gold-400 font-bold text-sm w-12 text-right">{oddsPercent}%</span>
+                          <span className="text-gold-400 font-bold text-xs sm:text-sm w-10 sm:w-12 text-right">{oddsPercent}%</span>
                         </div>
                       </button>
                       
                       {isSelected && (
-                        <div className="bg-matte-900 rounded-lg p-3 text-sm space-y-1 border border-gold-500/30">
+                        <div className="bg-matte-900 rounded-lg p-3 text-xs sm:text-sm space-y-1 border border-gold-500/30">
                           <div className="flex justify-between text-gray-400">
                             <span>Your Stake:</span>
                             <span className="text-white">{BASE_STAKE}</span>
@@ -262,7 +259,7 @@ function App() {
                           <button
                             onClick={placeBet}
                             disabled={!profile || profile.wallet_balance < BASE_STAKE}
-                            className="w-full mt-3 bg-gold-500 hover:bg-gold-400 disabled:bg-matte-600 disabled:text-gray-400 text-matte-900 font-bold py-2 rounded-lg transition"
+                            className="w-full mt-3 bg-gold-500 hover:bg-gold-400 disabled:bg-matte-600 disabled:text-gray-400 text-matte-900 font-bold py-2 rounded-lg transition text-sm"
                           >
                             {!profile ? 'Loading...' : profile.wallet_balance < BASE_STAKE ? 'Insufficient Balance' : 'Confirm Bet'}
                           </button>
@@ -273,8 +270,8 @@ function App() {
                 })}
               </div>
 
-              <div className="mt-4 pt-4 border-t border-matte-700 flex items-center justify-between text-xs text-gray-500">
-                <span>Volume: {bets.filter(b => b.event_id === event.id).reduce((sum, b) => sum + b.stake, 0).toLocaleString()} credits</span>
+              <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-matte-700 flex items-center justify-between text-xs text-gray-500">
+                <span>Vol: {bets.filter(b => b.event_id === event.id).reduce((sum, b) => sum + b.stake, 0).toLocaleString()}</span>
                 <span>{bets.filter(b => b.event_id === event.id).length} bets</span>
               </div>
             </div>
