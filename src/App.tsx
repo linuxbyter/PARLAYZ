@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
 
 export default function Auth() {
@@ -7,15 +7,35 @@ export default function Auth() {
   const [loading, setLoading] = useState(false)
   const [mode, setMode] = useState<'signup' | 'signin' | 'forgot'>('signup')
   const [message, setMessage] = useState('')
+  const [user, setUser] = useState<any>(null)
+
+  // Listen for auth state changes
+  useEffect(() => {
+    // Check current session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null)
+    })
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
 
   const handleGoogleAuth = async () => {
+    setLoading(true)
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: window.location.origin,
+        redirectTo: window.location.origin, // This brings user back to your app
       },
     })
-    if (error) setMessage(error.message)
+    if (error) {
+      setMessage(error.message)
+      setLoading(false)
+    }
   }
 
   const handleEmailAuth = async (e: React.FormEvent) => {
@@ -45,6 +65,30 @@ export default function Auth() {
     setLoading(false)
   }
 
+  const handleSignOut = async () => {
+    await supabase.auth.signOut()
+    setUser(null)
+  }
+
+  // If user is logged in, show this instead
+  if (user) {
+    return (
+      <div className="min-h-screen bg-matte-900 flex items-center justify-center p-4">
+        <div className="bg-matte-800 border border-matte-700 rounded-2xl p-8 w-full max-w-md">
+          <h2 className="text-2xl font-bold text-gold-400 mb-4">Welcome!</h2>
+          <p className="text-gray-300 mb-2">Email: {user.email}</p>
+          <p className="text-gray-300 mb-6">User ID: {user.id}</p>
+          <button
+            onClick={handleSignOut}
+            className="w-full bg-red-500 hover:bg-red-400 text-white font-bold py-3 rounded-lg transition"
+          >
+            Sign Out
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-matte-900 flex items-center justify-center p-4">
       <div className="bg-matte-800 border border-matte-700 rounded-2xl p-6 sm:p-8 w-full max-w-md mx-4">
@@ -66,7 +110,8 @@ export default function Auth() {
         {/* GOOGLE BUTTON */}
         <button
           onClick={handleGoogleAuth}
-          className="w-full bg-white hover:bg-gray-100 text-gray-900 font-bold py-3 rounded-lg transition flex items-center justify-center gap-3 mb-6"
+          disabled={loading}
+          className="w-full bg-white hover:bg-gray-100 disabled:bg-gray-300 text-gray-900 font-bold py-3 rounded-lg transition flex items-center justify-center gap-3 mb-6"
         >
           <svg className="w-5 h-5" viewBox="0 0 24 24">
             <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -74,7 +119,7 @@ export default function Auth() {
             <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
             <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
           </svg>
-          Continue with Google
+          {loading ? 'Loading...' : 'Continue with Google'}
         </button>
 
         <div className="relative mb-6">
