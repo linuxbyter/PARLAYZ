@@ -31,7 +31,7 @@ interface Profile {
 const MIN_STAKE = 200
 const PLATFORM_FEE_PERCENT = 3
 
-const COLORS = ['#22c55e', '#ef4444', '#3b82f6', '#f59e0b'] // Green, Red, Blue, Orange
+const COLORS = ['#22c55e', '#ef4444', '#3b82f6', '#f59e0b']
 
 function App() {
   const [session, setSession] = useState<any>(null)
@@ -190,7 +190,6 @@ function App() {
     }
   }
 
-  // Kalshi-style multi-line chart
   const MarketChart = ({ event }: { event: Event }) => {
     const allHistories = event.outcomes.map((_, i) => getBetHistory(event.id, i))
     const allOdds = event.outcomes.map((_, i) => getOdds(event.id, i))
@@ -201,7 +200,6 @@ function App() {
 
     return (
       <div className="relative h-40 w-full bg-matte-900/50 rounded-lg p-4">
-        {/* Grid lines */}
         {[0, 25, 50, 75, 100].map((tick) => (
           <div 
             key={tick} 
@@ -212,7 +210,6 @@ function App() {
           </div>
         ))}
         
-        {/* Chart area */}
         <svg viewBox="0 0 100 100" className="absolute inset-4 w-[calc(100%-2rem)] h-[calc(100%-2rem)]" preserveAspectRatio="none">
           {event.outcomes.map((_, outcomeIdx) => {
             const history = allHistories[outcomeIdx]
@@ -232,7 +229,6 @@ function App() {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
-                {/* Current value dot */}
                 <circle 
                   cx="100" 
                   cy={100 - ((allOdds[outcomeIdx] - minVal) / range) * 100} 
@@ -244,7 +240,6 @@ function App() {
           })}
         </svg>
         
-        {/* Legend */}
         <div className="absolute top-2 right-2 flex flex-col gap-1">
           {event.outcomes.map((outcome, i) => (
             <div key={i} className="flex items-center gap-2 text-xs">
@@ -272,13 +267,11 @@ function App() {
 
   return (
     <div className="min-h-screen bg-matte-900">
-      {/* Minimal Header */}
       <header className="border-b border-matte-700 bg-matte-800/50 backdrop-blur sticky top-0 z-10">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
           <h1 className="text-xl font-bold text-gold-400 tracking-tight">PARLAYZ</h1>
           
           <div className="flex items-center gap-3">
-            {/* Small centered balance */}
             <div className="bg-matte-900 border border-matte-600 rounded-lg px-3 py-1.5 flex items-center gap-2">
               <span className="text-xs text-gray-400">Balance</span>
               <span className="text-gold-400 font-bold text-sm">
@@ -302,7 +295,6 @@ function App() {
           <span className="text-xs text-gray-400">Min: {MIN_STAKE} credits</span>
         </div>
 
-        {/* Clean Event List */}
         <div className="space-y-3">
           {events.map((event) => {
             const totalVolume = bets
@@ -327,7 +319,6 @@ function App() {
                   </span>
                 </div>
                 
-                {/* Kalshi-style Chart */}
                 <div className="my-3">
                   <MarketChart event={event} />
                 </div>
@@ -342,7 +333,6 @@ function App() {
         </div>
       </main>
 
-      {/* Detail Modal */}
       {selectedEvent && (
         <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={closeModal}>
           <div 
@@ -364,12 +354,10 @@ function App() {
                 Closes: {new Date(selectedEvent.closes_at).toLocaleString('en-KE')}
               </div>
 
-              {/* Big Chart */}
               <div className="bg-matte-900 rounded-lg p-3">
                 <MarketChart event={selectedEvent} />
               </div>
 
-              {/* Stake Slider */}
               <div className="bg-matte-900 rounded-lg p-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm text-gray-400">Your Stake</span>
@@ -390,7 +378,6 @@ function App() {
                 </div>
               </div>
 
-              {/* Outcome Buttons */}
               <div className="space-y-2">
                 {selectedEvent.outcomes.map((outcome, i) => {
                   const odds = getOdds(selectedEvent.id, i)
@@ -430,14 +417,13 @@ function App() {
               </div>
 
               {selectedOutcome !== null && (
-                <<button
-  onClick={placeBet}
-  disabled={!profile || profile.wallet_balance < stakeAmount}
-  className="w-full bg-gold-500 hover:bg-gold-400 disabled:bg-matte-600 disabled:text-gray-400 text-matte-900 py-3 rounded-lg font-bold transition"
->
-  {!profile ? 'Loading...' : profile.wallet_balance < stakeAmount ? 'Insufficient Balance' : `Bet ${stakeAmount} credits`}
-</button>
-
+                <button
+                  onClick={placeBet}
+                  disabled={!profile || (profile?.wallet_balance || 0) < stakeAmount}
+                  className="w-full bg-gold-500 hover:bg-gold-400 disabled:bg-matte-600 disabled:text-gray-400 text-matte-900 py-3 rounded-lg font-bold transition"
+                >
+                  {!profile ? 'Loading...' : (profile?.wallet_balance || 0) < stakeAmount ? 'Insufficient Balance' : `Bet ${stakeAmount} credits`}
+                </button>
               )}
             </div>
           </div>
