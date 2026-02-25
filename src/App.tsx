@@ -42,6 +42,9 @@ function App() {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
   const [selectedOutcome, setSelectedOutcome] = useState<number | null>(null)
   const [stakeAmount, setStakeAmount] = useState(MIN_STAKE)
+  const [stakeAmount, setStakeAmount] = useState(200)
+  const [showSuccessModal, setShowSuccessModal] = useState(false)
+
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
