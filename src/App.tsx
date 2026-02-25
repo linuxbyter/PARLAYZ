@@ -153,7 +153,6 @@ function App() {
   }
 
   const getBetHistory = (eventId: string, outcomeIndex: number) => {
-    // Simulate historical odds based on bet timestamps
     const eventBets = bets
       .filter(b => b.event_id === eventId && b.outcome_index === outcomeIndex)
       .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
@@ -164,14 +163,13 @@ function App() {
     let runningTotal = 0
     let totalAll = 0
     
-    eventBets.forEach((bet, idx) => {
+    eventBets.forEach((bet) => {
       runningTotal += bet.stake
       totalAll += bet.stake
       const odds = Math.round((runningTotal / totalAll) * 100)
       history.push(odds)
     })
     
-    // Pad to 5 points for chart
     while (history.length < 5) history.unshift(50)
     return history.slice(-5)
   }
@@ -190,26 +188,20 @@ function App() {
     }
   }
 
-  // Simple sparkline chart component
   const Sparkline = ({ data, color = "#fbbf24" }: { data: number[], color?: string }) => {
     const min = Math.min(...data)
     const max = Math.max(...data)
     const range = max - min || 1
     
-    const points = data.map((val, idx) => {
-      const x = (idx / (data.length - 1)) * 100
+    const points = data.map((val, i) => {
+      const x = (i / (data.length - 1)) * 100
       const y = 100 - ((val - min) / range) * 100
       return `${x},${y}`
     }).join(' ')
     
     return (
       <svg viewBox="0 0 100 100" className="w-full h-16" preserveAspectRatio="none">
-        <polyline
-          fill="none"
-          stroke={color}
-          strokeWidth="3"
-          points={points}
-        />
+        <polyline fill="none" stroke={color} strokeWidth="3" points={points} />
         <circle cx="100" cy={100 - ((data[data.length - 1] - min) / range) * 100} r="4" fill={color} />
       </svg>
     )
@@ -229,12 +221,10 @@ function App() {
 
   return (
     <div className="min-h-screen bg-matte-900">
-      {/* Premium Header */}
       <header className="border-b border-matte-700 bg-matte-800/50 backdrop-blur sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 py-3 sm:py-4 flex items-center justify-between">
           <h1 className="text-2xl sm:text-3xl font-bold text-gold-400 tracking-tight">PARLAYZ</h1>
           
-          {/* Premium Balance Card */}
           <div className="flex items-center gap-3">
             <div className="bg-gradient-to-r from-gold-500/20 to-gold-600/20 border border-gold-500/30 rounded-xl px-4 py-2 flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-gold-500 flex items-center justify-center">
@@ -259,7 +249,6 @@ function App() {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 py-6 sm:py-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 sm:mb-8 gap-4">
           <div>
@@ -271,7 +260,6 @@ function App() {
           </div>
         </div>
 
-        {/* Events Grid with Charts */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {events.map((event) => {
             const totalVolume = bets
@@ -297,19 +285,18 @@ function App() {
                   {event.title}
                 </h3>
                 
-                {/* Kalshi-style Chart Preview */}
                 <div className="mb-4 bg-matte-900/50 rounded-lg p-3">
                   <div className="flex items-center justify-between text-xs text-gray-400 mb-2">
                     <span>Odds Trend</span>
                     <span className="text-gold-400">Live</span>
                   </div>
                   <div className="flex gap-2">
-                    {event.outcomes.slice(0, 2).map(() => {
-                      const history = getBetHistory(event.id, idx)
-                      const currentOdds = getOdds(event.id, idx)
+                    {event.outcomes.slice(0, 2).map((_, i) => {
+                      const history = getBetHistory(event.id, i)
+                      const currentOdds = getOdds(event.id, i)
                       return (
-                        <div key={idx} className="flex-1">
-                          <Sparkline data={history} color={idx === 0 ? '#fbbf24' : '#f59e0b'} />
+                        <div key={i} className="flex-1">
+                          <Sparkline data={history} color={i === 0 ? '#fbbf24' : '#f59e0b'} />
                           <div className="text-center text-xs text-gray-400 mt-1">{currentOdds}%</div>
                         </div>
                       )
@@ -327,14 +314,12 @@ function App() {
         </div>
       </main>
 
-      {/* Event Detail Modal - Kalshi Style */}
       {selectedEvent && (
         <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={closeModal}>
           <div 
             className="bg-matte-800 rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto border border-matte-700"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header */}
             <div className="sticky top-0 bg-matte-800 border-b border-matte-700 p-6 flex justify-between items-start z-10">
               <div>
                 <span className="px-3 py-1 bg-gold-500/20 text-gold-400 rounded-full text-sm font-medium">
@@ -351,22 +336,20 @@ function App() {
             </div>
 
             <div className="p-6">
-              {/* Description */}
               <div className="mb-6">
                 <p className="text-gray-300 leading-relaxed">{selectedEvent.description}</p>
               </div>
 
-              {/* Big Chart Area */}
               <div className="mb-6 bg-matte-900 rounded-xl p-6">
                 <h3 className="font-semibold text-white mb-4">Market Activity</h3>
                 <div className="flex gap-4 h-32">
-                  {selectedEvent.outcomes.map((outcome, idx) => {
-                    const history = getBetHistory(selectedEvent.id, idx)
-                    const currentOdds = getOdds(selectedEvent.id, idx)
+                  {selectedEvent.outcomes.map((outcome, i) => {
+                    const history = getBetHistory(selectedEvent.id, i)
+                    const currentOdds = getOdds(selectedEvent.id, i)
                     return (
-                      <div key={idx} className="flex-1 bg-matte-800 rounded-lg p-3">
+                      <div key={i} className="flex-1 bg-matte-800 rounded-lg p-3">
                         <div className="text-sm text-gray-400 mb-2">{outcome}</div>
-                        <Sparkline data={history} color={idx === 0 ? '#fbbf24' : '#f59e0b'} />
+                        <Sparkline data={history} color={i === 0 ? '#fbbf24' : '#f59e0b'} />
                         <div className="text-2xl font-bold text-gold-400 mt-2">{currentOdds}%</div>
                       </div>
                     )
@@ -374,7 +357,6 @@ function App() {
                 </div>
               </div>
 
-              {/* Stake Input */}
               <div className="mb-6 bg-matte-900 rounded-xl p-4 border border-matte-700">
                 <label className="block text-sm text-gray-400 mb-2">Your Stake (Min: {MIN_STAKE})</label>
                 <div className="flex items-center gap-4">
@@ -398,17 +380,16 @@ function App() {
                 </div>
               </div>
 
-              {/* Outcomes */}
               <div className="space-y-3">
-                {selectedEvent.outcomes.map((outcome, idx) => {
-                  const odds = getOdds(selectedEvent.id, idx)
+                {selectedEvent.outcomes.map((outcome, i) => {
+                  const odds = getOdds(selectedEvent.id, i)
                   const payout = calculatePayout(stakeAmount, odds)
-                  const isSelected = selectedOutcome === idx
+                  const isSelected = selectedOutcome === i
 
                   return (
                     <button
-                      key={idx}
-                      onClick={() => setSelectedOutcome(idx)}
+                      key={i}
+                      onClick={() => setSelectedOutcome(i)}
                       className={`w-full p-5 rounded-xl border-2 text-left transition-all ${
                         isSelected 
                           ? 'border-gold-500 bg-gold-500/10' 
@@ -429,19 +410,14 @@ function App() {
                         </div>
                       </div>
                       
-                      {/* Progress bar */}
                       <div className="mt-3 w-full h-2 bg-matte-700 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-gradient-to-r from-gold-500 to-gold-400" 
-                          style={{ width: `${odds}%` }} 
-                        />
+                        <div className="h-full bg-gradient-to-r from-gold-500 to-gold-400" style={{ width: `${odds}%` }} />
                       </div>
                     </button>
                   )
                 })}
               </div>
 
-              {/* Confirm Button */}
               {selectedOutcome !== null && (
                 <button
                   onClick={placeBet}
