@@ -430,13 +430,14 @@ function App() {
               </div>
 
               {selectedOutcome !== null && (
-                <button
-                  onClick={placeBet}
-                  disabled={!profile || profile.wallet_balance < stakeAmount}
-                  className="w-full bg-gold-500 hover:bg-gold-400 disabled:bg-matte-600 disabled:text-gray-400 text-matte-900 py-3 rounded-lg font-bold transition"
-                >
-                  {profile?.wallet_balance < stakeAmount ? 'Insufficient Balance' : `Bet ${stakeAmount} credits`}
-                </button>
+                <<button
+  onClick={placeBet}
+  disabled={!profile || profile.wallet_balance < stakeAmount}
+  className="w-full bg-gold-500 hover:bg-gold-400 disabled:bg-matte-600 disabled:text-gray-400 text-matte-900 py-3 rounded-lg font-bold transition"
+>
+  {!profile ? 'Loading...' : profile.wallet_balance < stakeAmount ? 'Insufficient Balance' : `Bet ${stakeAmount} credits`}
+</button>
+
               )}
             </div>
           </div>
