@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
-import Auth from './components/Auth'
 import { LogOut, X, AlertTriangle, Bell } from 'lucide-react'
 import Landing from './Landing'
 
