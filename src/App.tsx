@@ -44,11 +44,9 @@ function App() {
   const [showLogoutModal, setShowLogoutModal] = useState(false)
   const [lastBetDetails, setLastBetDetails] = useState<{stake: number, payout: number, outcomeName: string} | null>(null)
   
-  const [activeCategory, setActiveCategory] = useState<string>('All') 
-  const [activeView, setActiveView] = useState<'markets' | 'wagers'>('markets')
   // NAVIGATION STATES
   const [activeCategory, setActiveCategory] = useState<string>('All') 
-  const [activeView, setActiveView] = useState<'markets' | 'wagers' | 'p2p'>('markets') // Added 'p2p' here!
+  const [activeView, setActiveView] = useState<'markets' | 'wagers' | 'p2p'>('markets')
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -180,6 +178,7 @@ function App() {
       odds: oddsDecimal.toFixed(2)
     }
   }
+
   const categories = ['All', ...Array.from(new Set(events.map(e => e.category)))]
 
   const filteredEvents = activeCategory === 'All' 
@@ -221,7 +220,8 @@ function App() {
             </button>
           </div>
         </div>
-{/* Bottom Row: Navigation Tabs */}
+        
+        {/* Bottom Row: Navigation Tabs */}
         <div className="max-w-6xl mx-auto px-4 mt-1">
           <div className="flex items-center gap-6 overflow-x-auto pb-3 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
             
@@ -276,59 +276,45 @@ function App() {
             ))}
           </div>
         </div>
-        
-        <div className="max-w-6xl mx-auto px-4 mt-1">
-          <div className="flex items-center gap-6 overflow-x-auto pb-3 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
-            
-            <button
-              onClick={() => {
-                setActiveView('wagers')
-                setSelectedOutcome(null)
-              }}
-              className={`whitespace-nowrap text-sm font-semibold transition-colors pb-1 border-b-2 flex items-center gap-2 ${
-                activeView === 'wagers' 
-                  ? 'text-gold-400 border-gold-400' 
-                  : 'text-gray-500 border-transparent hover:text-gray-300'
-              }`}
-            >
-              <span className={`w-2 h-2 rounded-full ${activeView === 'wagers' ? 'bg-gold-500 animate-pulse' : 'bg-gray-500'}`}></span>
-              My Wagers
-            </button>
-
-            <div className="w-px h-4 bg-matte-700"></div> 
-
-            {categories.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => {
-                  setActiveView('markets')
-                  setActiveCategory(cat)
-                  setSelectedOutcome(null) 
-                }}
-                className={`whitespace-nowrap text-sm font-semibold transition-colors pb-1 border-b-2 ${
-                  activeView === 'markets' && activeCategory === cat 
-                    ? 'text-gold-400 border-gold-400' 
-                    : 'text-gray-500 border-transparent hover:text-gray-300'
-                }`}
-              >
-                {cat === 'All' ? 'Trending' : cat}
-              </button>
-            ))}
-          </div>
-        </div>
       </header>
+      
       <main className="max-w-6xl mx-auto px-4 py-6 sm:py-8">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold text-white">
             {activeView === 'wagers' 
               ? 'My Active Portfolio' 
+              : activeView === 'p2p'
+              ? 'Peer-to-Peer Markets'
               : activeCategory === 'All' ? 'All Markets' : `${activeCategory} Markets`}
           </h2>
         </div>
 
-        {activeView === 'wagers' ? (
+        {/* DYNAMIC VIEW RENDERER */}
+        {activeView === 'p2p' ? (
+          
+          /* --- THE NEW P2P ORDER BOOK --- */
           <div className="space-y-6">
-            {/* --- NEW PREMIUM PORTFOLIO SUMMARY --- */}
+            <div className="flex items-center justify-between bg-matte-800 border border-gold-500/30 rounded-2xl p-6 shadow-[0_0_15px_rgba(251,191,36,0.1)]">
+              <div>
+                <h3 className="text-xl font-bold text-white mb-1">Peer-to-Peer Exchange</h3>
+                <p className="text-gray-400 text-sm">Lock in fixed odds or create custom wagers.</p>
+              </div>
+              <button className="bg-gold-500 hover:bg-gold-400 text-matte-900 font-bold py-2.5 px-5 rounded-xl transition shadow-[0_0_15px_rgba(251,191,36,0.2)]">
+                + Create Offer
+              </button>
+            </div>
+            
+            {/* Map the open offers from Supabase here next! */}
+            <div className="py-10 text-center text-gray-500 border border-dashed border-matte-700 rounded-2xl">
+              Loading open market offers...
+            </div>
+          </div>
+
+        ) : activeView === 'wagers' ? (
+          
+          /* --- MY WAGERS VIEW --- */
+          <div className="space-y-6">
+            {/* Premium Portfolio Summary */}
             {bets.filter(b => b.user_id === session?.user?.id).length > 0 && (
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-matte-800 border border-matte-700 rounded-xl p-4 sm:p-5 relative overflow-hidden">
@@ -351,29 +337,6 @@ function App() {
                   </div>
                 </div>
               </div>
-            {/* DYNAMIC VIEW RENDERER */}
-        {activeView === 'p2p' ? (
-          
-          /* --- THE NEW P2P ORDER BOOK --- */
-          <div className="space-y-6">
-            <div className="flex items-center justify-between bg-matte-800 border border-gold-500/30 rounded-2xl p-6 shadow-[0_0_15px_rgba(251,191,36,0.1)]">
-              <div>
-                <h3 className="text-xl font-bold text-white mb-1">Peer-to-Peer Exchange</h3>
-                <p className="text-gray-400 text-sm">Lock in fixed odds or create custom wagers.</p>
-              </div>
-              <button className="bg-gold-500 hover:bg-gold-400 text-matte-900 font-bold py-2.5 px-5 rounded-xl transition shadow-[0_0_15px_rgba(251,191,36,0.2)]">
-                + Create Offer
-              </button>
-            </div>
-            
-            {/* We will map the open offers from Supabase here next! */}
-            <div className="py-10 text-center text-gray-500 border border-dashed border-matte-700 rounded-2xl">
-              Loading open market offers...
-            </div>
-          </div>
-
-        ) : activeView === 'wagers' ? (
-          /* ... (Your existing My Wagers code stays exactly the same here) ... */
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
@@ -439,7 +402,10 @@ function App() {
               )}
             </div>
           </div>
+
         ) : (
+          
+          /* --- MARKETS VIEW --- */
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
             {filteredEvents.length === 0 ? (
               <div className="col-span-full py-10 text-center text-gray-500">
@@ -561,6 +527,8 @@ function App() {
           </div>
         )}
       </main>
+      
+      {/* LOGOUT MODAL */}
       {showLogoutModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="bg-matte-800 border border-matte-700 rounded-2xl p-6 sm:p-8 w-full max-w-sm text-center shadow-[0_0_50px_rgba(0,0,0,0.5)] relative overflow-hidden">
@@ -590,6 +558,7 @@ function App() {
         </div>
       )}
 
+      {/* SUCCESS MODAL */}
       {showSuccessModal && lastBetDetails && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="bg-matte-800 border border-gold-500/50 rounded-2xl p-6 sm:p-8 w-full max-w-sm text-center shadow-[0_0_50px_rgba(251,191,36,0.15)] relative overflow-hidden">
