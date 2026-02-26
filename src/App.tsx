@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
 import Auth from './components/Auth'
+import { LogOut } from 'lucide-react'
 
 interface Event {
   id: string
@@ -37,10 +38,11 @@ function App() {
   const [bets, setBets] = useState<Bet[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedOutcome, setSelectedOutcome] = useState<{eventId: string, idx: number} | null>(null)
-  
+
   // UX STATES
   const [stakeAmount, setStakeAmount] = useState<number>(MIN_STAKE)
   const [showSuccessModal, setShowSuccessModal] = useState(false)
+  const [showLogoutModal, setShowLogoutModal] = useState(false)
   const [lastBetDetails, setLastBetDetails] = useState<{stake: number, payout: number, outcomeName: string} | null>(null)
   const [activeCategory, setActiveCategory] = useState<string>('All') // New state for filtering
 
@@ -61,7 +63,7 @@ function App() {
       fetchProfile()
       fetchEvents()
       fetchBets()
-      
+
       const channel = supabase
         .channel('bets')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'bets' }, () => {
@@ -69,7 +71,7 @@ function App() {
           fetchProfile()
         })
         .subscribe()
-      
+
       return () => { channel.unsubscribe() }
     }
   }, [session])
@@ -80,7 +82,7 @@ function App() {
       .select('*')
       .eq('id', session.user.id)
       .single()
-    
+
     if (data) setProfile(data)
   }
 
@@ -102,7 +104,7 @@ function App() {
 
   const placeBet = async () => {
     if (!selectedOutcome || !session?.user) return
-    
+
     if (!profile || profile.wallet_balance < stakeAmount) {
       alert('Insufficient balance!')
       return
@@ -133,13 +135,13 @@ function App() {
       await supabase.from('profiles').update({
         wallet_balance: profile.wallet_balance - stakeAmount
       }).eq('id', session.user.id)
-      
+
       setLastBetDetails({
         stake: stakeAmount,
         payout: payoutInfo.net,
         outcomeName: outcomeName
       })
-      
+
       setShowSuccessModal(true)
       setSelectedOutcome(null)
       setStakeAmount(MIN_STAKE)
@@ -150,6 +152,7 @@ function App() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
+    setShowLogoutModal(false)
   }
 
   const getOdds = (eventId: string, outcomeIndex: number) => {
@@ -165,7 +168,7 @@ function App() {
     const grossPayout = currentStake * oddsDecimal
     const fee = grossPayout * (PLATFORM_FEE_PERCENT / 100)
     const netPayout = grossPayout - fee
-    
+
     return {
       gross: Math.round(grossPayout),
       fee: Math.round(fee),
@@ -175,10 +178,8 @@ function App() {
   }
 
   // DYNAMIC CATEGORY FILTERING
-  // This automatically finds all unique categories in your database
   const categories = ['All', ...Array.from(new Set(events.map(e => e.category)))]
-  
-  // This filters the feed based on what the user tapped
+
   const filteredEvents = activeCategory === 'All' 
     ? events 
     : events.filter(e => e.category === activeCategory)
@@ -197,14 +198,14 @@ function App() {
 
   return (
     <div className="min-h-screen bg-matte-900 relative">
-      
+
       {/* PREMIUM KALSHI-STYLE HEADER */}
       <header className="border-b border-matte-800 bg-matte-900/90 backdrop-blur-xl sticky top-0 z-20">
-        
+
         {/* Top Row: Logo & User Controls */}
         <div className="max-w-6xl mx-auto px-4 pt-4 pb-2 flex items-center justify-between">
           <h1 className="text-2xl sm:text-3xl font-bold text-gold-400 tracking-tight">PARLAYZ</h1>
-          
+
           <div className="flex items-center gap-2 sm:gap-3">
             {/* Sleek Balance Pill */}
             <div className="bg-matte-800 border border-matte-700 rounded-full px-3 sm:px-4 py-1.5 flex items-center gap-2 shadow-inner">
@@ -212,16 +213,14 @@ function App() {
               <span className="text-white font-bold text-sm sm:text-base">{profile?.wallet_balance.toLocaleString() || '0'}</span>
               <span className="text-gray-500 text-xs font-semibold uppercase tracking-wider hidden sm:inline">KSh</span>
             </div>
-            
+
             {/* Minimalist Logout Icon Button */}
             <button 
-              onClick={handleLogout}
-              className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-full bg-matte-800 border border-matte-700 hover:border-gold-500/50 hover:text-gold-400 text-gray-400 transition"
+              onClick={() => setShowLogoutModal(true)}
+              className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-full bg-matte-800 border border-matte-700 hover:border-red-500/50 hover:text-red-400 text-gray-400 transition"
               title="Sign Out"
             >
-              <svg className="w-4 h-4 sm:w-4 sm:h-4 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-              </svg>
+              <LogOut className="w-4 h-4 sm:w-4 sm:h-4" />
             </button>
           </div>
         </div>
@@ -272,7 +271,7 @@ function App() {
                     {new Date(event.closes_at).toLocaleDateString()}
                   </span>
                 </div>
-                
+
                 <h3 className="text-lg sm:text-xl font-bold text-white mb-2">{event.title}</h3>
                 <p className="text-gray-400 text-sm mb-4 sm:mb-6 line-clamp-2">{event.description}</p>
 
@@ -305,10 +304,10 @@ function App() {
                             <span className="text-gold-400 font-bold text-xs sm:text-sm w-10 sm:w-12 text-right">{oddsPercent}%</span>
                           </div>
                         </button>
-                        
+
                         {isSelected && (
                           <div className="bg-matte-900 rounded-lg p-3 sm:p-4 text-xs sm:text-sm space-y-3 border border-gold-500/30 mt-2">
-                            
+
                             <div className="bg-matte-800 p-3 rounded-lg border border-matte-700">
                               <div className="flex justify-between items-center mb-2">
                                 <span className="text-gray-400">Wager Amount</span>
@@ -377,23 +376,53 @@ function App() {
         </div>
       </main>
 
+      {/* PREMIUM LOGOUT MODAL */}
+      {showLogoutModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-matte-800 border border-matte-700 rounded-2xl p-6 sm:p-8 w-full max-w-sm text-center shadow-[0_0_50px_rgba(0,0,0,0.5)] relative overflow-hidden">
+            <div className="relative z-10">
+              <div className="w-16 h-16 bg-red-500/10 border-2 border-red-500/50 text-red-400 rounded-full flex items-center justify-center mx-auto mb-4 shadow-[0_0_15px_rgba(239,68,68,0.2)]">
+                <LogOut className="w-7 h-7 ml-1" />
+              </div>
+              <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">Leaving so soon?</h3>
+              <p className="text-gray-400 text-sm mb-8">Are you sure you want to log out of Parlayz?</p>
+
+              <div className="flex gap-3 justify-center">
+                <button 
+                  onClick={() => setShowLogoutModal(false)}
+                  className="w-1/2 bg-matte-700 hover:bg-matte-600 text-white font-semibold py-3 rounded-xl transition"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleLogout}
+                  className="w-1/2 bg-red-600/10 border border-red-500/50 hover:bg-red-500 text-red-400 hover:text-white font-semibold py-3 rounded-xl transition shadow-[0_0_15px_rgba(239,68,68,0.15)] hover:shadow-[0_0_20px_rgba(239,68,68,0.4)]"
+                >
+                  Log Out
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* PREMIUM VIP SUCCESS MODAL */}
       {showSuccessModal && lastBetDetails && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="bg-matte-800 border border-gold-500/50 rounded-2xl p-6 sm:p-8 w-full max-w-sm text-center shadow-[0_0_50px_rgba(251,191,36,0.15)] relative overflow-hidden">
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-32 bg-gold-500/20 rounded-full blur-3xl"></div>
-            
+
             <div className="relative z-10">
               <div className="w-16 h-16 bg-gold-500/10 border-2 border-gold-500 text-gold-400 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl shadow-[0_0_15px_rgba(251,191,36,0.3)]">
                 ✓
               </div>
               <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">Wager Locked</h3>
               <p className="text-gray-400 text-sm mb-6">Your position is secured on the network.</p>
-              
+
               <div className="bg-matte-900 rounded-xl p-4 mb-6 text-left border border-matte-700">
                 <div className="text-xs text-gray-500 mb-1 uppercase tracking-wider font-semibold">Prediction</div>
                 <div className="text-white font-medium mb-4 line-clamp-1">{lastBetDetails.outcomeName}</div>
-                
+
                 <div className="flex justify-between items-center text-sm mb-2">
                   <span className="text-gray-400">Stake Placed:</span>
                   <span className="text-white font-bold">{lastBetDetails.stake.toLocaleString()} KSh</span>
