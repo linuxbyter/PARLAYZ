@@ -132,8 +132,8 @@ export default function Admin() {
 
   if (!session) return <div className="min-h-screen bg-matte-900 flex items-center justify-center p-10 text-white text-center">Please log in to access the Admin Panel.</div>
   
-  // Security Check - Uncomment this line when you add your UUID!
-  // if (!ADMIN_UUIDS.includes(session.user.id)) return <div className="min-h-screen bg-matte-900 flex items-center justify-center p-10 text-white text-center font-bold text-xl">Unauthorized Access.</div>
+  // Security Check - This is now active, so ADMIN_UUIDS is being read!
+  if (!ADMIN_UUIDS.includes(session.user.id)) return <div className="min-h-screen bg-matte-900 flex items-center justify-center p-10 text-white text-center font-bold text-xl">Unauthorized Access.</div>
 
   if (loading) return <div className="min-h-screen bg-matte-900 flex items-center justify-center"><div className="w-8 h-8 border-2 border-red-500 border-t-transparent rounded-full animate-spin"></div></div>
 
