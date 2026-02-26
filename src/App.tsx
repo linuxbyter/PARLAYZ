@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
 import Auth from './components/Auth'
 import { LogOut, X, AlertTriangle, Bell } from 'lucide-react'
+import Landing from './Landing'
 
 interface Event {
   id: string
@@ -270,7 +271,9 @@ function App() {
   const myActiveWagers = bets.filter(b => (b.user_id === session?.user?.id || b.matcher_id === session?.user?.id) && b.status !== 'p2p_open')
   const unreadCount = notifications.filter(n => !n.is_read).length
 
-  if (!session) return <Auth />
+  if (!session) {
+    return <Auth />
+  }
   if (loading) return <div className="min-h-screen bg-matte-900 flex items-center justify-center"><div className="w-8 h-8 border-2 border-gold-500 border-t-transparent rounded-full animate-spin"></div></div>
 
   return (
