@@ -3,7 +3,7 @@ import { supabase } from './lib/supabase'
 import { ShieldAlert, CheckCircle2, Plus, Trash2, X, Calendar, Tag, Type, FileText } from 'lucide-react'
 
 // --- IMPORTANT: Put your Supabase UUID here so ONLY YOU can use this page ---
-const ADMIN_UUIDS = ['YOUR-UUID-GOES-HERE'] 
+const ADMIN_UUIDS = ['e801546a-d868-47fd-a5a6-69cdae8ecb80'] 
 
 const PLATFORM_FEE_PERCENT = 3
 
