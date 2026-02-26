@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
 import Auth from './components/Auth'
-import { LogOut, X } from 'lucide-react'
+import { LogOut, X, AlertTriangle } from 'lucide-react'
 
 interface Event {
   id: string
@@ -21,7 +21,7 @@ interface Bet {
   odds?: number
   status: string
   user_id: string
-  matcher_id?: string // NEW: Tracks who accepted the P2P wager
+  matcher_id?: string
 }
 
 interface Profile {
@@ -50,8 +50,9 @@ function App() {
   const [activeCategory, setActiveCategory] = useState<string>('All') 
   const [activeView, setActiveView] = useState<'markets' | 'wagers' | 'p2p'>('markets')
 
-  // P2P CREATE OFFER STATES
+  // P2P STATES
   const [showCreateOfferModal, setShowCreateOfferModal] = useState(false)
+  const [offerToMatch, setOfferToMatch] = useState<Bet | null>(null) // NEW: Controls the premium Match modal
   const [p2pSelectedEventId, setP2pSelectedEventId] = useState<string>('')
   const [p2pSelectedOutcomeIdx, setP2pSelectedOutcomeIdx] = useState<number>(0)
   const [p2pStake, setP2pStake] = useState<number>(MIN_STAKE)
@@ -216,8 +217,8 @@ function App() {
     }
   }
 
-  // --- NEW: MATCH OFFER LOGIC ---
-  const matchP2POffer = async (offer: Bet) => {
+  // --- TRIGGER THE PREMIUM MATCH MODAL ---
+  const initiateMatch = (offer: Bet) => {
     if (!session?.user || !profile) return
 
     if (offer.user_id === session.user.id) {
@@ -225,7 +226,6 @@ function App() {
       return
     }
 
-    // Taker Liability = (Maker Stake * Odds) - Maker Stake
     const liability = Math.round((offer.stake * (offer.odds || 2)) - offer.stake)
 
     if (profile.wallet_balance < liability) {
@@ -233,25 +233,40 @@ function App() {
       return
     }
 
-    if (!window.confirm(`Are you sure you want to risk ${liability.toLocaleString()} KSh to win ${offer.stake.toLocaleString()} KSh?`)) {
-      return // User cancelled
-    }
+    // Opens the sleek modal instead of window.confirm
+    setOfferToMatch(offer)
+  }
 
-    // 1. Lock the bet as matched and set the matcher_id
+  // --- ACTUAL MATCH LOGIC ---
+  const confirmMatch = async () => {
+    if (!offerToMatch || !session?.user || !profile) return
+
+    const liability = Math.round((offerToMatch.stake * (offerToMatch.odds || 2)) - offerToMatch.stake)
+
+    // 1. Optimistic UI Update: Instantly remove it from the board
+    setBets(currentBets => 
+      currentBets.map(b => b.id === offerToMatch.id ? { ...b, status: 'p2p_matched', matcher_id: session.user.id } : b)
+    )
+    setProfile({ ...profile, wallet_balance: profile.wallet_balance - liability })
+    setOfferToMatch(null)
+
+    // 2. Lock the bet in Supabase
     const { error: betError } = await supabase
       .from('bets')
       .update({ 
         status: 'p2p_matched', 
         matcher_id: session.user.id 
       })
-      .eq('id', offer.id)
+      .eq('id', offerToMatch.id)
 
     if (betError) {
       alert('Error matching offer: ' + betError.message)
+      fetchBets() // Revert UI if it failed
+      fetchProfile()
       return
     }
 
-    // 2. Deduct the liability from the matcher's wallet
+    // 3. Deduct liability
     const { error: profileError } = await supabase
       .from('profiles')
       .update({ wallet_balance: profile.wallet_balance - liability })
@@ -259,12 +274,10 @@ function App() {
 
     if (profileError) {
       alert('Error updating wallet: ' + profileError.message)
+      fetchBets() // Revert UI
+      fetchProfile()
       return
     }
-
-    alert('Offer successfully matched! The wager is locked in escrow.')
-    fetchBets()
-    fetchProfile()
   }
 
   const handleLogout = async () => {
@@ -434,25 +447,25 @@ function App() {
                   if (!event) return null
                   const outcomeName = event.outcomes[offer.outcome_index]
 
-                  // Calculate Math for UI
                   const liability = Math.round((offer.stake * (offer.odds || 2)) - offer.stake)
                   const isOwnOffer = offer.user_id === session?.user?.id
 
                   return (
-                    <div key={i} className="bg-matte-800 border border-matte-700 rounded-xl p-5 hover:border-gold-500/50 transition">
-                      <div className="flex justify-between items-start mb-3">
+                    <div key={i} className="bg-matte-800 border border-matte-700 rounded-xl p-5 hover:border-gold-500/50 transition relative overflow-hidden group">
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-gold-500/5 rounded-full blur-3xl group-hover:bg-gold-500/10 transition"></div>
+                      <div className="flex justify-between items-start mb-3 relative z-10">
                         <span className="text-xs font-semibold text-gold-400 uppercase tracking-wider bg-gold-400/10 px-2 py-1 rounded-full">
                           {event.category}
                         </span>
-                        <span className="text-xs text-gray-500">P2P Offer</span>
+                        <span className="text-xs text-gray-500 border border-matte-600 px-2 py-0.5 rounded uppercase">P2P Escrow</span>
                       </div>
-                      <h4 className="text-white font-bold mb-2 line-clamp-2">{event.title}</h4>
-                      <div className="bg-matte-900 rounded p-3 mb-4 border border-matte-700">
-                        <div className="text-xs text-gray-500 mb-1">Prediction</div>
+                      <h4 className="text-white font-bold mb-2 line-clamp-2 relative z-10">{event.title}</h4>
+                      <div className="bg-matte-900 rounded p-3 mb-4 border border-matte-700 relative z-10">
+                        <div className="text-xs text-gray-500 mb-1 uppercase tracking-wider font-semibold">Their Prediction</div>
                         <div className="text-white font-medium">{outcomeName}</div>
                       </div>
                       
-                      <div className="space-y-1.5 mb-4">
+                      <div className="space-y-1.5 mb-4 relative z-10">
                         <div className="flex justify-between text-sm text-gray-400">
                           <span>Maker's Stake:</span>
                           <span className="text-white font-bold">{offer.stake.toLocaleString()} KSh</span>
@@ -461,19 +474,19 @@ function App() {
                           <span>Requested Odds:</span>
                           <span className="text-gold-400 font-bold">{offer.odds}x</span>
                         </div>
-                        <div className="flex justify-between text-sm pt-1.5 border-t border-matte-700 mt-1.5">
+                        <div className="flex justify-between text-sm pt-2 border-t border-matte-700 mt-2">
                           <span className="text-gray-400 font-semibold">Your Risk (Liability):</span>
                           <span className="text-red-400 font-bold">{liability.toLocaleString()} KSh</span>
                         </div>
                       </div>
 
                       <button 
-                        onClick={() => matchP2POffer(offer)}
+                        onClick={() => initiateMatch(offer)}
                         disabled={isOwnOffer}
-                        className={`w-full font-semibold py-2.5 rounded-lg transition ${
+                        className={`w-full font-bold py-3 rounded-xl transition relative z-10 ${
                           isOwnOffer 
-                            ? 'bg-matte-700 text-gray-500 cursor-not-allowed' 
-                            : 'bg-matte-700 hover:bg-gold-500 hover:text-black text-white border border-matte-600 hover:border-gold-500'
+                            ? 'bg-matte-900 text-gray-600 border border-matte-800 cursor-not-allowed' 
+                            : 'bg-matte-700 hover:bg-gold-500 hover:text-black text-white border border-matte-600 hover:border-gold-500 hover:shadow-[0_0_15px_rgba(251,191,36,0.3)]'
                         }`}
                       >
                         {isOwnOffer ? 'Waiting for Matcher...' : 'Match Offer'}
@@ -744,7 +757,6 @@ function App() {
             <p className="text-gray-400 text-sm mb-6">Set your own odds and wait for another user to match your stake.</p>
 
             <div className="space-y-4">
-              {/* Event Selection */}
               <div>
                 <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">1. Select Market</label>
                 <select 
@@ -752,7 +764,7 @@ function App() {
                   value={p2pSelectedEventId}
                   onChange={(e) => {
                     setP2pSelectedEventId(e.target.value)
-                    setP2pSelectedOutcomeIdx(0) // Reset outcome when event changes
+                    setP2pSelectedOutcomeIdx(0)
                   }}
                 >
                   <option value="" disabled>Choose an active market...</option>
@@ -762,7 +774,6 @@ function App() {
                 </select>
               </div>
 
-              {/* Outcome Selection */}
               {p2pSelectedEventId && (
                 <div>
                   <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">2. Your Prediction</label>
@@ -784,7 +795,6 @@ function App() {
                 </div>
               )}
 
-              {/* Stake and Odds */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Stake (KSh)</label>
@@ -809,7 +819,6 @@ function App() {
                 </div>
               </div>
 
-              {/* Projected Payout Info */}
               <div className="bg-matte-900 rounded-lg p-3 text-sm space-y-1.5 border border-matte-700 mt-2">
                 <div className="flex justify-between text-gray-400">
                   <span>To Win (Gross):</span>
@@ -828,6 +837,51 @@ function App() {
               >
                 Publish Offer to Board
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* NEW: PREMIUM MATCH CONFIRMATION MODAL */}
+      {offerToMatch && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-matte-800 border border-gold-500/50 rounded-2xl p-6 sm:p-8 w-full max-w-sm text-center shadow-[0_0_50px_rgba(251,191,36,0.15)] relative overflow-hidden">
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-32 bg-gold-500/10 rounded-full blur-3xl"></div>
+            
+            <div className="relative z-10">
+              <div className="w-16 h-16 bg-yellow-500/10 border-2 border-yellow-500/50 text-yellow-400 rounded-full flex items-center justify-center mx-auto mb-4 shadow-[0_0_15px_rgba(234,179,8,0.2)]">
+                <AlertTriangle className="w-7 h-7" />
+              </div>
+              <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">Lock Liability</h3>
+              <p className="text-gray-400 text-sm mb-6">You are acting as the house for this wager.</p>
+
+              <div className="bg-matte-900 rounded-xl p-4 mb-6 text-left border border-matte-700">
+                <div className="flex justify-between items-center text-sm mb-2">
+                  <span className="text-gray-400">You Risk:</span>
+                  <span className="text-red-400 font-bold">{Math.round((offerToMatch.stake * (offerToMatch.odds || 2)) - offerToMatch.stake).toLocaleString()} KSh</span>
+                </div>
+                <div className="flex justify-between items-center text-sm pt-2 border-t border-matte-700">
+                  <span className="text-gray-400">To Win:</span>
+                  <span className="text-gold-400 font-bold text-lg">
+                    {offerToMatch.stake.toLocaleString()} KSh
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex gap-3 justify-center">
+                <button 
+                  onClick={() => setOfferToMatch(null)}
+                  className="w-1/2 bg-matte-700 hover:bg-matte-600 text-white font-semibold py-3 rounded-xl transition"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={confirmMatch}
+                  className="w-1/2 bg-gold-500 hover:bg-gold-400 text-black font-bold py-3 rounded-xl transition shadow-[0_0_15px_rgba(251,191,36,0.2)]"
+                >
+                  Lock In
+                </button>
+              </div>
             </div>
           </div>
         </div>
