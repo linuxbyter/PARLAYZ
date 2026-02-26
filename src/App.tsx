@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
 import Auth from './components/Auth'
-import { LogOut } from 'lucide-react'
+import { LogOut, X } from 'lucide-react'
 
 interface Event {
   id: string
@@ -18,6 +18,7 @@ interface Bet {
   event_id: string
   outcome_index: number
   stake: number
+  odds?: number
   status: string
   user_id: string
 }
@@ -47,6 +48,13 @@ function App() {
   // NAVIGATION STATES
   const [activeCategory, setActiveCategory] = useState<string>('All') 
   const [activeView, setActiveView] = useState<'markets' | 'wagers' | 'p2p'>('markets')
+
+  // P2P CREATE OFFER STATES
+  const [showCreateOfferModal, setShowCreateOfferModal] = useState(false)
+  const [p2pSelectedEventId, setP2pSelectedEventId] = useState<string>('')
+  const [p2pSelectedOutcomeIdx, setP2pSelectedOutcomeIdx] = useState<number>(0)
+  const [p2pStake, setP2pStake] = useState<number>(MIN_STAKE)
+  const [p2pOdds, setP2pOdds] = useState<number>(2.00)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -126,7 +134,7 @@ function App() {
       event_id: selectedOutcome.eventId,
       outcome_index: selectedOutcome.idx,
       stake: stakeAmount,
-      odds: 200, 
+      odds: payoutInfo.oddsDecimal, 
       status: 'open',
       user_id: session.user.id
     })
@@ -152,15 +160,73 @@ function App() {
     }
   }
 
+  // --- NEW P2P SUBMIT FUNCTION ---
+  const submitP2POffer = async () => {
+    if (!p2pSelectedEventId || !session?.user) return
+
+    if (!profile || profile.wallet_balance < p2pStake) {
+      alert('Insufficient balance!')
+      return
+    }
+
+    if (p2pStake < MIN_STAKE) {
+      alert(`Minimum stake is ${MIN_STAKE} KSh`)
+      return
+    }
+
+    const event = events.find(e => e.id === p2pSelectedEventId)
+    const outcomeName = event?.outcomes[p2pSelectedOutcomeIdx] || 'Unknown Outcome'
+    
+    // Calculate custom payout based on requested odds
+    const grossPayout = p2pStake * p2pOdds
+    const fee = grossPayout * (PLATFORM_FEE_PERCENT / 100)
+    const netPayout = Math.round(grossPayout - fee)
+
+    const { error } = await supabase.from('bets').insert({
+      event_id: p2pSelectedEventId,
+      outcome_index: p2pSelectedOutcomeIdx,
+      stake: p2pStake,
+      odds: p2pOdds,
+      status: 'p2p_open', // Distinguishes it from regular pool bets
+      user_id: session.user.id
+    })
+
+    if (error) {
+      alert('Error: ' + error.message)
+    } else {
+      await supabase.from('profiles').update({
+        wallet_balance: profile.wallet_balance - p2pStake
+      }).eq('id', session.user.id)
+
+      setLastBetDetails({
+        stake: p2pStake,
+        payout: netPayout,
+        outcomeName: `[P2P] ${outcomeName} @ ${p2pOdds}x`
+      })
+
+      setShowCreateOfferModal(false)
+      setShowSuccessModal(true)
+      
+      // Reset form
+      setP2pSelectedEventId('')
+      setP2pSelectedOutcomeIdx(0)
+      setP2pStake(MIN_STAKE)
+      setP2pOdds(2.00)
+      
+      fetchBets()
+      fetchProfile()
+    }
+  }
+
   const handleLogout = async () => {
     await supabase.auth.signOut()
     setShowLogoutModal(false)
   }
 
   const getOdds = (eventId: string, outcomeIndex: number) => {
-    const outcomeBets = bets.filter(b => b.event_id === eventId && b.outcome_index === outcomeIndex)
+    const outcomeBets = bets.filter(b => b.event_id === eventId && b.outcome_index === outcomeIndex && b.status !== 'p2p_open')
     const totalStake = outcomeBets.reduce((sum, b) => sum + b.stake, 0)
-    const allBets = bets.filter(b => b.event_id === eventId)
+    const allBets = bets.filter(b => b.event_id === eventId && b.status !== 'p2p_open')
     const total = allBets.reduce((sum, b) => sum + b.stake, 0)
     return total === 0 ? 50 : Math.round((totalStake / total) * 100)
   }
@@ -175,7 +241,8 @@ function App() {
       gross: Math.round(grossPayout),
       fee: Math.round(fee),
       net: Math.round(netPayout),
-      odds: oddsDecimal.toFixed(2)
+      odds: oddsDecimal.toFixed(2),
+      oddsDecimal: oddsDecimal
     }
   }
 
@@ -240,7 +307,7 @@ function App() {
               My Wagers
             </button>
 
-            {/* NEW P2P BOARD TAB */}
+            {/* P2P BOARD TAB */}
             <button
               onClick={() => {
                 setActiveView('p2p')
@@ -292,21 +359,57 @@ function App() {
         {/* DYNAMIC VIEW RENDERER */}
         {activeView === 'p2p' ? (
           
-          /* --- THE NEW P2P ORDER BOOK --- */
+          /* --- THE P2P ORDER BOOK --- */
           <div className="space-y-6">
-            <div className="flex items-center justify-between bg-matte-800 border border-gold-500/30 rounded-2xl p-6 shadow-[0_0_15px_rgba(251,191,36,0.1)]">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-matte-800 border border-gold-500/30 rounded-2xl p-6 shadow-[0_0_15px_rgba(251,191,36,0.1)] gap-4">
               <div>
                 <h3 className="text-xl font-bold text-white mb-1">Peer-to-Peer Exchange</h3>
                 <p className="text-gray-400 text-sm">Lock in fixed odds or create custom wagers.</p>
               </div>
-              <button className="bg-gold-500 hover:bg-gold-400 text-matte-900 font-bold py-2.5 px-5 rounded-xl transition shadow-[0_0_15px_rgba(251,191,36,0.2)]">
+              <button 
+                onClick={() => setShowCreateOfferModal(true)} // NOW THIS OPENS THE MODAL
+                className="bg-gold-500 hover:bg-gold-400 text-matte-900 font-bold py-2.5 px-5 rounded-xl transition shadow-[0_0_15px_rgba(251,191,36,0.2)] w-full sm:w-auto"
+              >
                 + Create Offer
               </button>
             </div>
             
-            {/* Map the open offers from Supabase here next! */}
-            <div className="py-10 text-center text-gray-500 border border-dashed border-matte-700 rounded-2xl">
-              Loading open market offers...
+            {/* Displaying Open P2P Offers */}
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
+              {bets.filter(b => b.status === 'p2p_open').length === 0 ? (
+                <div className="col-span-full py-10 text-center text-gray-500 border border-dashed border-matte-700 rounded-2xl">
+                  No open market offers. Be the first to create one!
+                </div>
+              ) : (
+                bets.filter(b => b.status === 'p2p_open').map((offer, i) => {
+                  const event = events.find(e => e.id === offer.event_id)
+                  if (!event) return null
+                  const outcomeName = event.outcomes[offer.outcome_index]
+
+                  return (
+                    <div key={i} className="bg-matte-800 border border-matte-700 rounded-xl p-5 hover:border-gold-500/50 transition">
+                      <div className="flex justify-between items-start mb-3">
+                        <span className="text-xs font-semibold text-gold-400 uppercase tracking-wider bg-gold-400/10 px-2 py-1 rounded-full">
+                          {event.category}
+                        </span>
+                        <span className="text-xs text-gray-500">P2P Offer</span>
+                      </div>
+                      <h4 className="text-white font-bold mb-2 line-clamp-2">{event.title}</h4>
+                      <div className="bg-matte-900 rounded p-3 mb-4 border border-matte-700">
+                        <div className="text-xs text-gray-500 mb-1">Prediction</div>
+                        <div className="text-white font-medium">{outcomeName}</div>
+                      </div>
+                      <div className="flex justify-between text-sm mb-2 text-gray-400">
+                        <span>Stake: <span className="text-white font-bold">{offer.stake} KSh</span></span>
+                        <span>Odds: <span className="text-gold-400 font-bold">{offer.odds}x</span></span>
+                      </div>
+                      <button className="w-full mt-2 bg-matte-700 hover:bg-gold-500 hover:text-black text-white font-semibold py-2 rounded-lg transition">
+                        Match Offer
+                      </button>
+                    </div>
+                  )
+                })
+              )}
             </div>
           </div>
 
@@ -314,7 +417,6 @@ function App() {
           
           /* --- MY WAGERS VIEW --- */
           <div className="space-y-6">
-            {/* Premium Portfolio Summary */}
             {bets.filter(b => b.user_id === session?.user?.id).length > 0 && (
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-matte-800 border border-matte-700 rounded-xl p-4 sm:p-5 relative overflow-hidden">
@@ -331,6 +433,10 @@ function App() {
                     {bets.filter(b => b.user_id === session?.user?.id).reduce((sum, bet) => {
                       const event = events.find(e => e.id === bet.event_id)
                       if (!event) return sum
+                      // If it's a p2p bet, use its locked odds, else calculate pool odds
+                      if (bet.status === 'p2p_open') {
+                        return sum + (bet.stake * (bet.odds || 2)) * (1 - PLATFORM_FEE_PERCENT/100)
+                      }
                       const oddsPercent = getOdds(event.id, bet.outcome_index)
                       return sum + calculatePayout(oddsPercent, bet.stake).net
                     }, 0).toLocaleString()} <span className="text-sm font-normal">KSh</span>
@@ -359,19 +465,31 @@ function App() {
                   if (!event) return null
                   
                   const outcomeName = event.outcomes[bet.outcome_index] || 'Unknown Outcome'
-                  const currentOddsPercent = getOdds(event.id, bet.outcome_index)
-                  const currentPayout = calculatePayout(currentOddsPercent, bet.stake)
+                  
+                  // Use locked odds if P2P, otherwise pool odds
+                  let currentOddsMultiplier: string | number = bet.odds || 2.0
+                  let estNetPayout = 0
+
+                  if (bet.status === 'p2p_open') {
+                    const gross = bet.stake * (bet.odds || 2)
+                    estNetPayout = Math.round(gross - (gross * (PLATFORM_FEE_PERCENT / 100)))
+                  } else {
+                    const currentOddsPercent = getOdds(event.id, bet.outcome_index)
+                    const payoutInfo = calculatePayout(currentOddsPercent, bet.stake)
+                    currentOddsMultiplier = payoutInfo.odds
+                    estNetPayout = payoutInfo.net
+                  }
 
                   return (
-                    <div key={i} className="bg-matte-800 border border-matte-700 rounded-xl sm:rounded-2xl p-4 sm:p-6 hover:border-gold-500/50 transition relative overflow-hidden">
-                      <div className="absolute top-0 right-0 w-32 h-32 bg-gold-500/5 rounded-full blur-3xl"></div>
+                    <div key={i} className={`bg-matte-800 border rounded-xl sm:rounded-2xl p-4 sm:p-6 transition relative overflow-hidden ${bet.status === 'p2p_open' ? 'border-gold-500/40' : 'border-matte-700 hover:border-gold-500/50'}`}>
+                      {bet.status === 'p2p_open' && <div className="absolute top-0 right-0 w-32 h-32 bg-gold-500/5 rounded-full blur-3xl"></div>}
                       
                       <div className="flex items-start justify-between mb-4 relative z-10">
                         <span className="text-xs font-semibold text-gold-400 uppercase tracking-wider bg-gold-400/10 px-2 sm:px-3 py-1 rounded-full">
                           {event.category}
                         </span>
-                        <span className="text-xs px-2 py-1 rounded bg-matte-900 border border-matte-700 text-gray-400 uppercase tracking-wide">
-                          {bet.status}
+                        <span className={`text-xs px-2 py-1 rounded bg-matte-900 border uppercase tracking-wide ${bet.status === 'p2p_open' ? 'border-gold-500/50 text-gold-400' : 'border-matte-700 text-gray-400'}`}>
+                          {bet.status === 'p2p_open' ? 'P2P Listed' : bet.status}
                         </span>
                       </div>
 
@@ -388,12 +506,12 @@ function App() {
                           <span className="text-white">{bet.stake.toLocaleString()} KSh</span>
                         </div>
                         <div className="flex justify-between text-gray-400">
-                          <span>Current Market Odds:</span>
-                          <span className="text-white">{currentPayout.odds}x</span>
+                          <span>{bet.status === 'p2p_open' ? 'Locked Odds:' : 'Market Odds:'}</span>
+                          <span className="text-white">{currentOddsMultiplier}x</span>
                         </div>
                         <div className="flex justify-between font-bold pt-3 border-t border-matte-700 mt-3">
                           <span className="text-gold-400">Est. Payout:</span>
-                          <span className="text-gold-400 text-lg">{currentPayout.net.toLocaleString()} KSh</span>
+                          <span className="text-gold-400 text-lg">{estNetPayout.toLocaleString()} KSh</span>
                         </div>
                       </div>
                     </div>
@@ -518,8 +636,8 @@ function App() {
                   </div>
 
                   <div className="mt-4 pt-4 border-t border-matte-700 flex items-center justify-between text-xs text-gray-500">
-                    <span>Vol: {bets.filter(b => b.event_id === event.id).reduce((sum, b) => sum + b.stake, 0).toLocaleString()}</span>
-                    <span>{bets.filter(b => b.event_id === event.id).length} bets</span>
+                    <span>Vol: {bets.filter(b => b.event_id === event.id && b.status !== 'p2p_open').reduce((sum, b) => sum + b.stake, 0).toLocaleString()}</span>
+                    <span>{bets.filter(b => b.event_id === event.id && b.status !== 'p2p_open').length} pool bets</span>
                   </div>
                 </div>
               ))
@@ -528,6 +646,110 @@ function App() {
         )}
       </main>
       
+      {/* P2P CREATE OFFER MODAL */}
+      {showCreateOfferModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-matte-800 border border-gold-500/30 rounded-2xl p-6 w-full max-w-md shadow-[0_0_50px_rgba(251,191,36,0.1)] relative">
+            <button 
+              onClick={() => setShowCreateOfferModal(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-white"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            
+            <h3 className="text-2xl font-bold text-white mb-1">Create P2P Offer</h3>
+            <p className="text-gray-400 text-sm mb-6">Set your own odds and wait for another user to match your stake.</p>
+
+            <div className="space-y-4">
+              {/* Event Selection */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">1. Select Market</label>
+                <select 
+                  className="w-full bg-matte-900 border border-matte-700 text-white rounded-xl p-3 focus:outline-none focus:border-gold-500"
+                  value={p2pSelectedEventId}
+                  onChange={(e) => {
+                    setP2pSelectedEventId(e.target.value)
+                    setP2pSelectedOutcomeIdx(0) // Reset outcome when event changes
+                  }}
+                >
+                  <option value="" disabled>Choose an active market...</option>
+                  {events.map(e => (
+                    <option key={e.id} value={e.id}>{e.title}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Outcome Selection */}
+              {p2pSelectedEventId && (
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">2. Your Prediction</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {events.find(e => e.id === p2pSelectedEventId)?.outcomes.map((outcome, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setP2pSelectedOutcomeIdx(idx)}
+                        className={`p-2 rounded-lg border text-sm font-medium transition ${
+                          p2pSelectedOutcomeIdx === idx 
+                          ? 'bg-gold-500/20 border-gold-500 text-gold-400' 
+                          : 'bg-matte-900 border-matte-700 text-gray-400 hover:border-gray-500'
+                        }`}
+                      >
+                        {outcome}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Stake and Odds */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Stake (KSh)</label>
+                  <input 
+                    type="number"
+                    min={MIN_STAKE}
+                    value={p2pStake || ''}
+                    onChange={(e) => setP2pStake(Number(e.target.value))}
+                    className="w-full bg-matte-900 border border-matte-700 text-white font-bold rounded-xl p-3 focus:outline-none focus:border-gold-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Requested Odds (x)</label>
+                  <input 
+                    type="number"
+                    min="1.01"
+                    step="0.01"
+                    value={p2pOdds || ''}
+                    onChange={(e) => setP2pOdds(Number(e.target.value))}
+                    className="w-full bg-matte-900 border border-matte-700 text-gold-400 font-bold rounded-xl p-3 focus:outline-none focus:border-gold-500"
+                  />
+                </div>
+              </div>
+
+              {/* Projected Payout Info */}
+              <div className="bg-matte-900 rounded-lg p-3 text-sm space-y-1.5 border border-matte-700 mt-2">
+                <div className="flex justify-between text-gray-400">
+                  <span>To Win (Gross):</span>
+                  <span>{Math.round(p2pStake * p2pOdds).toLocaleString()} KSh</span>
+                </div>
+                <div className="flex justify-between text-gold-400 font-bold pt-1 border-t border-matte-800 mt-1">
+                  <span>Net Payout:</span>
+                  <span>{Math.round((p2pStake * p2pOdds) * (1 - PLATFORM_FEE_PERCENT/100)).toLocaleString()} KSh</span>
+                </div>
+              </div>
+
+              <button 
+                onClick={submitP2POffer}
+                disabled={!p2pSelectedEventId || p2pStake < MIN_STAKE || p2pOdds <= 1}
+                className="w-full bg-gold-500 hover:bg-gold-400 disabled:bg-matte-700 disabled:text-gray-500 text-black font-bold py-3.5 rounded-xl transition shadow-[0_0_15px_rgba(251,191,36,0.2)] mt-4"
+              >
+                Publish Offer to Board
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* LOGOUT MODAL */}
       {showLogoutModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-in fade-in duration-200">
