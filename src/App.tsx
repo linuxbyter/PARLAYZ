@@ -21,6 +21,7 @@ interface Bet {
   odds?: number
   status: string
   user_id: string
+  matcher_id?: string // NEW: Tracks who accepted the P2P wager
 }
 
 interface Profile {
@@ -160,7 +161,6 @@ function App() {
     }
   }
 
-  // --- NEW P2P SUBMIT FUNCTION ---
   const submitP2POffer = async () => {
     if (!p2pSelectedEventId || !session?.user) return
 
@@ -177,7 +177,6 @@ function App() {
     const event = events.find(e => e.id === p2pSelectedEventId)
     const outcomeName = event?.outcomes[p2pSelectedOutcomeIdx] || 'Unknown Outcome'
     
-    // Calculate custom payout based on requested odds
     const grossPayout = p2pStake * p2pOdds
     const fee = grossPayout * (PLATFORM_FEE_PERCENT / 100)
     const netPayout = Math.round(grossPayout - fee)
@@ -187,7 +186,7 @@ function App() {
       outcome_index: p2pSelectedOutcomeIdx,
       stake: p2pStake,
       odds: p2pOdds,
-      status: 'p2p_open', // Distinguishes it from regular pool bets
+      status: 'p2p_open', 
       user_id: session.user.id
     })
 
@@ -207,7 +206,6 @@ function App() {
       setShowCreateOfferModal(false)
       setShowSuccessModal(true)
       
-      // Reset form
       setP2pSelectedEventId('')
       setP2pSelectedOutcomeIdx(0)
       setP2pStake(MIN_STAKE)
@@ -216,6 +214,57 @@ function App() {
       fetchBets()
       fetchProfile()
     }
+  }
+
+  // --- NEW: MATCH OFFER LOGIC ---
+  const matchP2POffer = async (offer: Bet) => {
+    if (!session?.user || !profile) return
+
+    if (offer.user_id === session.user.id) {
+      alert("You cannot match your own offer!")
+      return
+    }
+
+    // Taker Liability = (Maker Stake * Odds) - Maker Stake
+    const liability = Math.round((offer.stake * (offer.odds || 2)) - offer.stake)
+
+    if (profile.wallet_balance < liability) {
+      alert(`Insufficient funds! You need ${liability.toLocaleString()} KSh to match this offer.`)
+      return
+    }
+
+    if (!window.confirm(`Are you sure you want to risk ${liability.toLocaleString()} KSh to win ${offer.stake.toLocaleString()} KSh?`)) {
+      return // User cancelled
+    }
+
+    // 1. Lock the bet as matched and set the matcher_id
+    const { error: betError } = await supabase
+      .from('bets')
+      .update({ 
+        status: 'p2p_matched', 
+        matcher_id: session.user.id 
+      })
+      .eq('id', offer.id)
+
+    if (betError) {
+      alert('Error matching offer: ' + betError.message)
+      return
+    }
+
+    // 2. Deduct the liability from the matcher's wallet
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .update({ wallet_balance: profile.wallet_balance - liability })
+      .eq('id', session.user.id)
+
+    if (profileError) {
+      alert('Error updating wallet: ' + profileError.message)
+      return
+    }
+
+    alert('Offer successfully matched! The wager is locked in escrow.')
+    fetchBets()
+    fetchProfile()
   }
 
   const handleLogout = async () => {
@@ -367,14 +416,13 @@ function App() {
                 <p className="text-gray-400 text-sm">Lock in fixed odds or create custom wagers.</p>
               </div>
               <button 
-                onClick={() => setShowCreateOfferModal(true)} // NOW THIS OPENS THE MODAL
+                onClick={() => setShowCreateOfferModal(true)}
                 className="bg-gold-500 hover:bg-gold-400 text-matte-900 font-bold py-2.5 px-5 rounded-xl transition shadow-[0_0_15px_rgba(251,191,36,0.2)] w-full sm:w-auto"
               >
                 + Create Offer
               </button>
             </div>
             
-            {/* Displaying Open P2P Offers */}
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
               {bets.filter(b => b.status === 'p2p_open').length === 0 ? (
                 <div className="col-span-full py-10 text-center text-gray-500 border border-dashed border-matte-700 rounded-2xl">
@@ -385,6 +433,10 @@ function App() {
                   const event = events.find(e => e.id === offer.event_id)
                   if (!event) return null
                   const outcomeName = event.outcomes[offer.outcome_index]
+
+                  // Calculate Math for UI
+                  const liability = Math.round((offer.stake * (offer.odds || 2)) - offer.stake)
+                  const isOwnOffer = offer.user_id === session?.user?.id
 
                   return (
                     <div key={i} className="bg-matte-800 border border-matte-700 rounded-xl p-5 hover:border-gold-500/50 transition">
@@ -399,12 +451,32 @@ function App() {
                         <div className="text-xs text-gray-500 mb-1">Prediction</div>
                         <div className="text-white font-medium">{outcomeName}</div>
                       </div>
-                      <div className="flex justify-between text-sm mb-2 text-gray-400">
-                        <span>Stake: <span className="text-white font-bold">{offer.stake} KSh</span></span>
-                        <span>Odds: <span className="text-gold-400 font-bold">{offer.odds}x</span></span>
+                      
+                      <div className="space-y-1.5 mb-4">
+                        <div className="flex justify-between text-sm text-gray-400">
+                          <span>Maker's Stake:</span>
+                          <span className="text-white font-bold">{offer.stake.toLocaleString()} KSh</span>
+                        </div>
+                        <div className="flex justify-between text-sm text-gray-400">
+                          <span>Requested Odds:</span>
+                          <span className="text-gold-400 font-bold">{offer.odds}x</span>
+                        </div>
+                        <div className="flex justify-between text-sm pt-1.5 border-t border-matte-700 mt-1.5">
+                          <span className="text-gray-400 font-semibold">Your Risk (Liability):</span>
+                          <span className="text-red-400 font-bold">{liability.toLocaleString()} KSh</span>
+                        </div>
                       </div>
-                      <button className="w-full mt-2 bg-matte-700 hover:bg-gold-500 hover:text-black text-white font-semibold py-2 rounded-lg transition">
-                        Match Offer
+
+                      <button 
+                        onClick={() => matchP2POffer(offer)}
+                        disabled={isOwnOffer}
+                        className={`w-full font-semibold py-2.5 rounded-lg transition ${
+                          isOwnOffer 
+                            ? 'bg-matte-700 text-gray-500 cursor-not-allowed' 
+                            : 'bg-matte-700 hover:bg-gold-500 hover:text-black text-white border border-matte-600 hover:border-gold-500'
+                        }`}
+                      >
+                        {isOwnOffer ? 'Waiting for Matcher...' : 'Match Offer'}
                       </button>
                     </div>
                   )
@@ -417,12 +489,16 @@ function App() {
           
           /* --- MY WAGERS VIEW --- */
           <div className="space-y-6">
-            {bets.filter(b => b.user_id === session?.user?.id).length > 0 && (
+            {bets.filter(b => b.user_id === session?.user?.id || b.matcher_id === session?.user?.id).length > 0 && (
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-matte-800 border border-matte-700 rounded-xl p-4 sm:p-5 relative overflow-hidden">
                   <div className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1">Total Wagered</div>
                   <div className="text-white text-xl sm:text-2xl font-bold">
-                    {bets.filter(b => b.user_id === session?.user?.id).reduce((sum, b) => sum + b.stake, 0).toLocaleString()} <span className="text-sm text-gray-500 font-normal">KSh</span>
+                    {bets.filter(b => b.user_id === session?.user?.id || b.matcher_id === session?.user?.id).reduce((sum, b) => {
+                      if (b.user_id === session?.user?.id) return sum + b.stake
+                      if (b.matcher_id === session?.user?.id) return sum + ((b.stake * (b.odds || 2)) - b.stake) // Add liability
+                      return sum
+                    }, 0).toLocaleString()} <span className="text-sm text-gray-500 font-normal">KSh</span>
                   </div>
                 </div>
                 
@@ -430,12 +506,15 @@ function App() {
                   <div className="absolute top-0 right-0 w-16 h-16 bg-gold-500/10 rounded-full blur-2xl"></div>
                   <div className="text-gold-400 text-xs font-semibold uppercase tracking-wider mb-1 relative z-10">Est. Payout</div>
                   <div className="text-gold-400 text-xl sm:text-2xl font-bold relative z-10">
-                    {bets.filter(b => b.user_id === session?.user?.id).reduce((sum, bet) => {
+                    {bets.filter(b => b.user_id === session?.user?.id || b.matcher_id === session?.user?.id).reduce((sum, bet) => {
                       const event = events.find(e => e.id === bet.event_id)
                       if (!event) return sum
-                      // If it's a p2p bet, use its locked odds, else calculate pool odds
-                      if (bet.status === 'p2p_open') {
-                        return sum + (bet.stake * (bet.odds || 2)) * (1 - PLATFORM_FEE_PERCENT/100)
+                      
+                      const gross = bet.stake * (bet.odds || 2)
+                      const fee = gross * (PLATFORM_FEE_PERCENT / 100)
+                      
+                      if (bet.status === 'p2p_open' || bet.status === 'p2p_matched') {
+                        return sum + (gross - fee)
                       }
                       const oddsPercent = getOdds(event.id, bet.outcome_index)
                       return sum + calculatePayout(oddsPercent, bet.stake).net
@@ -446,7 +525,7 @@ function App() {
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
-              {bets.filter(b => b.user_id === session?.user?.id).length === 0 ? (
+              {bets.filter(b => b.user_id === session?.user?.id || b.matcher_id === session?.user?.id).length === 0 ? (
                 <div className="col-span-full py-16 text-center text-gray-500 flex flex-col items-center">
                   <div className="w-16 h-16 rounded-full bg-matte-800 flex items-center justify-center mb-4 border border-matte-700">
                     <span className="text-2xl opacity-50">💸</span>
@@ -460,19 +539,21 @@ function App() {
                   </button>
                 </div>
               ) : (
-                bets.filter(b => b.user_id === session?.user?.id).reverse().map((bet, i) => {
+                bets.filter(b => b.user_id === session?.user?.id || b.matcher_id === session?.user?.id).reverse().map((bet, i) => {
                   const event = events.find(e => e.id === bet.event_id)
                   if (!event) return null
                   
                   const outcomeName = event.outcomes[bet.outcome_index] || 'Unknown Outcome'
+                  const isMatcher = bet.matcher_id === session?.user?.id
                   
-                  // Use locked odds if P2P, otherwise pool odds
                   let currentOddsMultiplier: string | number = bet.odds || 2.0
                   let estNetPayout = 0
+                  let displayStake = bet.stake
 
-                  if (bet.status === 'p2p_open') {
+                  if (bet.status.startsWith('p2p_')) {
                     const gross = bet.stake * (bet.odds || 2)
                     estNetPayout = Math.round(gross - (gross * (PLATFORM_FEE_PERCENT / 100)))
+                    if (isMatcher) displayStake = Math.round(gross - bet.stake) // Matcher's stake is their liability
                   } else {
                     const currentOddsPercent = getOdds(event.id, bet.outcome_index)
                     const payoutInfo = calculatePayout(currentOddsPercent, bet.stake)
@@ -481,32 +562,34 @@ function App() {
                   }
 
                   return (
-                    <div key={i} className={`bg-matte-800 border rounded-xl sm:rounded-2xl p-4 sm:p-6 transition relative overflow-hidden ${bet.status === 'p2p_open' ? 'border-gold-500/40' : 'border-matte-700 hover:border-gold-500/50'}`}>
-                      {bet.status === 'p2p_open' && <div className="absolute top-0 right-0 w-32 h-32 bg-gold-500/5 rounded-full blur-3xl"></div>}
+                    <div key={i} className={`bg-matte-800 border rounded-xl sm:rounded-2xl p-4 sm:p-6 transition relative overflow-hidden ${bet.status.startsWith('p2p_') ? 'border-gold-500/40' : 'border-matte-700 hover:border-gold-500/50'}`}>
+                      {bet.status.startsWith('p2p_') && <div className="absolute top-0 right-0 w-32 h-32 bg-gold-500/5 rounded-full blur-3xl"></div>}
                       
                       <div className="flex items-start justify-between mb-4 relative z-10">
                         <span className="text-xs font-semibold text-gold-400 uppercase tracking-wider bg-gold-400/10 px-2 sm:px-3 py-1 rounded-full">
                           {event.category}
                         </span>
-                        <span className={`text-xs px-2 py-1 rounded bg-matte-900 border uppercase tracking-wide ${bet.status === 'p2p_open' ? 'border-gold-500/50 text-gold-400' : 'border-matte-700 text-gray-400'}`}>
-                          {bet.status === 'p2p_open' ? 'P2P Listed' : bet.status}
+                        <span className={`text-xs px-2 py-1 rounded bg-matte-900 border uppercase tracking-wide ${bet.status.startsWith('p2p_') ? 'border-gold-500/50 text-gold-400' : 'border-matte-700 text-gray-400'}`}>
+                          {isMatcher ? 'P2P Matched (Taker)' : bet.status === 'p2p_open' ? 'P2P Listed' : bet.status === 'p2p_matched' ? 'P2P Matched (Maker)' : bet.status}
                         </span>
                       </div>
 
                       <h3 className="text-lg font-bold text-white mb-4 relative z-10">{event.title}</h3>
                       
                       <div className="bg-matte-900 rounded-lg p-3 border border-matte-700 mb-4 relative z-10">
-                        <div className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1">Your Prediction</div>
+                        <div className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1">
+                          {isMatcher ? 'You bet AGAINST' : 'Your Prediction'}
+                        </div>
                         <div className="text-white font-medium">{outcomeName}</div>
                       </div>
 
                       <div className="space-y-2 text-sm relative z-10">
                         <div className="flex justify-between text-gray-400">
-                          <span>Original Stake:</span>
-                          <span className="text-white">{bet.stake.toLocaleString()} KSh</span>
+                          <span>{isMatcher ? 'Your Risk:' : 'Original Stake:'}</span>
+                          <span className="text-white">{displayStake.toLocaleString()} KSh</span>
                         </div>
                         <div className="flex justify-between text-gray-400">
-                          <span>{bet.status === 'p2p_open' ? 'Locked Odds:' : 'Market Odds:'}</span>
+                          <span>{bet.status.startsWith('p2p_') ? 'Locked Odds:' : 'Market Odds:'}</span>
                           <span className="text-white">{currentOddsMultiplier}x</span>
                         </div>
                         <div className="flex justify-between font-bold pt-3 border-t border-matte-700 mt-3">
@@ -636,8 +719,8 @@ function App() {
                   </div>
 
                   <div className="mt-4 pt-4 border-t border-matte-700 flex items-center justify-between text-xs text-gray-500">
-                    <span>Vol: {bets.filter(b => b.event_id === event.id && b.status !== 'p2p_open').reduce((sum, b) => sum + b.stake, 0).toLocaleString()}</span>
-                    <span>{bets.filter(b => b.event_id === event.id && b.status !== 'p2p_open').length} pool bets</span>
+                    <span>Vol: {bets.filter(b => b.event_id === event.id && !b.status.startsWith('p2p_')).reduce((sum, b) => sum + b.stake, 0).toLocaleString()}</span>
+                    <span>{bets.filter(b => b.event_id === event.id && !b.status.startsWith('p2p_')).length} pool bets</span>
                   </div>
                 </div>
               ))
