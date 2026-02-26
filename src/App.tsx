@@ -46,6 +46,9 @@ function App() {
   
   const [activeCategory, setActiveCategory] = useState<string>('All') 
   const [activeView, setActiveView] = useState<'markets' | 'wagers'>('markets')
+  // NAVIGATION STATES
+  const [activeCategory, setActiveCategory] = useState<string>('All') 
+  const [activeView, setActiveView] = useState<'markets' | 'wagers' | 'p2p'>('markets') // Added 'p2p' here!
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -218,7 +221,62 @@ function App() {
             </button>
           </div>
         </div>
+{/* Bottom Row: Navigation Tabs */}
+        <div className="max-w-6xl mx-auto px-4 mt-1">
+          <div className="flex items-center gap-6 overflow-x-auto pb-3 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
+            
+            <button
+              onClick={() => {
+                setActiveView('wagers')
+                setSelectedOutcome(null)
+              }}
+              className={`whitespace-nowrap text-sm font-semibold transition-colors pb-1 border-b-2 flex items-center gap-2 ${
+                activeView === 'wagers' 
+                  ? 'text-gold-400 border-gold-400' 
+                  : 'text-gray-500 border-transparent hover:text-gray-300'
+              }`}
+            >
+              <span className={`w-2 h-2 rounded-full ${activeView === 'wagers' ? 'bg-gold-500 animate-pulse' : 'bg-gray-500'}`}></span>
+              My Wagers
+            </button>
 
+            {/* NEW P2P BOARD TAB */}
+            <button
+              onClick={() => {
+                setActiveView('p2p')
+                setSelectedOutcome(null)
+              }}
+              className={`whitespace-nowrap text-sm font-semibold transition-colors pb-1 border-b-2 flex items-center gap-2 ${
+                activeView === 'p2p' 
+                  ? 'text-gold-400 border-gold-400' 
+                  : 'text-gray-500 border-transparent hover:text-gray-300'
+              }`}
+            >
+              🤝 P2P Board
+            </button>
+
+            <div className="w-px h-4 bg-matte-700"></div> 
+
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => {
+                  setActiveView('markets')
+                  setActiveCategory(cat)
+                  setSelectedOutcome(null) 
+                }}
+                className={`whitespace-nowrap text-sm font-semibold transition-colors pb-1 border-b-2 ${
+                  activeView === 'markets' && activeCategory === cat 
+                    ? 'text-gold-400 border-gold-400' 
+                    : 'text-gray-500 border-transparent hover:text-gray-300'
+                }`}
+              >
+                {cat === 'All' ? 'Trending' : cat}
+              </button>
+            ))}
+          </div>
+        </div>
+        
         <div className="max-w-6xl mx-auto px-4 mt-1">
           <div className="flex items-center gap-6 overflow-x-auto pb-3 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
             
@@ -293,6 +351,29 @@ function App() {
                   </div>
                 </div>
               </div>
+            {/* DYNAMIC VIEW RENDERER */}
+        {activeView === 'p2p' ? (
+          
+          /* --- THE NEW P2P ORDER BOOK --- */
+          <div className="space-y-6">
+            <div className="flex items-center justify-between bg-matte-800 border border-gold-500/30 rounded-2xl p-6 shadow-[0_0_15px_rgba(251,191,36,0.1)]">
+              <div>
+                <h3 className="text-xl font-bold text-white mb-1">Peer-to-Peer Exchange</h3>
+                <p className="text-gray-400 text-sm">Lock in fixed odds or create custom wagers.</p>
+              </div>
+              <button className="bg-gold-500 hover:bg-gold-400 text-matte-900 font-bold py-2.5 px-5 rounded-xl transition shadow-[0_0_15px_rgba(251,191,36,0.2)]">
+                + Create Offer
+              </button>
+            </div>
+            
+            {/* We will map the open offers from Supabase here next! */}
+            <div className="py-10 text-center text-gray-500 border border-dashed border-matte-700 rounded-2xl">
+              Loading open market offers...
+            </div>
+          </div>
+
+        ) : activeView === 'wagers' ? (
+          /* ... (Your existing My Wagers code stays exactly the same here) ... */
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
