@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
 import Auth from './components/Auth'
-import { LogOut, X, AlertTriangle, Bell, Wallet, ArrowDownToLine, ArrowUpFromLine } from 'lucide-react'
+import { LogOut, X, AlertTriangle, Bell, Wallet, ArrowDownToLine, ArrowUpFromLine, CheckCircle2, History } from 'lucide-react'
 
 interface Event {
   id: string
@@ -71,8 +71,12 @@ export default function App() {
 
   // WALLET STATES
   const [depositAmount, setDepositAmount] = useState<number>(500)
-  const [phoneNumber, setPhoneNumber] = useState<string>('')
-  const [isProcessingDeposit, setIsProcessingDeposit] = useState(false)
+  const [depositPhone, setDepositPhone] = useState<string>('')
+  const [withdrawAmount, setWithdrawAmount] = useState<number>(0)
+  const [withdrawPhone, setWithdrawPhone] = useState<string>('')
+  
+  // PREMIUM CASHIER MODALS
+  const [showCashierModal, setShowCashierModal] = useState<{type: 'deposit' | 'withdraw', status: 'processing' | 'success'} | null>(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => setSession(session))
@@ -101,7 +105,10 @@ export default function App() {
 
   const fetchProfile = async () => {
     const { data } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
-    if (data) setProfile(data)
+    if (data) {
+      setProfile(data)
+      if (!withdrawPhone) setWithdrawPhone('Registered Number') // Placeholder till they type
+    }
   }
 
   const fetchEvents = async () => {
@@ -116,7 +123,7 @@ export default function App() {
   }
 
   const fetchNotifications = async () => {
-    const { data } = await supabase.from('notifications').select('*').eq('user_id', session.user.id).order('created_at', { ascending: false }).limit(20)
+    const { data } = await supabase.from('notifications').select('*').eq('user_id', session.user.id).order('created_at', { ascending: false })
     setNotifications(data || [])
   }
 
@@ -127,36 +134,49 @@ export default function App() {
     await supabase.from('notifications').update({ is_read: true }).in('id', unreadIds)
   }
 
+  // --- PREMIUM DEPOSIT ---
   const handleMpesaDeposit = async () => {
-    if (!phoneNumber || depositAmount < 100) {
-      alert("Please enter a valid M-Pesa number and a minimum of 100 KSh.")
-      return
-    }
+    if (!depositPhone || depositAmount < 100) return alert("Please enter a valid M-Pesa number and a minimum of 100 KSh.")
     
-    setIsProcessingDeposit(true)
+    setShowCashierModal({ type: 'deposit', status: 'processing' })
     
-    // 🔥 FOR MVP: This is a simulation. 
-    // In production, this button will call a Supabase Edge Function that hits the Safaricom Daraja API.
+    // Simulate STK Push delay
     setTimeout(async () => {
-      alert(`STK Push sent to ${phoneNumber}! Enter your PIN to complete the deposit.`)
-      // Simulate successful callback from Safaricom after 3 seconds:
-      setTimeout(async () => {
-        if (profile) {
-          await supabase.from('profiles').update({ wallet_balance: profile.wallet_balance + depositAmount }).eq('id', session.user.id)
-          await supabase.from('notifications').insert({ user_id: session.user.id, message: `Deposit of ${depositAmount} KSh successful!`, type: 'deposit', is_read: false })
-          fetchProfile()
-          fetchNotifications()
-          setDepositAmount(500)
-          setIsProcessingDeposit(false)
-        }
-      }, 3000)
-    }, 1500)
+      if (profile) {
+        await supabase.from('profiles').update({ wallet_balance: profile.wallet_balance + depositAmount }).eq('id', session.user.id)
+        await supabase.from('notifications').insert({ user_id: session.user.id, message: `Deposited ${depositAmount} KSh via M-Pesa.`, type: 'deposit', is_read: false })
+        fetchProfile()
+        fetchNotifications()
+        setShowCashierModal({ type: 'deposit', status: 'success' })
+        setDepositAmount(500)
+      }
+    }, 3500)
+  }
+
+  // --- PREMIUM WITHDRAW ---
+  const handleWithdraw = async () => {
+    if (withdrawAmount < 100) return alert("Minimum withdrawal is 100 KSh.")
+    if (profile && withdrawAmount > profile.wallet_balance) return alert("Insufficient available liquidity.")
+    
+    setShowCashierModal({ type: 'withdraw', status: 'processing' })
+    
+    // Simulate manual review routing
+    setTimeout(async () => {
+      if (profile) {
+        await supabase.from('profiles').update({ wallet_balance: profile.wallet_balance - withdrawAmount }).eq('id', session.user.id)
+        await supabase.from('notifications').insert({ user_id: session.user.id, message: `Withdrawal of ${withdrawAmount} KSh initiated.`, type: 'withdrawal', is_read: false })
+        fetchProfile()
+        fetchNotifications()
+        setShowCashierModal({ type: 'withdraw', status: 'success' })
+        setWithdrawAmount(0)
+      }
+    }, 2500)
   }
 
   const placeBet = async () => {
     if (!selectedOutcome || !session?.user || !profile) return
     if (profile.wallet_balance < stakeAmount) return alert('Insufficient balance!')
-    if (stakeAmount < MIN_STAKE) return alert(`Minimum stake is ${MIN_STAKE} credits`)
+    if (stakeAmount < MIN_STAKE) return alert(`Minimum stake is ${MIN_STAKE} KSh`)
 
     const event = events.find(e => e.id === selectedOutcome.eventId)
     const outcomeName = event?.outcomes[selectedOutcome.idx] || 'Unknown Outcome'
@@ -262,6 +282,9 @@ export default function App() {
   const myActiveWagers = bets.filter(b => (b.user_id === session?.user?.id || b.matcher_id === session?.user?.id) && b.status !== 'p2p_open')
   const unreadCount = notifications.filter(n => !n.is_read).length
 
+  // Filter only financial notifications for the Ledger
+  const ledgerTransactions = notifications.filter(n => ['deposit', 'withdrawal', 'payout', 'refund'].includes(n.type))
+
   if (!session) return <Auth />
   if (loading) return <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center"><div className="w-8 h-8 border-2 border-[#C5A880] border-t-transparent rounded-full animate-spin"></div></div>
 
@@ -346,60 +369,99 @@ export default function App() {
             {/* Balance Card */}
             <div className="bg-gradient-to-br from-[#1a1a1a] to-[#0a0a0a] border border-[#ffffff15] rounded-3xl p-8 mb-8 relative overflow-hidden shadow-2xl">
               <div className="absolute top-0 right-0 w-64 h-64 bg-[#C5A880]/5 rounded-full blur-[80px]"></div>
-              <p className="text-gray-400 text-sm font-semibold uppercase tracking-widest mb-2 relative z-10">Available Liquidity</p>
+              <p className="text-gray-400 text-sm font-semibold uppercase tracking-widest mb-2 relative z-10 flex items-center gap-2">Available Liquidity</p>
               <h1 className="text-5xl font-extrabold text-white mb-1 relative z-10 tracking-tight">
                 {profile?.wallet_balance.toLocaleString()} <span className="text-2xl text-[#C5A880]">KSh</span>
               </h1>
-              <p className="text-gray-500 text-sm relative z-10">Ready to deploy across the exchange.</p>
+              <p className="text-gray-500 text-sm relative z-10 font-light mt-1">Free capital available for wagers or withdrawal.</p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-10">
               {/* DEPOSIT CARD */}
-              <div className="bg-[#111111] border border-[#ffffff10] rounded-2xl p-6">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center border border-green-500/20">
+              <div className="bg-[#111111] border border-[#ffffff10] rounded-2xl p-6 relative overflow-hidden group hover:border-green-500/30 transition">
+                <div className="flex items-center gap-3 mb-6 relative z-10">
+                  <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center border border-green-500/20 group-hover:bg-green-500/20 transition">
                     <ArrowDownToLine className="w-5 h-5 text-green-400" />
                   </div>
-                  <h3 className="text-lg font-bold">Deposit</h3>
+                  <h3 className="text-lg font-bold">Add Liquidity</h3>
                 </div>
                 
-                <div className="space-y-4">
+                <div className="space-y-4 relative z-10">
                   <div>
                     <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1">M-Pesa Number</label>
-                    <input type="tel" placeholder="07XX XXX XXX" value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)} className="w-full bg-[#0a0a0a] border border-[#ffffff15] rounded-xl p-3 focus:outline-none focus:border-green-500 transition font-medium" />
+                    <input type="tel" placeholder="07XX XXX XXX" value={depositPhone} onChange={e => setDepositPhone(e.target.value)} className="w-full bg-[#0a0a0a] border border-[#ffffff15] rounded-xl p-3 focus:outline-none focus:border-green-500 transition font-medium" />
                   </div>
                   <div>
                     <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1">Amount (KSh)</label>
                     <input type="number" min="100" value={depositAmount || ''} onChange={e => setDepositAmount(Number(e.target.value))} className="w-full bg-[#0a0a0a] border border-[#ffffff15] rounded-xl p-3 focus:outline-none focus:border-green-500 transition font-bold text-white" />
                   </div>
-                  <button onClick={handleMpesaDeposit} disabled={isProcessingDeposit} className="w-full bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white font-bold py-3 rounded-xl transition shadow-[0_0_15px_rgba(22,163,74,0.2)] flex justify-center items-center">
-                    {isProcessingDeposit ? <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></span> : 'Trigger STK Push'}
+                  <button onClick={handleMpesaDeposit} className="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-3.5 rounded-xl transition shadow-[0_0_15px_rgba(22,163,74,0.2)]">
+                    Trigger STK Push
                   </button>
                 </div>
               </div>
 
               {/* WITHDRAW CARD */}
-              <div className="bg-[#111111] border border-[#ffffff10] rounded-2xl p-6">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="w-10 h-10 rounded-lg bg-red-500/10 flex items-center justify-center border border-red-500/20">
-                    <ArrowUpFromLine className="w-5 h-5 text-red-400" />
+              <div className="bg-[#111111] border border-[#ffffff10] rounded-2xl p-6 relative overflow-hidden group hover:border-[#C5A880]/30 transition">
+                <div className="flex items-center gap-3 mb-6 relative z-10">
+                  <div className="w-10 h-10 rounded-lg bg-[#C5A880]/10 flex items-center justify-center border border-[#C5A880]/20 group-hover:bg-[#C5A880]/20 transition">
+                    <ArrowUpFromLine className="w-5 h-5 text-[#C5A880]" />
                   </div>
                   <h3 className="text-lg font-bold">Withdraw</h3>
                 </div>
                 
-                <div className="space-y-4">
+                <div className="space-y-4 relative z-10">
                   <div>
-                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1">Send to Number</label>
-                    <input type="tel" placeholder="Registered Number" className="w-full bg-[#0a0a0a] border border-[#ffffff15] rounded-xl p-3 focus:outline-none focus:border-red-500 transition font-medium" disabled />
+                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1">Destination Number</label>
+                    <input type="tel" value={withdrawPhone} onChange={e => setWithdrawPhone(e.target.value)} className="w-full bg-[#0a0a0a] border border-[#ffffff15] text-gray-300 rounded-xl p-3 focus:outline-none focus:border-[#C5A880] transition font-medium" />
                   </div>
                   <div>
                     <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1">Amount (KSh)</label>
-                    <input type="number" placeholder="0" className="w-full bg-[#0a0a0a] border border-[#ffffff15] rounded-xl p-3 focus:outline-none focus:border-red-500 transition font-bold text-white" disabled />
+                    <input type="number" placeholder="0" value={withdrawAmount || ''} onChange={e => setWithdrawAmount(Number(e.target.value))} className="w-full bg-[#0a0a0a] border border-[#ffffff15] rounded-xl p-3 focus:outline-none focus:border-[#C5A880] transition font-bold text-white" />
                   </div>
-                  <button onClick={() => alert("Withdrawals will be processed manually by admin during MVP phase.")} className="w-full bg-transparent border border-red-500/50 hover:bg-red-500/10 text-red-400 font-bold py-3 rounded-xl transition">
+                  <button onClick={handleWithdraw} className="w-full bg-transparent border border-[#C5A880]/50 hover:bg-[#C5A880] text-[#C5A880] hover:text-[#0a0a0a] font-bold py-3.5 rounded-xl transition">
                     Request Payout
                   </button>
                 </div>
+              </div>
+            </div>
+
+            {/* TRANSACTION LEDGER */}
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <History className="w-5 h-5 text-gray-500" />
+                <h3 className="text-lg font-bold text-white">Transaction Ledger</h3>
+              </div>
+              
+              <div className="bg-[#111111] border border-[#ffffff10] rounded-2xl overflow-hidden">
+                {ledgerTransactions.length === 0 ? (
+                  <div className="p-8 text-center text-gray-500 font-light">No financial transactions recorded yet.</div>
+                ) : (
+                  <div className="divide-y divide-[#ffffff0a]">
+                    {ledgerTransactions.map((tx) => {
+                      const isPositive = ['deposit', 'payout', 'refund'].includes(tx.type)
+                      return (
+                        <div key={tx.id} className="p-4 sm:p-5 flex items-center justify-between hover:bg-[#1a1a1a] transition">
+                          <div className="flex items-center gap-4">
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center border ${isPositive ? 'bg-green-500/10 border-green-500/20 text-green-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
+                              {isPositive ? <ArrowDownToLine className="w-4 h-4" /> : <ArrowUpFromLine className="w-4 h-4" />}
+                            </div>
+                            <div>
+                              <p className="text-white font-semibold text-sm sm:text-base">{tx.type.charAt(0).toUpperCase() + tx.type.slice(1)}</p>
+                              <p className="text-gray-500 text-xs mt-0.5">{new Date(tx.created_at).toLocaleString()}</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className={`font-bold ${isPositive ? 'text-green-400' : 'text-red-400'}`}>
+                              {isPositive ? '+' : '-'}{tx.message.match(/\d+/) ? tx.message.match(/\d+/)?.[0] : ''} KSh
+                            </p>
+                            <p className="text-gray-600 text-xs font-mono mt-0.5">TxID: {tx.id.substring(0, 8)}</p>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -623,7 +685,44 @@ export default function App() {
         )}
       </main>
 
-      {/* MODALS */}
+      {/* --- PREMIUM CASHIER MODALS --- */}
+      {showCashierModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200">
+          <div className={`bg-[#111111] border rounded-3xl p-6 sm:p-8 w-full max-w-sm text-center relative overflow-hidden shadow-2xl ${showCashierModal.type === 'deposit' ? 'border-green-500/30' : 'border-[#C5A880]/30'}`}>
+            <div className={`absolute top-0 left-1/2 -translate-x-1/2 w-40 h-40 rounded-full blur-3xl pointer-events-none ${showCashierModal.type === 'deposit' ? 'bg-green-500/10' : 'bg-[#C5A880]/10'}`}></div>
+            <div className="relative z-10">
+              
+              {showCashierModal.status === 'processing' ? (
+                <>
+                  <div className="w-16 h-16 bg-[#1a1a1a] border border-[#ffffff15] rounded-2xl flex items-center justify-center mx-auto mb-5">
+                    <div className={`w-8 h-8 border-4 border-t-transparent rounded-full animate-spin ${showCashierModal.type === 'deposit' ? 'border-green-500' : 'border-[#C5A880]'}`}></div>
+                  </div>
+                  <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">
+                    {showCashierModal.type === 'deposit' ? 'Awaiting M-Pesa PIN' : 'Processing Request'}
+                  </h3>
+                  <p className="text-gray-400 text-sm mb-2 font-light">
+                    {showCashierModal.type === 'deposit' ? 'Check your phone. Please enter your M-Pesa PIN to complete the transaction.' : 'Securing your withdrawal request on the ledger...'}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5 border ${showCashierModal.type === 'deposit' ? 'bg-green-500/10 border-green-500/40 text-green-400 shadow-[0_0_15px_rgba(34,197,94,0.2)]' : 'bg-[#C5A880]/10 border-[#C5A880]/40 text-[#C5A880] shadow-[0_0_15px_rgba(197,168,128,0.2)]'}`}>
+                    <CheckCircle2 className="w-8 h-8" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">Transaction Successful</h3>
+                  <p className="text-gray-400 text-sm mb-6 font-light">
+                    {showCashierModal.type === 'deposit' ? 'Your liquidity has been added to the exchange.' : 'Your payout request has been queued.'}
+                  </p>
+                  <button onClick={() => setShowCashierModal(null)} className="w-full bg-white hover:bg-gray-200 text-black font-bold py-3.5 rounded-xl transition">Return to Ledger</button>
+                </>
+              )}
+
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* P2P CREATE OFFER MODAL */}
       {showCreateOfferModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200">
           <div className="bg-[#111111] border border-[#C5A880]/30 rounded-3xl p-6 sm:p-8 w-full max-w-md shadow-[0_0_50px_rgba(197,168,128,0.15)] relative">
@@ -668,6 +767,7 @@ export default function App() {
         </div>
       )}
 
+      {/* P2P MATCH MODAL */}
       {offerToMatch && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200">
           <div className="bg-[#111111] border border-[#C5A880]/40 rounded-3xl p-6 sm:p-8 w-full max-w-sm text-center shadow-[0_0_50px_rgba(197,168,128,0.15)] relative overflow-hidden">
@@ -689,13 +789,14 @@ export default function App() {
         </div>
       )}
 
+      {/* SUCCESS MODAL FOR BETS */}
       {showSuccessModal && lastBetDetails && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200">
           <div className="bg-[#111111] border border-green-500/30 rounded-3xl p-6 sm:p-8 w-full max-w-sm text-center shadow-[0_0_50px_rgba(34,197,94,0.1)] relative overflow-hidden">
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-40 h-40 bg-green-500/10 rounded-full blur-3xl pointer-events-none"></div>
             <div className="relative z-10">
               <div className="w-16 h-16 bg-green-500/10 border border-green-500/40 text-green-400 rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-[0_0_15px_rgba(34,197,94,0.2)]">
-                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
+                <CheckCircle2 className="w-8 h-8" />
               </div>
               <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">Contract Secured</h3>
               <p className="text-gray-400 text-sm mb-6 font-light">Your position is locked on the network.</p>
@@ -711,6 +812,7 @@ export default function App() {
         </div>
       )}
 
+      {/* LOGOUT MODAL */}
       {showLogoutModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200">
           <div className="bg-[#111111] border border-[#ffffff15] rounded-3xl p-6 sm:p-8 w-full max-w-sm text-center shadow-[0_0_50px_rgba(0,0,0,0.8)] relative overflow-hidden">
