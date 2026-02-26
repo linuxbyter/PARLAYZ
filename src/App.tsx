@@ -39,13 +39,11 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [selectedOutcome, setSelectedOutcome] = useState<{eventId: string, idx: number} | null>(null)
 
-  // UX STATES
   const [stakeAmount, setStakeAmount] = useState<number>(MIN_STAKE)
   const [showSuccessModal, setShowSuccessModal] = useState(false)
   const [showLogoutModal, setShowLogoutModal] = useState(false)
   const [lastBetDetails, setLastBetDetails] = useState<{stake: number, payout: number, outcomeName: string} | null>(null)
   
-  // NAVIGATION STATES
   const [activeCategory, setActiveCategory] = useState<string>('All') 
   const [activeView, setActiveView] = useState<'markets' | 'wagers'>('markets')
 
@@ -179,7 +177,6 @@ function App() {
       odds: oddsDecimal.toFixed(2)
     }
   }
-
   const categories = ['All', ...Array.from(new Set(events.map(e => e.category)))]
 
   const filteredEvents = activeCategory === 'All' 
@@ -197,10 +194,10 @@ function App() {
       </div>
     )
   }
+
   return (
     <div className="min-h-screen bg-matte-900 relative">
 
-      {/* PREMIUM KALSHI-STYLE HEADER */}
       <header className="border-b border-matte-800 bg-matte-900/90 backdrop-blur-xl sticky top-0 z-20">
         <div className="max-w-6xl mx-auto px-4 pt-4 pb-2 flex items-center justify-between">
           <h1 className="text-2xl sm:text-3xl font-bold text-gold-400 tracking-tight">PARLAYZ</h1>
@@ -222,7 +219,6 @@ function App() {
           </div>
         </div>
 
-        {/* Bottom Row: Navigation Tabs */}
         <div className="max-w-6xl mx-auto px-4 mt-1">
           <div className="flex items-center gap-6 overflow-x-auto pb-3 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
             
@@ -263,7 +259,6 @@ function App() {
           </div>
         </div>
       </header>
-
       <main className="max-w-6xl mx-auto px-4 py-6 sm:py-8">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold text-white">
@@ -274,67 +269,94 @@ function App() {
         </div>
 
         {activeView === 'wagers' ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
-            {bets.filter(b => b.user_id === session?.user?.id).length === 0 ? (
-              <div className="col-span-full py-16 text-center text-gray-500 flex flex-col items-center">
-                <div className="w-16 h-16 rounded-full bg-matte-800 flex items-center justify-center mb-4 border border-matte-700">
-                  <span className="text-2xl opacity-50">💸</span>
-                </div>
-                <p>You haven't placed any wagers yet.</p>
-                <button 
-                  onClick={() => setActiveView('markets')}
-                  className="mt-4 text-gold-400 hover:text-gold-300 text-sm font-semibold"
-                >
-                  Explore Markets →
-                </button>
-              </div>
-            ) : (
-              bets.filter(b => b.user_id === session?.user?.id).reverse().map((bet, i) => {
-                const event = events.find(e => e.id === bet.event_id)
-                if (!event) return null
-                
-                const outcomeName = event.outcomes[bet.outcome_index] || 'Unknown Outcome'
-                const currentOddsPercent = getOdds(event.id, bet.outcome_index)
-                const currentPayout = calculatePayout(currentOddsPercent, bet.stake)
-
-                return (
-                  <div key={i} className="bg-matte-800 border border-matte-700 rounded-xl sm:rounded-2xl p-4 sm:p-6 hover:border-gold-500/50 transition relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-gold-500/5 rounded-full blur-3xl"></div>
-                    
-                    <div className="flex items-start justify-between mb-4 relative z-10">
-                      <span className="text-xs font-semibold text-gold-400 uppercase tracking-wider bg-gold-400/10 px-2 sm:px-3 py-1 rounded-full">
-                        {event.category}
-                      </span>
-                      <span className="text-xs px-2 py-1 rounded bg-matte-900 border border-matte-700 text-gray-400 uppercase tracking-wide">
-                        {bet.status}
-                      </span>
-                    </div>
-
-                    <h3 className="text-lg font-bold text-white mb-4 relative z-10">{event.title}</h3>
-                    
-                    <div className="bg-matte-900 rounded-lg p-3 border border-matte-700 mb-4 relative z-10">
-                      <div className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1">Your Prediction</div>
-                      <div className="text-white font-medium">{outcomeName}</div>
-                    </div>
-
-                    <div className="space-y-2 text-sm relative z-10">
-                      <div className="flex justify-between text-gray-400">
-                        <span>Original Stake:</span>
-                        <span className="text-white">{bet.stake.toLocaleString()} KSh</span>
-                      </div>
-                      <div className="flex justify-between text-gray-400">
-                        <span>Current Market Odds:</span>
-                        <span className="text-white">{currentPayout.odds}x</span>
-                      </div>
-                      <div className="flex justify-between font-bold pt-3 border-t border-matte-700 mt-3">
-                        <span className="text-gold-400">Est. Payout:</span>
-                        <span className="text-gold-400 text-lg">{currentPayout.net.toLocaleString()} KSh</span>
-                      </div>
-                    </div>
+          <div className="space-y-6">
+            {/* --- NEW PREMIUM PORTFOLIO SUMMARY --- */}
+            {bets.filter(b => b.user_id === session?.user?.id).length > 0 && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-matte-800 border border-matte-700 rounded-xl p-4 sm:p-5 relative overflow-hidden">
+                  <div className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1">Total Wagered</div>
+                  <div className="text-white text-xl sm:text-2xl font-bold">
+                    {bets.filter(b => b.user_id === session?.user?.id).reduce((sum, b) => sum + b.stake, 0).toLocaleString()} <span className="text-sm text-gray-500 font-normal">KSh</span>
                   </div>
-                )
-              })
+                </div>
+                
+                <div className="bg-matte-800 border border-gold-500/30 rounded-xl p-4 sm:p-5 relative overflow-hidden shadow-[0_0_15px_rgba(251,191,36,0.1)]">
+                  <div className="absolute top-0 right-0 w-16 h-16 bg-gold-500/10 rounded-full blur-2xl"></div>
+                  <div className="text-gold-400 text-xs font-semibold uppercase tracking-wider mb-1 relative z-10">Est. Payout</div>
+                  <div className="text-gold-400 text-xl sm:text-2xl font-bold relative z-10">
+                    {bets.filter(b => b.user_id === session?.user?.id).reduce((sum, bet) => {
+                      const event = events.find(e => e.id === bet.event_id)
+                      if (!event) return sum
+                      const oddsPercent = getOdds(event.id, bet.outcome_index)
+                      return sum + calculatePayout(oddsPercent, bet.stake).net
+                    }, 0).toLocaleString()} <span className="text-sm font-normal">KSh</span>
+                  </div>
+                </div>
+              </div>
             )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
+              {bets.filter(b => b.user_id === session?.user?.id).length === 0 ? (
+                <div className="col-span-full py-16 text-center text-gray-500 flex flex-col items-center">
+                  <div className="w-16 h-16 rounded-full bg-matte-800 flex items-center justify-center mb-4 border border-matte-700">
+                    <span className="text-2xl opacity-50">💸</span>
+                  </div>
+                  <p>You haven't placed any wagers yet.</p>
+                  <button 
+                    onClick={() => setActiveView('markets')}
+                    className="mt-4 text-gold-400 hover:text-gold-300 text-sm font-semibold"
+                  >
+                    Explore Markets →
+                  </button>
+                </div>
+              ) : (
+                bets.filter(b => b.user_id === session?.user?.id).reverse().map((bet, i) => {
+                  const event = events.find(e => e.id === bet.event_id)
+                  if (!event) return null
+                  
+                  const outcomeName = event.outcomes[bet.outcome_index] || 'Unknown Outcome'
+                  const currentOddsPercent = getOdds(event.id, bet.outcome_index)
+                  const currentPayout = calculatePayout(currentOddsPercent, bet.stake)
+
+                  return (
+                    <div key={i} className="bg-matte-800 border border-matte-700 rounded-xl sm:rounded-2xl p-4 sm:p-6 hover:border-gold-500/50 transition relative overflow-hidden">
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-gold-500/5 rounded-full blur-3xl"></div>
+                      
+                      <div className="flex items-start justify-between mb-4 relative z-10">
+                        <span className="text-xs font-semibold text-gold-400 uppercase tracking-wider bg-gold-400/10 px-2 sm:px-3 py-1 rounded-full">
+                          {event.category}
+                        </span>
+                        <span className="text-xs px-2 py-1 rounded bg-matte-900 border border-matte-700 text-gray-400 uppercase tracking-wide">
+                          {bet.status}
+                        </span>
+                      </div>
+
+                      <h3 className="text-lg font-bold text-white mb-4 relative z-10">{event.title}</h3>
+                      
+                      <div className="bg-matte-900 rounded-lg p-3 border border-matte-700 mb-4 relative z-10">
+                        <div className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1">Your Prediction</div>
+                        <div className="text-white font-medium">{outcomeName}</div>
+                      </div>
+
+                      <div className="space-y-2 text-sm relative z-10">
+                        <div className="flex justify-between text-gray-400">
+                          <span>Original Stake:</span>
+                          <span className="text-white">{bet.stake.toLocaleString()} KSh</span>
+                        </div>
+                        <div className="flex justify-between text-gray-400">
+                          <span>Current Market Odds:</span>
+                          <span className="text-white">{currentPayout.odds}x</span>
+                        </div>
+                        <div className="flex justify-between font-bold pt-3 border-t border-matte-700 mt-3">
+                          <span className="text-gold-400">Est. Payout:</span>
+                          <span className="text-gold-400 text-lg">{currentPayout.net.toLocaleString()} KSh</span>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
@@ -458,8 +480,6 @@ function App() {
           </div>
         )}
       </main>
-
-      {/* PREMIUM LOGOUT MODAL */}
       {showLogoutModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="bg-matte-800 border border-matte-700 rounded-2xl p-6 sm:p-8 w-full max-w-sm text-center shadow-[0_0_50px_rgba(0,0,0,0.5)] relative overflow-hidden">
@@ -489,7 +509,6 @@ function App() {
         </div>
       )}
 
-      {/* PREMIUM VIP SUCCESS MODAL */}
       {showSuccessModal && lastBetDetails && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="bg-matte-800 border border-gold-500/50 rounded-2xl p-6 sm:p-8 w-full max-w-sm text-center shadow-[0_0_50px_rgba(251,191,36,0.15)] relative overflow-hidden">
