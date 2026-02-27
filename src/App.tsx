@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
-import Landing from './Landing' // <-- Add this!
+import Landing from './Landing'
 import { LogOut, X, AlertTriangle, Bell, Wallet, ArrowDownToLine, ArrowUpFromLine, CheckCircle2, History, PieChart } from 'lucide-react'
+
 interface Event {
   id: string
   title: string
@@ -51,6 +52,13 @@ export default function App() {
   const [notifications, setNotifications] = useState<AppNotification[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedOutcome, setSelectedOutcome] = useState<{eventId: string, idx: number} | null>(null)
+
+  // --- PREMIUM TOAST NOTIFICATION SYSTEM ---
+  const [toast, setToast] = useState<{msg: string, type: 'error' | 'success'} | null>(null)
+  const showToast = (msg: string, type: 'error' | 'success' = 'error') => {
+    setToast({ msg, type })
+    setTimeout(() => setToast(null), 3500)
+  }
 
   const [stakeAmount, setStakeAmount] = useState<number>(MIN_STAKE)
   const [showSuccessModal, setShowSuccessModal] = useState(false)
@@ -135,22 +143,15 @@ export default function App() {
     await supabase.from('notifications').update({ is_read: true }).in('id', unreadIds)
   }
 
-  // --- HARD LIMITS APPLIED HERE ---
+  // --- REPLACED ALERTS WITH CUSTOM TOASTS ---
   const handleMpesaDeposit = async () => {
-    if (!depositPhone || depositAmount < 100) return alert("Please enter a valid M-Pesa number and a minimum of 100 KSh.")
+    if (!depositPhone || depositAmount < 100) return showToast("Please enter a valid M-Pesa number and minimum 100 KSh.")
+    if (depositAmount > MAX_DEPOSIT) return showToast(`Maximum deposit is ${MAX_DEPOSIT.toLocaleString()} KSh per transaction.`)
     
-    // Deposit Max Check
-    if (depositAmount > MAX_DEPOSIT) {
-      return alert(`Maximum deposit per transaction is ${MAX_DEPOSIT.toLocaleString()} KSh.`)
-    }
-    
-    // Wallet Cap Check
     if (profile && (profile.wallet_balance + depositAmount > MAX_WALLET_CAP)) {
       const allowedAmount = MAX_WALLET_CAP - profile.wallet_balance
-      if (allowedAmount <= 0) {
-        return alert("Your wallet is already at the maximum capacity of 250,000 KSh.")
-      }
-      return alert(`Wallet cap exceeded. You can only deposit up to ${allowedAmount.toLocaleString()} KSh to stay under the 250,000 KSh limit.`)
+      if (allowedAmount <= 0) return showToast("Wallet maximum capacity of 250,000 KSh reached.")
+      return showToast(`Wallet cap exceeded. Max allowed deposit is ${allowedAmount.toLocaleString()} KSh.`)
     }
 
     setShowCashierModal({ type: 'deposit', status: 'processing' })
@@ -167,8 +168,8 @@ export default function App() {
   }
 
   const handleWithdraw = async () => {
-    if (withdrawAmount < 100) return alert("Minimum withdrawal is 100 KSh.")
-    if (profile && withdrawAmount > profile.wallet_balance) return alert("Insufficient available liquidity.")
+    if (withdrawAmount < 100) return showToast("Minimum withdrawal is 100 KSh.")
+    if (profile && withdrawAmount > profile.wallet_balance) return showToast("Insufficient available liquidity.")
     setShowCashierModal({ type: 'withdraw', status: 'processing' })
     setTimeout(async () => {
       if (profile) {
@@ -184,8 +185,8 @@ export default function App() {
 
   const placeBet = async () => {
     if (!selectedOutcome || !session?.user || !profile) return
-    if (profile.wallet_balance < stakeAmount) return alert('Insufficient balance!')
-    if (stakeAmount < MIN_STAKE) return alert(`Minimum stake is ${MIN_STAKE} KSh`)
+    if (profile.wallet_balance < stakeAmount) return showToast('Insufficient balance for this transaction.')
+    if (stakeAmount < MIN_STAKE) return showToast(`Minimum accepted stake is ${MIN_STAKE} KSh.`)
 
     const event = events.find(e => e.id === selectedOutcome.eventId)
     const outcomeName = event?.outcomes[selectedOutcome.idx] || 'Unknown Outcome'
@@ -204,13 +205,15 @@ export default function App() {
       setStakeAmount(MIN_STAKE)
       fetchBets()
       fetchProfile()
+    } else {
+      showToast('Network error placing wager.')
     }
   }
 
   const submitP2POffer = async () => {
     if (!p2pSelectedEventId || !session?.user || !profile) return
-    if (profile.wallet_balance < p2pStake) return alert('Insufficient balance!')
-    if (p2pStake < MIN_STAKE) return alert(`Minimum stake is ${MIN_STAKE} KSh`)
+    if (profile.wallet_balance < p2pStake) return showToast('Insufficient balance for this transaction.')
+    if (p2pStake < MIN_STAKE) return showToast(`Minimum accepted stake is ${MIN_STAKE} KSh.`)
 
     const event = events.find(e => e.id === p2pSelectedEventId)
     const outcomeName = event?.outcomes[p2pSelectedOutcomeIdx] || 'Unknown Outcome'
@@ -232,14 +235,16 @@ export default function App() {
       setP2pOdds(2.00)
       fetchBets()
       fetchProfile()
+    } else {
+      showToast('Error pushing offer to exchange.')
     }
   }
 
   const initiateMatch = (offer: Bet) => {
     if (!session?.user || !profile) return
-    if (offer.user_id === session.user.id) return alert("You cannot match your own offer!")
+    if (offer.user_id === session.user.id) return showToast("Protocol restricts matching your own liquidity.")
     const liability = Math.round((offer.stake * (offer.odds || 2)) - offer.stake)
-    if (profile.wallet_balance < liability) return alert(`Insufficient funds! You need ${liability.toLocaleString()} KSh.`)
+    if (profile.wallet_balance < liability) return showToast(`Insufficient funds. You need ${liability.toLocaleString()} KSh to cover liability.`)
     setOfferToMatch(offer)
   }
 
@@ -252,7 +257,7 @@ export default function App() {
     setOfferToMatch(null)
 
     const { error: betError } = await supabase.from('bets').update({ status: 'p2p_matched', matcher_id: session.user.id }).eq('id', offerToMatch.id)
-    if (betError) return alert('Error matching offer')
+    if (betError) return showToast('Network error securing match.')
     
     await supabase.from('profiles').update({ wallet_balance: profile.wallet_balance - liability }).eq('id', session.user.id)
 
@@ -260,6 +265,7 @@ export default function App() {
     await supabase.from('notifications').insert({
       user_id: offerToMatch.user_id, message: `Someone matched your ${offerToMatch.odds}x offer on ${event?.title || 'a market'}!`, type: 'p2p_matched', is_read: false
     })
+    showToast('Match secured successfully.', 'success')
   }
 
   const handleLogout = async () => {
@@ -308,16 +314,44 @@ export default function App() {
     }
   })
 
-if (!session) return <Landing />
-  if (loading) return <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center"><div className="w-8 h-8 border-2 border-[#C5A880] border-t-transparent rounded-full animate-spin"></div></div>
+  if (!session) return <Landing />
+  
+  // --- UPGRADED TERMINAL LOADING SCREEN ---
+  if (loading) return (
+    <div className="min-h-screen bg-[#0a0a0a] flex flex-col items-center justify-center relative overflow-hidden">
+      <div className="absolute inset-0 bg-trading-grid opacity-10 animate-pan-grid pointer-events-none"></div>
+      <div className="w-16 h-16 border-2 border-[#C5A880]/20 border-t-[#C5A880] rounded-full animate-spin mb-6 relative z-10 shadow-[0_0_15px_rgba(197,168,128,0.3)]"></div>
+      <p className="text-[#C5A880] font-mono text-xs tracking-[0.3em] uppercase animate-pulse relative z-10">Syncing Ledger...</p>
+      <style dangerouslySetInnerHTML={{__html: `
+        .bg-trading-grid {
+          background-size: 40px 40px;
+          background-image: linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px), linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+        }
+        @keyframes pan-grid { 0% { transform: translateY(0); } 100% { transform: translateY(40px); } }
+        .animate-pan-grid { animation: pan-grid 3s linear infinite; }
+      `}} />
+    </div>
+  )
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white selection:bg-[#C5A880]/20 font-sans relative pb-20">
 
+      {/* --- GLOBAL TOAST NOTIFICATION --- */}
+      {toast && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-top-10 fade-in duration-300">
+          <div className={`flex items-center gap-3 px-5 py-3.5 rounded-2xl border shadow-[0_0_40px_rgba(0,0,0,0.8)] backdrop-blur-xl ${
+            toast.type === 'error' ? 'bg-[#f43f5e]/10 border-[#f43f5e]/30 text-[#f43f5e]' : 'bg-[#10b981]/10 border-[#10b981]/30 text-[#10b981]'
+          }`}>
+            {toast.type === 'error' ? <AlertTriangle className="w-5 h-5" /> : <CheckCircle2 className="w-5 h-5" />}
+            <span className="font-semibold text-sm tracking-wide">{toast.msg}</span>
+          </div>
+        </div>
+      )}
+
       {/* HEADER */}
       <header className="border-b border-[#ffffff0a] bg-[#0a0a0a]/90 backdrop-blur-xl sticky top-0 z-30">
         <div className="max-w-6xl mx-auto px-4 pt-4 pb-3 flex items-center justify-between">
-          <h1 className="text-2xl font-bold tracking-tight cursor-pointer" onClick={() => setActiveView('markets')}>
+          <h1 className="text-2xl font-bold tracking-tight cursor-pointer flex items-center gap-2" onClick={() => setActiveView('markets')}>
             Parlayz<span className="text-[#C5A880]">Market</span>
           </h1>
 
@@ -330,7 +364,7 @@ if (!session) return <Landing />
               {showNotifications && (
                 <div className="absolute right-0 mt-3 w-72 sm:w-80 bg-[#111111] border border-[#ffffff15] rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] overflow-hidden z-50">
                   <div className="p-4 border-b border-[#ffffff0a] bg-[#0a0a0a] flex justify-between items-center"><h4 className="font-bold text-[#C5A880]">Notifications</h4></div>
-                  <div className="max-h-80 overflow-y-auto">
+                  <div className="max-h-80 overflow-y-auto custom-scrollbar">
                     {notifications.length === 0 ? (
                       <div className="p-6 text-center text-gray-500 text-sm">No new notifications.</div>
                     ) : (
