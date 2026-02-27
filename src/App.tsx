@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
-import Auth from './components/Auth'
+import Landing from './Landing' // <-- Add this!
 import { LogOut, X, AlertTriangle, Bell, Wallet, ArrowDownToLine, ArrowUpFromLine, CheckCircle2, History, PieChart } from 'lucide-react'
-
 interface Event {
   id: string
   title: string
@@ -309,7 +308,7 @@ export default function App() {
     }
   })
 
-  if (!session) return <Auth />
+if (!session) return <Landing />
   if (loading) return <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center"><div className="w-8 h-8 border-2 border-[#C5A880] border-t-transparent rounded-full animate-spin"></div></div>
 
   return (
