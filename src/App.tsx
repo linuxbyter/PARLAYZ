@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
 import Auth from './components/Auth'
-import { LogOut, X, AlertTriangle, Bell, Wallet, ArrowDownToLine, ArrowUpFromLine, CheckCircle2, History } from 'lucide-react'
+import { LogOut, X, AlertTriangle, Bell, Wallet, ArrowDownToLine, ArrowUpFromLine, CheckCircle2, History, PieChart } from 'lucide-react'
 
 interface Event {
   id: string
@@ -107,7 +107,7 @@ export default function App() {
     const { data } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
     if (data) {
       setProfile(data)
-      if (!withdrawPhone) setWithdrawPhone('Registered Number') // Placeholder till they type
+      if (!withdrawPhone) setWithdrawPhone('Registered Number')
     }
   }
 
@@ -134,13 +134,9 @@ export default function App() {
     await supabase.from('notifications').update({ is_read: true }).in('id', unreadIds)
   }
 
-  // --- PREMIUM DEPOSIT ---
   const handleMpesaDeposit = async () => {
     if (!depositPhone || depositAmount < 100) return alert("Please enter a valid M-Pesa number and a minimum of 100 KSh.")
-    
     setShowCashierModal({ type: 'deposit', status: 'processing' })
-    
-    // Simulate STK Push delay
     setTimeout(async () => {
       if (profile) {
         await supabase.from('profiles').update({ wallet_balance: profile.wallet_balance + depositAmount }).eq('id', session.user.id)
@@ -153,14 +149,10 @@ export default function App() {
     }, 3500)
   }
 
-  // --- PREMIUM WITHDRAW ---
   const handleWithdraw = async () => {
     if (withdrawAmount < 100) return alert("Minimum withdrawal is 100 KSh.")
     if (profile && withdrawAmount > profile.wallet_balance) return alert("Insufficient available liquidity.")
-    
     setShowCashierModal({ type: 'withdraw', status: 'processing' })
-    
-    // Simulate manual review routing
     setTimeout(async () => {
       if (profile) {
         await supabase.from('profiles').update({ wallet_balance: profile.wallet_balance - withdrawAmount }).eq('id', session.user.id)
@@ -229,10 +221,8 @@ export default function App() {
   const initiateMatch = (offer: Bet) => {
     if (!session?.user || !profile) return
     if (offer.user_id === session.user.id) return alert("You cannot match your own offer!")
-    
     const liability = Math.round((offer.stake * (offer.odds || 2)) - offer.stake)
     if (profile.wallet_balance < liability) return alert(`Insufficient funds! You need ${liability.toLocaleString()} KSh.`)
-    
     setOfferToMatch(offer)
   }
 
@@ -281,9 +271,28 @@ export default function App() {
   const myPendingOffers = bets.filter(b => b.user_id === session?.user?.id && b.status === 'p2p_open')
   const myActiveWagers = bets.filter(b => (b.user_id === session?.user?.id || b.matcher_id === session?.user?.id) && b.status !== 'p2p_open')
   const unreadCount = notifications.filter(n => !n.is_read).length
-
-  // Filter only financial notifications for the Ledger
   const ledgerTransactions = notifications.filter(n => ['deposit', 'withdrawal', 'payout', 'refund'].includes(n.type))
+
+  // --- PORTFOLIO EXPOSURE CALCULATIONS ---
+  let totalActiveStake = 0
+  let totalEstPayout = 0
+
+  myPendingOffers.forEach(bet => {
+    totalActiveStake += bet.stake
+  })
+
+  myActiveWagers.forEach(bet => {
+    const isMatcher = bet.matcher_id === session?.user?.id
+    if (bet.status === 'p2p_matched') {
+      const gross = bet.stake * (bet.odds || 2)
+      totalEstPayout += Math.round(gross - (gross * (PLATFORM_FEE_PERCENT / 100)))
+      totalActiveStake += isMatcher ? Math.round(gross - bet.stake) : bet.stake
+    } else {
+      const payoutInfo = calculatePayout(getOdds(bet.event_id, bet.outcome_index), bet.stake)
+      totalActiveStake += bet.stake
+      totalEstPayout += payoutInfo.net
+    }
+  })
 
   if (!session) return <Auth />
   if (loading) return <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center"><div className="w-8 h-8 border-2 border-[#C5A880] border-t-transparent rounded-full animate-spin"></div></div>
@@ -299,7 +308,6 @@ export default function App() {
           </h1>
 
           <div className="flex items-center gap-2 sm:gap-4">
-            {/* NOTIFICATIONS */}
             <div className="relative">
               <button onClick={() => { setShowNotifications(!showNotifications); if (!showNotifications) markNotificationsAsRead(); }} className="w-9 h-9 flex items-center justify-center rounded-xl bg-[#111111] border border-[#ffffff10] hover:border-[#C5A880]/50 text-gray-400 hover:text-white transition relative">
                 <Bell className="w-4 h-4" />
@@ -324,11 +332,7 @@ export default function App() {
               )}
             </div>
 
-            {/* WALLET BUTTON */}
-            <button 
-              onClick={() => setActiveView('wallet')}
-              className="bg-[#111111] hover:bg-[#1a1a1a] border border-[#ffffff10] hover:border-[#C5A880]/50 rounded-xl px-3 sm:px-4 py-1.5 flex items-center gap-2 shadow-inner transition group"
-            >
+            <button onClick={() => setActiveView('wallet')} className="bg-[#111111] hover:bg-[#1a1a1a] border border-[#ffffff10] hover:border-[#C5A880]/50 rounded-xl px-3 sm:px-4 py-1.5 flex items-center gap-2 shadow-inner transition group">
               <Wallet className="w-4 h-4 text-[#C5A880] group-hover:scale-110 transition" />
               <span className="font-bold text-sm sm:text-base">{profile?.wallet_balance.toLocaleString() || '0'}</span>
               <span className="text-gray-500 text-xs font-semibold uppercase tracking-wider hidden sm:inline">KSh</span>
@@ -340,7 +344,6 @@ export default function App() {
           </div>
         </div>
         
-        {/* TABS */}
         <div className="max-w-6xl mx-auto px-4 mt-1">
           <div className="flex items-center gap-6 overflow-x-auto pb-3 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
             <button onClick={() => { setActiveView('wagers'); setSelectedOutcome(null) }} className={`whitespace-nowrap text-sm font-semibold transition-colors pb-1 border-b-2 flex items-center gap-2 ${activeView === 'wagers' ? 'text-[#C5A880] border-[#C5A880]' : 'text-gray-500 border-transparent hover:text-gray-300'}`}>
@@ -365,8 +368,6 @@ export default function App() {
         {activeView === 'wallet' ? (
           <div className="max-w-2xl mx-auto animate-in fade-in duration-300">
             <h2 className="text-2xl font-bold text-white mb-6">Cashier & Ledger</h2>
-            
-            {/* Balance Card */}
             <div className="bg-gradient-to-br from-[#1a1a1a] to-[#0a0a0a] border border-[#ffffff15] rounded-3xl p-8 mb-8 relative overflow-hidden shadow-2xl">
               <div className="absolute top-0 right-0 w-64 h-64 bg-[#C5A880]/5 rounded-full blur-[80px]"></div>
               <p className="text-gray-400 text-sm font-semibold uppercase tracking-widest mb-2 relative z-10 flex items-center gap-2">Available Liquidity</p>
@@ -377,15 +378,11 @@ export default function App() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-10">
-              {/* DEPOSIT CARD */}
               <div className="bg-[#111111] border border-[#ffffff10] rounded-2xl p-6 relative overflow-hidden group hover:border-green-500/30 transition">
                 <div className="flex items-center gap-3 mb-6 relative z-10">
-                  <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center border border-green-500/20 group-hover:bg-green-500/20 transition">
-                    <ArrowDownToLine className="w-5 h-5 text-green-400" />
-                  </div>
+                  <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center border border-green-500/20 group-hover:bg-green-500/20 transition"><ArrowDownToLine className="w-5 h-5 text-green-400" /></div>
                   <h3 className="text-lg font-bold">Add Liquidity</h3>
                 </div>
-                
                 <div className="space-y-4 relative z-10">
                   <div>
                     <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1">M-Pesa Number</label>
@@ -395,21 +392,15 @@ export default function App() {
                     <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1">Amount (KSh)</label>
                     <input type="number" min="100" value={depositAmount || ''} onChange={e => setDepositAmount(Number(e.target.value))} className="w-full bg-[#0a0a0a] border border-[#ffffff15] rounded-xl p-3 focus:outline-none focus:border-green-500 transition font-bold text-white" />
                   </div>
-                  <button onClick={handleMpesaDeposit} className="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-3.5 rounded-xl transition shadow-[0_0_15px_rgba(22,163,74,0.2)]">
-                    Trigger STK Push
-                  </button>
+                  <button onClick={handleMpesaDeposit} className="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-3.5 rounded-xl transition shadow-[0_0_15px_rgba(22,163,74,0.2)]">Trigger STK Push</button>
                 </div>
               </div>
 
-              {/* WITHDRAW CARD */}
               <div className="bg-[#111111] border border-[#ffffff10] rounded-2xl p-6 relative overflow-hidden group hover:border-[#C5A880]/30 transition">
                 <div className="flex items-center gap-3 mb-6 relative z-10">
-                  <div className="w-10 h-10 rounded-lg bg-[#C5A880]/10 flex items-center justify-center border border-[#C5A880]/20 group-hover:bg-[#C5A880]/20 transition">
-                    <ArrowUpFromLine className="w-5 h-5 text-[#C5A880]" />
-                  </div>
+                  <div className="w-10 h-10 rounded-lg bg-[#C5A880]/10 flex items-center justify-center border border-[#C5A880]/20 group-hover:bg-[#C5A880]/20 transition"><ArrowUpFromLine className="w-5 h-5 text-[#C5A880]" /></div>
                   <h3 className="text-lg font-bold">Withdraw</h3>
                 </div>
-                
                 <div className="space-y-4 relative z-10">
                   <div>
                     <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1">Destination Number</label>
@@ -419,20 +410,16 @@ export default function App() {
                     <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1">Amount (KSh)</label>
                     <input type="number" placeholder="0" value={withdrawAmount || ''} onChange={e => setWithdrawAmount(Number(e.target.value))} className="w-full bg-[#0a0a0a] border border-[#ffffff15] rounded-xl p-3 focus:outline-none focus:border-[#C5A880] transition font-bold text-white" />
                   </div>
-                  <button onClick={handleWithdraw} className="w-full bg-transparent border border-[#C5A880]/50 hover:bg-[#C5A880] text-[#C5A880] hover:text-[#0a0a0a] font-bold py-3.5 rounded-xl transition">
-                    Request Payout
-                  </button>
+                  <button onClick={handleWithdraw} className="w-full bg-transparent border border-[#C5A880]/50 hover:bg-[#C5A880] text-[#C5A880] hover:text-[#0a0a0a] font-bold py-3.5 rounded-xl transition">Request Payout</button>
                 </div>
               </div>
             </div>
 
-            {/* TRANSACTION LEDGER */}
             <div>
               <div className="flex items-center gap-2 mb-4">
                 <History className="w-5 h-5 text-gray-500" />
                 <h3 className="text-lg font-bold text-white">Transaction Ledger</h3>
               </div>
-              
               <div className="bg-[#111111] border border-[#ffffff10] rounded-2xl overflow-hidden">
                 {ledgerTransactions.length === 0 ? (
                   <div className="p-8 text-center text-gray-500 font-light">No financial transactions recorded yet.</div>
@@ -465,6 +452,7 @@ export default function App() {
               </div>
             </div>
           </div>
+
         ) : activeView === 'p2p' ? (
           
           /* --- THE P2P ORDER BOOK --- */
@@ -504,13 +492,11 @@ export default function App() {
                         <div className="text-xs text-gray-500 mb-1 uppercase tracking-wider font-semibold">Their Prediction</div>
                         <div className="text-white font-medium">{outcomeName}</div>
                       </div>
-                      
                       <div className="space-y-2 mb-5 relative z-10">
                         <div className="flex justify-between text-sm text-gray-400"><span>Maker's Stake:</span><span className="text-white font-bold">{offer.stake.toLocaleString()} KSh</span></div>
                         <div className="flex justify-between text-sm text-gray-400"><span>Requested Odds:</span><span className="text-[#C5A880] font-bold">{offer.odds}x</span></div>
                         <div className="flex justify-between text-sm pt-2 border-t border-[#ffffff10] mt-2"><span className="text-gray-500 font-semibold">Your Risk (Liability):</span><span className="text-red-400 font-bold">{liability.toLocaleString()} KSh</span></div>
                       </div>
-
                       <button onClick={() => initiateMatch(offer)} disabled={isOwnOffer} className={`w-full font-bold py-3.5 rounded-xl transition relative z-10 ${isOwnOffer ? 'bg-[#0a0a0a] text-gray-600 border border-[#ffffff10] cursor-not-allowed' : 'bg-[#1a1a1a] hover:bg-[#C5A880] hover:text-[#0a0a0a] text-white border border-[#ffffff15] hover:border-[#C5A880] hover:shadow-[0_0_20px_rgba(197,168,128,0.3)]'}`}>
                         {isOwnOffer ? 'Waiting for Taker...' : 'Match Offer'}
                       </button>
@@ -524,7 +510,24 @@ export default function App() {
         ) : activeView === 'wagers' ? (
           
           /* --- MY WAGERS VIEW --- */
-          <div className="space-y-10">
+          <div className="space-y-10 animate-in fade-in duration-300">
+            
+            {/* --- NEW: PORTFOLIO EXPOSURE SUMMARY --- */}
+            <div className="grid grid-cols-2 gap-4 sm:gap-6 mb-8">
+              <div className="bg-[#111111] border border-[#ffffff10] rounded-2xl p-5 sm:p-6 flex flex-col justify-center">
+                <div className="flex items-center gap-2 mb-2 opacity-70">
+                  <PieChart className="w-4 h-4 text-gray-400" />
+                  <p className="text-gray-400 text-xs font-semibold uppercase tracking-widest">Total Active Risk</p>
+                </div>
+                <p className="text-2xl sm:text-3xl font-bold text-white tracking-tight">{totalActiveStake.toLocaleString()} <span className="text-base font-medium text-gray-500">KSh</span></p>
+              </div>
+              <div className="bg-[#111111] border border-[#C5A880]/30 rounded-2xl p-5 sm:p-6 relative overflow-hidden flex flex-col justify-center shadow-[0_0_30px_rgba(197,168,128,0.05)]">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-[#C5A880]/10 rounded-full blur-2xl"></div>
+                <p className="text-[#C5A880] text-xs font-semibold uppercase tracking-widest mb-2 relative z-10 flex items-center gap-2">Max Est. Return</p>
+                <p className="text-2xl sm:text-3xl font-bold text-[#C5A880] relative z-10 tracking-tight">{totalEstPayout.toLocaleString()} <span className="text-base font-medium text-[#C5A880]/70">KSh</span></p>
+              </div>
+            </div>
+
             {/* Open Offers */}
             {myPendingOffers.length > 0 && (
               <div>
@@ -631,16 +634,13 @@ export default function App() {
                     <span className="text-xs font-semibold text-[#C5A880] uppercase tracking-wider bg-[#C5A880]/10 border border-[#C5A880]/20 px-2 py-1 rounded-md">{event.category}</span>
                     <span className="text-xs text-gray-500">{new Date(event.closes_at).toLocaleDateString()}</span>
                   </div>
-
                   <h3 className="text-xl font-bold text-white mb-2">{event.title}</h3>
                   <p className="text-gray-400 text-sm mb-5 line-clamp-2 font-light">{event.description}</p>
-
                   <div className="space-y-3">
                     {event.outcomes.map((outcome, idx) => {
                       const oddsPercent = getOdds(event.id, idx)
                       const payout = calculatePayout(oddsPercent, stakeAmount)
                       const isSelected = selectedOutcome?.eventId === event.id && selectedOutcome?.idx === idx
-
                       return (
                         <div key={idx} className="space-y-2">
                           <button onClick={() => { setSelectedOutcome({eventId: event.id, idx}); setStakeAmount(MIN_STAKE) }} className={`w-full flex items-center justify-between rounded-xl px-4 py-3 transition border ${isSelected ? 'bg-[#C5A880]/10 border-[#C5A880]' : 'bg-[#0a0a0a] border-[#ffffff10] hover:border-[#C5A880]/50'}`}>
@@ -650,7 +650,6 @@ export default function App() {
                               <span className="text-[#C5A880] font-bold text-sm w-10 text-right">{oddsPercent}%</span>
                             </div>
                           </button>
-
                           {isSelected && (
                             <div className="bg-[#0a0a0a] rounded-xl p-4 text-sm space-y-4 border border-[#C5A880]/30 mt-2 shadow-inner">
                               <div className="bg-[#111111] p-3 rounded-xl border border-[#ffffff0a]">
@@ -685,44 +684,33 @@ export default function App() {
         )}
       </main>
 
-      {/* --- PREMIUM CASHIER MODALS --- */}
+      {/* MODALS */}
       {showCashierModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200">
           <div className={`bg-[#111111] border rounded-3xl p-6 sm:p-8 w-full max-w-sm text-center relative overflow-hidden shadow-2xl ${showCashierModal.type === 'deposit' ? 'border-green-500/30' : 'border-[#C5A880]/30'}`}>
             <div className={`absolute top-0 left-1/2 -translate-x-1/2 w-40 h-40 rounded-full blur-3xl pointer-events-none ${showCashierModal.type === 'deposit' ? 'bg-green-500/10' : 'bg-[#C5A880]/10'}`}></div>
             <div className="relative z-10">
-              
               {showCashierModal.status === 'processing' ? (
                 <>
                   <div className="w-16 h-16 bg-[#1a1a1a] border border-[#ffffff15] rounded-2xl flex items-center justify-center mx-auto mb-5">
                     <div className={`w-8 h-8 border-4 border-t-transparent rounded-full animate-spin ${showCashierModal.type === 'deposit' ? 'border-green-500' : 'border-[#C5A880]'}`}></div>
                   </div>
-                  <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">
-                    {showCashierModal.type === 'deposit' ? 'Awaiting M-Pesa PIN' : 'Processing Request'}
-                  </h3>
-                  <p className="text-gray-400 text-sm mb-2 font-light">
-                    {showCashierModal.type === 'deposit' ? 'Check your phone. Please enter your M-Pesa PIN to complete the transaction.' : 'Securing your withdrawal request on the ledger...'}
-                  </p>
+                  <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">{showCashierModal.type === 'deposit' ? 'Awaiting M-Pesa PIN' : 'Processing Request'}</h3>
+                  <p className="text-gray-400 text-sm mb-2 font-light">{showCashierModal.type === 'deposit' ? 'Check your phone. Please enter your M-Pesa PIN to complete the transaction.' : 'Securing your withdrawal request on the ledger...'}</p>
                 </>
               ) : (
                 <>
-                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5 border ${showCashierModal.type === 'deposit' ? 'bg-green-500/10 border-green-500/40 text-green-400 shadow-[0_0_15px_rgba(34,197,94,0.2)]' : 'bg-[#C5A880]/10 border-[#C5A880]/40 text-[#C5A880] shadow-[0_0_15px_rgba(197,168,128,0.2)]'}`}>
-                    <CheckCircle2 className="w-8 h-8" />
-                  </div>
+                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5 border ${showCashierModal.type === 'deposit' ? 'bg-green-500/10 border-green-500/40 text-green-400 shadow-[0_0_15px_rgba(34,197,94,0.2)]' : 'bg-[#C5A880]/10 border-[#C5A880]/40 text-[#C5A880] shadow-[0_0_15px_rgba(197,168,128,0.2)]'}`}><CheckCircle2 className="w-8 h-8" /></div>
                   <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">Transaction Successful</h3>
-                  <p className="text-gray-400 text-sm mb-6 font-light">
-                    {showCashierModal.type === 'deposit' ? 'Your liquidity has been added to the exchange.' : 'Your payout request has been queued.'}
-                  </p>
+                  <p className="text-gray-400 text-sm mb-6 font-light">{showCashierModal.type === 'deposit' ? 'Your liquidity has been added to the exchange.' : 'Your payout request has been queued.'}</p>
                   <button onClick={() => setShowCashierModal(null)} className="w-full bg-white hover:bg-gray-200 text-black font-bold py-3.5 rounded-xl transition">Return to Ledger</button>
                 </>
               )}
-
             </div>
           </div>
         </div>
       )}
 
-      {/* P2P CREATE OFFER MODAL */}
       {showCreateOfferModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200">
           <div className="bg-[#111111] border border-[#C5A880]/30 rounded-3xl p-6 sm:p-8 w-full max-w-md shadow-[0_0_50px_rgba(197,168,128,0.15)] relative">
@@ -767,7 +755,6 @@ export default function App() {
         </div>
       )}
 
-      {/* P2P MATCH MODAL */}
       {offerToMatch && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200">
           <div className="bg-[#111111] border border-[#C5A880]/40 rounded-3xl p-6 sm:p-8 w-full max-w-sm text-center shadow-[0_0_50px_rgba(197,168,128,0.15)] relative overflow-hidden">
@@ -789,15 +776,12 @@ export default function App() {
         </div>
       )}
 
-      {/* SUCCESS MODAL FOR BETS */}
       {showSuccessModal && lastBetDetails && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200">
           <div className="bg-[#111111] border border-green-500/30 rounded-3xl p-6 sm:p-8 w-full max-w-sm text-center shadow-[0_0_50px_rgba(34,197,94,0.1)] relative overflow-hidden">
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-40 h-40 bg-green-500/10 rounded-full blur-3xl pointer-events-none"></div>
             <div className="relative z-10">
-              <div className="w-16 h-16 bg-green-500/10 border border-green-500/40 text-green-400 rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-[0_0_15px_rgba(34,197,94,0.2)]">
-                <CheckCircle2 className="w-8 h-8" />
-              </div>
+              <div className="w-16 h-16 bg-green-500/10 border border-green-500/40 text-green-400 rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-[0_0_15px_rgba(34,197,94,0.2)]"><CheckCircle2 className="w-8 h-8" /></div>
               <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">Contract Secured</h3>
               <p className="text-gray-400 text-sm mb-6 font-light">Your position is locked on the network.</p>
               <div className="bg-[#0a0a0a] rounded-xl p-5 mb-6 text-left border border-[#ffffff10]">
@@ -812,7 +796,6 @@ export default function App() {
         </div>
       )}
 
-      {/* LOGOUT MODAL */}
       {showLogoutModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200">
           <div className="bg-[#111111] border border-[#ffffff15] rounded-3xl p-6 sm:p-8 w-full max-w-sm text-center shadow-[0_0_50px_rgba(0,0,0,0.8)] relative overflow-hidden">
