@@ -40,6 +40,8 @@ interface AppNotification {
 }
 
 const MIN_STAKE = 200
+const MAX_DEPOSIT = 100000
+const MAX_WALLET_CAP = 250000
 const PLATFORM_FEE_PERCENT = 3
 
 export default function App() {
@@ -134,8 +136,24 @@ export default function App() {
     await supabase.from('notifications').update({ is_read: true }).in('id', unreadIds)
   }
 
+  // --- HARD LIMITS APPLIED HERE ---
   const handleMpesaDeposit = async () => {
     if (!depositPhone || depositAmount < 100) return alert("Please enter a valid M-Pesa number and a minimum of 100 KSh.")
+    
+    // Deposit Max Check
+    if (depositAmount > MAX_DEPOSIT) {
+      return alert(`Maximum deposit per transaction is ${MAX_DEPOSIT.toLocaleString()} KSh.`)
+    }
+    
+    // Wallet Cap Check
+    if (profile && (profile.wallet_balance + depositAmount > MAX_WALLET_CAP)) {
+      const allowedAmount = MAX_WALLET_CAP - profile.wallet_balance
+      if (allowedAmount <= 0) {
+        return alert("Your wallet is already at the maximum capacity of 250,000 KSh.")
+      }
+      return alert(`Wallet cap exceeded. You can only deposit up to ${allowedAmount.toLocaleString()} KSh to stay under the 250,000 KSh limit.`)
+    }
+
     setShowCashierModal({ type: 'deposit', status: 'processing' })
     setTimeout(async () => {
       if (profile) {
@@ -273,13 +291,10 @@ export default function App() {
   const unreadCount = notifications.filter(n => !n.is_read).length
   const ledgerTransactions = notifications.filter(n => ['deposit', 'withdrawal', 'payout', 'refund'].includes(n.type))
 
-  // --- PORTFOLIO EXPOSURE CALCULATIONS ---
   let totalActiveStake = 0
   let totalEstPayout = 0
 
-  myPendingOffers.forEach(bet => {
-    totalActiveStake += bet.stake
-  })
+  myPendingOffers.forEach(bet => { totalActiveStake += bet.stake })
 
   myActiveWagers.forEach(bet => {
     const isMatcher = bet.matcher_id === session?.user?.id
@@ -309,9 +324,9 @@ export default function App() {
 
           <div className="flex items-center gap-2 sm:gap-4">
             <div className="relative">
-              <button onClick={() => { setShowNotifications(!showNotifications); if (!showNotifications) markNotificationsAsRead(); }} className="w-9 h-9 flex items-center justify-center rounded-xl bg-[#111111] border border-[#ffffff10] hover:border-[#C5A880]/50 text-gray-400 hover:text-white transition relative">
+              <button onClick={() => { setShowNotifications(!showNotifications); if (!showNotifications) markNotificationsAsRead(); }} className="w-9 h-9 flex items-center justify-center rounded-xl bg-[#111111] border border-[#ffffff10] hover:border-[#C5A880]/50 text-gray-400 hover:text-[#C5A880] transition relative">
                 <Bell className="w-4 h-4" />
-                {unreadCount > 0 && <span className="absolute top-2 right-2.5 w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-[0_0_5px_rgba(239,68,68,0.8)]"></span>}
+                {unreadCount > 0 && <span className="absolute top-2 right-2.5 w-2 h-2 bg-[#A3885C] rounded-full animate-pulse shadow-[0_0_5px_rgba(163,136,92,0.8)]"></span>}
               </button>
               {showNotifications && (
                 <div className="absolute right-0 mt-3 w-72 sm:w-80 bg-[#111111] border border-[#ffffff15] rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] overflow-hidden z-50">
@@ -338,7 +353,7 @@ export default function App() {
               <span className="text-gray-500 text-xs font-semibold uppercase tracking-wider hidden sm:inline">KSh</span>
             </button>
 
-            <button onClick={() => setShowLogoutModal(true)} className="w-9 h-9 flex items-center justify-center rounded-xl bg-[#111111] border border-[#ffffff10] hover:border-red-500/50 hover:text-red-400 text-gray-400 transition" title="Sign Out">
+            <button onClick={() => setShowLogoutModal(true)} className="w-9 h-9 flex items-center justify-center rounded-xl bg-[#111111] border border-[#ffffff10] hover:border-red-500/30 hover:text-red-400 text-gray-400 transition" title="Sign Out">
               <LogOut className="w-4 h-4" />
             </button>
           </div>
@@ -378,21 +393,24 @@ export default function App() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-10">
-              <div className="bg-[#111111] border border-[#ffffff10] rounded-2xl p-6 relative overflow-hidden group hover:border-green-500/30 transition">
+              <div className="bg-[#111111] border border-[#ffffff10] rounded-2xl p-6 relative overflow-hidden group hover:border-[#10b981]/30 transition">
                 <div className="flex items-center gap-3 mb-6 relative z-10">
-                  <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center border border-green-500/20 group-hover:bg-green-500/20 transition"><ArrowDownToLine className="w-5 h-5 text-green-400" /></div>
+                  <div className="w-10 h-10 rounded-lg bg-[#10b981]/10 flex items-center justify-center border border-[#10b981]/20 group-hover:bg-[#10b981]/20 transition"><ArrowDownToLine className="w-5 h-5 text-[#10b981]" /></div>
                   <h3 className="text-lg font-bold">Add Liquidity</h3>
                 </div>
                 <div className="space-y-4 relative z-10">
                   <div>
                     <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1">M-Pesa Number</label>
-                    <input type="tel" placeholder="07XX XXX XXX" value={depositPhone} onChange={e => setDepositPhone(e.target.value)} className="w-full bg-[#0a0a0a] border border-[#ffffff15] rounded-xl p-3 focus:outline-none focus:border-green-500 transition font-medium" />
+                    <input type="tel" placeholder="07XX XXX XXX" value={depositPhone} onChange={e => setDepositPhone(e.target.value)} className="w-full bg-[#0a0a0a] border border-[#ffffff15] rounded-xl p-3 focus:outline-none focus:border-[#10b981] transition font-medium" />
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1">Amount (KSh)</label>
-                    <input type="number" min="100" value={depositAmount || ''} onChange={e => setDepositAmount(Number(e.target.value))} className="w-full bg-[#0a0a0a] border border-[#ffffff15] rounded-xl p-3 focus:outline-none focus:border-green-500 transition font-bold text-white" />
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount (KSh)</label>
+                      <span className="text-xs text-gray-600 font-medium">Max: 100k | Cap: 250k</span>
+                    </div>
+                    <input type="number" min="100" max="100000" value={depositAmount || ''} onChange={e => setDepositAmount(Number(e.target.value))} className="w-full bg-[#0a0a0a] border border-[#ffffff15] rounded-xl p-3 focus:outline-none focus:border-[#10b981] transition font-bold text-white" />
                   </div>
-                  <button onClick={handleMpesaDeposit} className="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-3.5 rounded-xl transition shadow-[0_0_15px_rgba(22,163,74,0.2)]">Trigger STK Push</button>
+                  <button onClick={handleMpesaDeposit} className="w-full bg-[#10b981]/10 border border-[#10b981]/30 hover:bg-[#10b981] text-[#10b981] hover:text-[#0a0a0a] font-bold py-3.5 rounded-xl transition shadow-[0_0_15px_rgba(16,185,129,0.1)] hover:shadow-[0_0_20px_rgba(16,185,129,0.3)]">Trigger STK Push</button>
                 </div>
               </div>
 
@@ -407,10 +425,13 @@ export default function App() {
                     <input type="tel" value={withdrawPhone} onChange={e => setWithdrawPhone(e.target.value)} className="w-full bg-[#0a0a0a] border border-[#ffffff15] text-gray-300 rounded-xl p-3 focus:outline-none focus:border-[#C5A880] transition font-medium" />
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1">Amount (KSh)</label>
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount (KSh)</label>
+                      <span className="text-xs text-gray-600 font-medium">Available: {profile?.wallet_balance.toLocaleString()}</span>
+                    </div>
                     <input type="number" placeholder="0" value={withdrawAmount || ''} onChange={e => setWithdrawAmount(Number(e.target.value))} className="w-full bg-[#0a0a0a] border border-[#ffffff15] rounded-xl p-3 focus:outline-none focus:border-[#C5A880] transition font-bold text-white" />
                   </div>
-                  <button onClick={handleWithdraw} className="w-full bg-transparent border border-[#C5A880]/50 hover:bg-[#C5A880] text-[#C5A880] hover:text-[#0a0a0a] font-bold py-3.5 rounded-xl transition">Request Payout</button>
+                  <button onClick={handleWithdraw} className="w-full bg-[#C5A880]/10 border border-[#C5A880]/30 hover:bg-[#C5A880] text-[#C5A880] hover:text-[#0a0a0a] font-bold py-3.5 rounded-xl transition shadow-[0_0_15px_rgba(197,168,128,0.1)] hover:shadow-[0_0_20px_rgba(197,168,128,0.3)]">Request Payout</button>
                 </div>
               </div>
             </div>
@@ -430,7 +451,7 @@ export default function App() {
                       return (
                         <div key={tx.id} className="p-4 sm:p-5 flex items-center justify-between hover:bg-[#1a1a1a] transition">
                           <div className="flex items-center gap-4">
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center border ${isPositive ? 'bg-green-500/10 border-green-500/20 text-green-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center border ${isPositive ? 'bg-[#10b981]/10 border-[#10b981]/20 text-[#10b981]' : 'bg-[#f43f5e]/10 border-[#f43f5e]/20 text-[#f43f5e]'}`}>
                               {isPositive ? <ArrowDownToLine className="w-4 h-4" /> : <ArrowUpFromLine className="w-4 h-4" />}
                             </div>
                             <div>
@@ -439,7 +460,7 @@ export default function App() {
                             </div>
                           </div>
                           <div className="text-right">
-                            <p className={`font-bold ${isPositive ? 'text-green-400' : 'text-red-400'}`}>
+                            <p className={`font-bold ${isPositive ? 'text-[#10b981]' : 'text-[#f43f5e]'}`}>
                               {isPositive ? '+' : '-'}{tx.message.match(/\d+/) ? tx.message.match(/\d+/)?.[0] : ''} KSh
                             </p>
                             <p className="text-gray-600 text-xs font-mono mt-0.5">TxID: {tx.id.substring(0, 8)}</p>
@@ -495,7 +516,7 @@ export default function App() {
                       <div className="space-y-2 mb-5 relative z-10">
                         <div className="flex justify-between text-sm text-gray-400"><span>Maker's Stake:</span><span className="text-white font-bold">{offer.stake.toLocaleString()} KSh</span></div>
                         <div className="flex justify-between text-sm text-gray-400"><span>Requested Odds:</span><span className="text-[#C5A880] font-bold">{offer.odds}x</span></div>
-                        <div className="flex justify-between text-sm pt-2 border-t border-[#ffffff10] mt-2"><span className="text-gray-500 font-semibold">Your Risk (Liability):</span><span className="text-red-400 font-bold">{liability.toLocaleString()} KSh</span></div>
+                        <div className="flex justify-between text-sm pt-2 border-t border-[#ffffff10] mt-2"><span className="text-gray-500 font-semibold">Your Risk (Liability):</span><span className="text-[#f43f5e] font-bold">{liability.toLocaleString()} KSh</span></div>
                       </div>
                       <button onClick={() => initiateMatch(offer)} disabled={isOwnOffer} className={`w-full font-bold py-3.5 rounded-xl transition relative z-10 ${isOwnOffer ? 'bg-[#0a0a0a] text-gray-600 border border-[#ffffff10] cursor-not-allowed' : 'bg-[#1a1a1a] hover:bg-[#C5A880] hover:text-[#0a0a0a] text-white border border-[#ffffff15] hover:border-[#C5A880] hover:shadow-[0_0_20px_rgba(197,168,128,0.3)]'}`}>
                         {isOwnOffer ? 'Waiting for Taker...' : 'Match Offer'}
@@ -512,7 +533,6 @@ export default function App() {
           /* --- MY WAGERS VIEW --- */
           <div className="space-y-10 animate-in fade-in duration-300">
             
-            {/* --- NEW: PORTFOLIO EXPOSURE SUMMARY --- */}
             <div className="grid grid-cols-2 gap-4 sm:gap-6 mb-8">
               <div className="bg-[#111111] border border-[#ffffff10] rounded-2xl p-5 sm:p-6 flex flex-col justify-center">
                 <div className="flex items-center gap-2 mb-2 opacity-70">
@@ -528,7 +548,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Open Offers */}
             {myPendingOffers.length > 0 && (
               <div>
                 <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2">
@@ -551,7 +570,7 @@ export default function App() {
                         </div>
                         <div className="space-y-2 text-sm">
                           <div className="flex justify-between text-gray-400"><span>Your Stake:</span><span className="text-white">{bet.stake.toLocaleString()} KSh</span></div>
-                          <div className="flex justify-between text-gray-400"><span>Requested Odds:</span><span className="text-white">{bet.odds}x</span></div>
+                          <div className="flex justify-between text-gray-400"><span>Requested Odds:</span><span className="text-[#C5A880]">{bet.odds}x</span></div>
                           <div className="flex justify-between font-bold pt-3 border-t border-[#ffffff10] mt-3">
                             <span className="text-gray-500">Total Pot:</span><span className="text-white">{(bet.stake * (bet.odds || 2)).toLocaleString()} KSh</span>
                           </div>
@@ -563,7 +582,6 @@ export default function App() {
               </div>
             )}
 
-            {/* Active Locked Wagers */}
             <div>
               <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-4">Locked Active Wagers</h3>
               {myActiveWagers.length === 0 ? (
@@ -610,7 +628,7 @@ export default function App() {
                         </div>
                         <div className="space-y-2 text-sm relative z-10">
                           <div className="flex justify-between text-gray-400"><span>{isMatcher ? 'Your Risk:' : 'Original Stake:'}</span><span className="text-white">{displayStake.toLocaleString()} KSh</span></div>
-                          <div className="flex justify-between text-gray-400"><span>{bet.status === 'p2p_matched' ? 'Locked Odds:' : 'Market Odds:'}</span><span className="text-white">{currentOddsMultiplier}x</span></div>
+                          <div className="flex justify-between text-gray-400"><span>{bet.status === 'p2p_matched' ? 'Locked Odds:' : 'Market Odds:'}</span><span className="text-[#C5A880] font-medium">{currentOddsMultiplier}x</span></div>
                           <div className="flex justify-between font-bold pt-3 border-t border-[#ffffff10] mt-3"><span className="text-[#C5A880]">Est. Payout:</span><span className="text-[#C5A880] text-lg">{estNetPayout.toLocaleString()} KSh</span></div>
                         </div>
                       </div>
@@ -665,10 +683,10 @@ export default function App() {
                               <div className="space-y-1.5 px-1 font-light">
                                 <div className="flex justify-between text-gray-400"><span>Pool Odds:</span><span className="text-white">{payout.odds}x</span></div>
                                 <div className="flex justify-between text-gray-400"><span>Gross Payout:</span><span className="text-white">{payout.gross.toLocaleString()}</span></div>
-                                <div className="flex justify-between text-red-400"><span>Fee ({PLATFORM_FEE_PERCENT}%):</span><span>-{payout.fee.toLocaleString()}</span></div>
+                                <div className="flex justify-between text-[#f43f5e]"><span>Fee ({PLATFORM_FEE_PERCENT}%):</span><span>-{payout.fee.toLocaleString()}</span></div>
                                 <div className="flex justify-between text-[#C5A880] font-bold pt-2 border-t border-[#ffffff10] mt-2"><span>You Receive:</span><span className="text-lg">{payout.net.toLocaleString()} KSh</span></div>
                               </div>
-                              <button onClick={placeBet} disabled={!profile || profile.wallet_balance < stakeAmount || stakeAmount < MIN_STAKE} className="w-full bg-[#C5A880] hover:bg-[#E8D4B0] disabled:bg-[#1a1a1a] disabled:text-gray-600 text-[#0a0a0a] font-bold py-3.5 rounded-xl transition shadow-[0_0_15px_rgba(197,168,128,0.2)] mt-2">
+                              <button onClick={placeBet} disabled={!profile || profile.wallet_balance < stakeAmount || stakeAmount < MIN_STAKE} className="w-full bg-[#C5A880] hover:bg-[#A3885C] disabled:bg-[#1a1a1a] disabled:text-gray-600 text-[#0a0a0a] font-bold py-3.5 rounded-xl transition shadow-[0_0_15px_rgba(197,168,128,0.2)] mt-2">
                                 {!profile ? 'Loading...' : profile.wallet_balance < stakeAmount ? 'Insufficient Balance' : 'Confirm Wager'}
                               </button>
                             </div>
@@ -684,26 +702,26 @@ export default function App() {
         )}
       </main>
 
-      {/* MODALS */}
+      {/* --- PREMIUM CASHIER MODALS --- */}
       {showCashierModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200">
-          <div className={`bg-[#111111] border rounded-3xl p-6 sm:p-8 w-full max-w-sm text-center relative overflow-hidden shadow-2xl ${showCashierModal.type === 'deposit' ? 'border-green-500/30' : 'border-[#C5A880]/30'}`}>
-            <div className={`absolute top-0 left-1/2 -translate-x-1/2 w-40 h-40 rounded-full blur-3xl pointer-events-none ${showCashierModal.type === 'deposit' ? 'bg-green-500/10' : 'bg-[#C5A880]/10'}`}></div>
+          <div className={`bg-[#111111] border rounded-3xl p-6 sm:p-8 w-full max-w-sm text-center relative overflow-hidden shadow-2xl ${showCashierModal.type === 'deposit' ? 'border-[#10b981]/30' : 'border-[#C5A880]/30'}`}>
+            <div className={`absolute top-0 left-1/2 -translate-x-1/2 w-40 h-40 rounded-full blur-3xl pointer-events-none ${showCashierModal.type === 'deposit' ? 'bg-[#10b981]/10' : 'bg-[#C5A880]/10'}`}></div>
             <div className="relative z-10">
               {showCashierModal.status === 'processing' ? (
                 <>
                   <div className="w-16 h-16 bg-[#1a1a1a] border border-[#ffffff15] rounded-2xl flex items-center justify-center mx-auto mb-5">
-                    <div className={`w-8 h-8 border-4 border-t-transparent rounded-full animate-spin ${showCashierModal.type === 'deposit' ? 'border-green-500' : 'border-[#C5A880]'}`}></div>
+                    <div className={`w-8 h-8 border-4 border-t-transparent rounded-full animate-spin ${showCashierModal.type === 'deposit' ? 'border-[#10b981]' : 'border-[#C5A880]'}`}></div>
                   </div>
                   <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">{showCashierModal.type === 'deposit' ? 'Awaiting M-Pesa PIN' : 'Processing Request'}</h3>
                   <p className="text-gray-400 text-sm mb-2 font-light">{showCashierModal.type === 'deposit' ? 'Check your phone. Please enter your M-Pesa PIN to complete the transaction.' : 'Securing your withdrawal request on the ledger...'}</p>
                 </>
               ) : (
                 <>
-                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5 border ${showCashierModal.type === 'deposit' ? 'bg-green-500/10 border-green-500/40 text-green-400 shadow-[0_0_15px_rgba(34,197,94,0.2)]' : 'bg-[#C5A880]/10 border-[#C5A880]/40 text-[#C5A880] shadow-[0_0_15px_rgba(197,168,128,0.2)]'}`}><CheckCircle2 className="w-8 h-8" /></div>
+                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5 border ${showCashierModal.type === 'deposit' ? 'bg-[#10b981]/10 border-[#10b981]/40 text-[#10b981] shadow-[0_0_15px_rgba(16,185,129,0.2)]' : 'bg-[#C5A880]/10 border-[#C5A880]/40 text-[#C5A880] shadow-[0_0_15px_rgba(197,168,128,0.2)]'}`}><CheckCircle2 className="w-8 h-8" /></div>
                   <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">Transaction Successful</h3>
                   <p className="text-gray-400 text-sm mb-6 font-light">{showCashierModal.type === 'deposit' ? 'Your liquidity has been added to the exchange.' : 'Your payout request has been queued.'}</p>
-                  <button onClick={() => setShowCashierModal(null)} className="w-full bg-white hover:bg-gray-200 text-black font-bold py-3.5 rounded-xl transition">Return to Ledger</button>
+                  <button onClick={() => setShowCashierModal(null)} className="w-full bg-[#1a1a1a] hover:bg-[#222222] border border-[#ffffff10] text-white font-bold py-3.5 rounded-xl transition">Return to Ledger</button>
                 </>
               )}
             </div>
@@ -711,6 +729,7 @@ export default function App() {
         </div>
       )}
 
+      {/* P2P CREATE OFFER MODAL */}
       {showCreateOfferModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200">
           <div className="bg-[#111111] border border-[#C5A880]/30 rounded-3xl p-6 sm:p-8 w-full max-w-md shadow-[0_0_50px_rgba(197,168,128,0.15)] relative">
@@ -749,63 +768,66 @@ export default function App() {
                 <div className="flex justify-between text-gray-400"><span>Gross Output:</span><span>{Math.round(p2pStake * p2pOdds).toLocaleString()} KSh</span></div>
                 <div className="flex justify-between text-[#C5A880] font-bold pt-2 border-t border-[#ffffff10] mt-2"><span>Net Profit:</span><span>{Math.round((p2pStake * p2pOdds) * (1 - PLATFORM_FEE_PERCENT/100)).toLocaleString()} KSh</span></div>
               </div>
-              <button onClick={submitP2POffer} disabled={!p2pSelectedEventId || p2pStake < MIN_STAKE || p2pOdds <= 1} className="w-full bg-[#C5A880] hover:bg-[#E8D4B0] disabled:bg-[#1a1a1a] disabled:text-gray-600 text-[#0a0a0a] font-bold py-4 rounded-xl transition shadow-[0_0_20px_rgba(197,168,128,0.2)] mt-2">Push to Exchange</button>
+              <button onClick={submitP2POffer} disabled={!p2pSelectedEventId || p2pStake < MIN_STAKE || p2pOdds <= 1} className="w-full bg-[#C5A880] hover:bg-[#A3885C] disabled:bg-[#1a1a1a] disabled:text-gray-600 text-[#0a0a0a] font-bold py-4 rounded-xl transition shadow-[0_0_20px_rgba(197,168,128,0.2)] mt-2">Push to Exchange</button>
             </div>
           </div>
         </div>
       )}
 
+      {/* P2P MATCH MODAL */}
       {offerToMatch && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200">
           <div className="bg-[#111111] border border-[#C5A880]/40 rounded-3xl p-6 sm:p-8 w-full max-w-sm text-center shadow-[0_0_50px_rgba(197,168,128,0.15)] relative overflow-hidden">
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-40 h-40 bg-[#C5A880]/10 rounded-full blur-3xl pointer-events-none"></div>
             <div className="relative z-10">
-              <div className="w-16 h-16 bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-[0_0_15px_rgba(234,179,8,0.15)]"><AlertTriangle className="w-8 h-8" /></div>
+              <div className="w-16 h-16 bg-[#C5A880]/10 border border-[#C5A880]/30 text-[#C5A880] rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-[0_0_15px_rgba(197,168,128,0.15)]"><AlertTriangle className="w-8 h-8" /></div>
               <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">Lock Liability</h3>
               <p className="text-gray-400 text-sm mb-6 font-light">You are acting as the counterparty.</p>
               <div className="bg-[#0a0a0a] rounded-xl p-5 mb-6 text-left border border-[#ffffff10]">
-                <div className="flex justify-between items-center text-sm mb-3"><span className="text-gray-500">Capital Risked:</span><span className="text-red-400 font-bold">{Math.round((offerToMatch.stake * (offerToMatch.odds || 2)) - offerToMatch.stake).toLocaleString()} KSh</span></div>
+                <div className="flex justify-between items-center text-sm mb-3"><span className="text-gray-500">Capital Risked:</span><span className="text-[#f43f5e] font-bold">{Math.round((offerToMatch.stake * (offerToMatch.odds || 2)) - offerToMatch.stake).toLocaleString()} KSh</span></div>
                 <div className="flex justify-between items-center text-sm pt-3 border-t border-[#ffffff10]"><span className="text-gray-500">Max Return:</span><span className="text-[#C5A880] font-bold text-lg">{offerToMatch.stake.toLocaleString()} KSh</span></div>
               </div>
               <div className="flex gap-3 justify-center">
                 <button onClick={() => setOfferToMatch(null)} className="w-1/2 bg-[#1a1a1a] hover:bg-[#222222] border border-[#ffffff10] text-white font-semibold py-3.5 rounded-xl transition">Cancel</button>
-                <button onClick={confirmMatch} className="w-1/2 bg-[#C5A880] hover:bg-[#E8D4B0] text-[#0a0a0a] font-bold py-3.5 rounded-xl transition shadow-[0_0_15px_rgba(197,168,128,0.2)]">Execute</button>
+                <button onClick={confirmMatch} className="w-1/2 bg-[#C5A880] hover:bg-[#A3885C] text-[#0a0a0a] font-bold py-3.5 rounded-xl transition shadow-[0_0_15px_rgba(197,168,128,0.2)]">Execute</button>
               </div>
             </div>
           </div>
         </div>
       )}
 
+      {/* SUCCESS MODAL FOR BETS */}
       {showSuccessModal && lastBetDetails && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200">
-          <div className="bg-[#111111] border border-green-500/30 rounded-3xl p-6 sm:p-8 w-full max-w-sm text-center shadow-[0_0_50px_rgba(34,197,94,0.1)] relative overflow-hidden">
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-40 h-40 bg-green-500/10 rounded-full blur-3xl pointer-events-none"></div>
+          <div className="bg-[#111111] border border-[#10b981]/30 rounded-3xl p-6 sm:p-8 w-full max-w-sm text-center shadow-[0_0_50px_rgba(16,185,129,0.1)] relative overflow-hidden">
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-40 h-40 bg-[#10b981]/10 rounded-full blur-3xl pointer-events-none"></div>
             <div className="relative z-10">
-              <div className="w-16 h-16 bg-green-500/10 border border-green-500/40 text-green-400 rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-[0_0_15px_rgba(34,197,94,0.2)]"><CheckCircle2 className="w-8 h-8" /></div>
+              <div className="w-16 h-16 bg-[#10b981]/10 border border-[#10b981]/40 text-[#10b981] rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-[0_0_15px_rgba(16,185,129,0.2)]"><CheckCircle2 className="w-8 h-8" /></div>
               <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">Contract Secured</h3>
               <p className="text-gray-400 text-sm mb-6 font-light">Your position is locked on the network.</p>
               <div className="bg-[#0a0a0a] rounded-xl p-5 mb-6 text-left border border-[#ffffff10]">
                 <div className="text-xs text-gray-500 mb-1 uppercase tracking-wider font-semibold">Prediction</div>
                 <div className="text-white font-medium mb-4 line-clamp-1">{lastBetDetails.outcomeName}</div>
                 <div className="flex justify-between items-center text-sm mb-3"><span className="text-gray-500">Stake Placed:</span><span className="text-white font-bold">{lastBetDetails.stake.toLocaleString()} KSh</span></div>
-                <div className="flex justify-between items-center text-sm pt-3 border-t border-[#ffffff10]"><span className="text-gray-500">To Win:</span><span className="text-green-400 font-bold text-lg">{lastBetDetails.payout.toLocaleString()} KSh</span></div>
+                <div className="flex justify-between items-center text-sm pt-3 border-t border-[#ffffff10]"><span className="text-gray-500">To Win:</span><span className="text-[#10b981] font-bold text-lg">{lastBetDetails.payout.toLocaleString()} KSh</span></div>
               </div>
-              <button onClick={() => setShowSuccessModal(false)} className="w-full bg-white hover:bg-gray-200 text-black font-bold py-3.5 rounded-xl transition">Return to Terminal</button>
+              <button onClick={() => setShowSuccessModal(false)} className="w-full bg-[#1a1a1a] hover:bg-[#222222] border border-[#ffffff10] text-white font-bold py-3.5 rounded-xl transition">Return to Terminal</button>
             </div>
           </div>
         </div>
       )}
 
+      {/* LOGOUT MODAL */}
       {showLogoutModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200">
           <div className="bg-[#111111] border border-[#ffffff15] rounded-3xl p-6 sm:p-8 w-full max-w-sm text-center shadow-[0_0_50px_rgba(0,0,0,0.8)] relative overflow-hidden">
             <div className="relative z-10">
-              <div className="w-16 h-16 bg-red-500/10 border border-red-500/30 text-red-400 rounded-2xl flex items-center justify-center mx-auto mb-5"><LogOut className="w-7 h-7 ml-1" /></div>
+              <div className="w-16 h-16 bg-[#f43f5e]/10 border border-[#f43f5e]/30 text-[#f43f5e] rounded-2xl flex items-center justify-center mx-auto mb-5"><LogOut className="w-7 h-7 ml-1" /></div>
               <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">Disconnect?</h3>
               <p className="text-gray-400 text-sm mb-8 font-light">Securely close your terminal session.</p>
               <div className="flex gap-3 justify-center">
                 <button onClick={() => setShowLogoutModal(false)} className="w-1/2 bg-[#1a1a1a] hover:bg-[#222222] border border-[#ffffff10] text-white font-semibold py-3.5 rounded-xl transition">Cancel</button>
-                <button onClick={handleLogout} className="w-1/2 bg-red-500/10 border border-red-500/30 hover:bg-red-500 text-red-400 hover:text-white font-bold py-3.5 rounded-xl transition">Disconnect</button>
+                <button onClick={handleLogout} className="w-1/2 bg-[#f43f5e]/10 border border-[#f43f5e]/30 hover:bg-[#f43f5e] text-[#f43f5e] hover:text-white font-bold py-3.5 rounded-xl transition">Disconnect</button>
               </div>
             </div>
           </div>
