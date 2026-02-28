@@ -40,7 +40,6 @@ interface AppNotification {
 }
 
 const MIN_STAKE = 200
-const MAX_DEPOSIT = 100000
 const MAX_WALLET_CAP = 250000
 const PLATFORM_FEE_PERCENT = 3
 
@@ -53,7 +52,6 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [selectedOutcome, setSelectedOutcome] = useState<{eventId: string, idx: number} | null>(null)
 
-  // --- PREMIUM TOAST NOTIFICATION SYSTEM ---
   const [toast, setToast] = useState<{msg: string, type: 'error' | 'success'} | null>(null)
   const showToast = (msg: string, type: 'error' | 'success' = 'error') => {
     setToast({ msg, type })
@@ -66,11 +64,9 @@ export default function App() {
   const [showNotifications, setShowNotifications] = useState(false)
   const [lastBetDetails, setLastBetDetails] = useState<{stake: number, payout: number, outcomeName: string} | null>(null)
   
-  // NAVIGATION STATES
   const [activeCategory, setActiveCategory] = useState<string>('All') 
   const [activeView, setActiveView] = useState<'markets' | 'wagers' | 'p2p' | 'wallet'>('markets')
 
-  // P2P STATES
   const [showCreateOfferModal, setShowCreateOfferModal] = useState(false)
   const [offerToMatch, setOfferToMatch] = useState<Bet | null>(null)
   const [p2pSelectedEventId, setP2pSelectedEventId] = useState<string>('')
@@ -78,13 +74,9 @@ export default function App() {
   const [p2pStake, setP2pStake] = useState<number>(MIN_STAKE)
   const [p2pOdds, setP2pOdds] = useState<number>(2.00)
 
-  // WALLET STATES
-  const [depositAmount, setDepositAmount] = useState<number>(500)
-  const [depositPhone, setDepositPhone] = useState<string>('')
   const [withdrawAmount, setWithdrawAmount] = useState<number>(0)
   const [withdrawPhone, setWithdrawPhone] = useState<string>('')
   
-  // PREMIUM CASHIER MODALS
   const [showCashierModal, setShowCashierModal] = useState<{type: 'deposit' | 'withdraw', status: 'processing' | 'success'} | null>(null)
 
   useEffect(() => {
@@ -143,38 +135,28 @@ export default function App() {
     await supabase.from('notifications').update({ is_read: true }).in('id', unreadIds)
   }
 
-  // --- REPLACED ALERTS WITH CUSTOM TOASTS ---
-  const handleMpesaDeposit = async () => {
-    if (!depositPhone || depositAmount < 100) return showToast("Please enter a valid M-Pesa number and minimum 100 KSh.")
-    if (depositAmount > MAX_DEPOSIT) return showToast(`Maximum deposit is ${MAX_DEPOSIT.toLocaleString()} KSh per transaction.`)
-    
-    if (profile && (profile.wallet_balance + depositAmount > MAX_WALLET_CAP)) {
-      const allowedAmount = MAX_WALLET_CAP - profile.wallet_balance
-      if (allowedAmount <= 0) return showToast("Wallet maximum capacity of 250,000 KSh reached.")
-      return showToast(`Wallet cap exceeded. Max allowed deposit is ${allowedAmount.toLocaleString()} KSh.`)
-    }
+  const handleAirdrop = async () => {
+    if (!profile) return
+    if (profile.wallet_balance >= 10000) return showToast("You already have sufficient testnet liquidity.", "error")
 
     setShowCashierModal({ type: 'deposit', status: 'processing' })
     setTimeout(async () => {
-      if (profile) {
-        await supabase.from('profiles').update({ wallet_balance: profile.wallet_balance + depositAmount }).eq('id', session.user.id)
-        await supabase.from('notifications').insert({ user_id: session.user.id, message: `Deposited ${depositAmount} KSh via M-Pesa.`, type: 'deposit', is_read: false })
-        fetchProfile()
-        fetchNotifications()
-        setShowCashierModal({ type: 'deposit', status: 'success' })
-        setDepositAmount(500)
-      }
-    }, 3500)
+      await supabase.from('profiles').update({ wallet_balance: profile.wallet_balance + 10000 }).eq('id', session.user.id)
+      await supabase.from('notifications').insert({ user_id: session.user.id, message: `Airdrop of 10,000 PTZ claimed.`, type: 'deposit', is_read: false })
+      fetchProfile()
+      fetchNotifications()
+      setShowCashierModal({ type: 'deposit', status: 'success' })
+    }, 2000)
   }
 
   const handleWithdraw = async () => {
-    if (withdrawAmount < 100) return showToast("Minimum withdrawal is 100 KSh.")
+    if (withdrawAmount < 100) return showToast("Minimum withdrawal is 100 PTZ.")
     if (profile && withdrawAmount > profile.wallet_balance) return showToast("Insufficient available liquidity.")
     setShowCashierModal({ type: 'withdraw', status: 'processing' })
     setTimeout(async () => {
       if (profile) {
         await supabase.from('profiles').update({ wallet_balance: profile.wallet_balance - withdrawAmount }).eq('id', session.user.id)
-        await supabase.from('notifications').insert({ user_id: session.user.id, message: `Withdrawal of ${withdrawAmount} KSh initiated.`, type: 'withdrawal', is_read: false })
+        await supabase.from('notifications').insert({ user_id: session.user.id, message: `Withdrawal of ${withdrawAmount} PTZ initiated.`, type: 'withdrawal', is_read: false })
         fetchProfile()
         fetchNotifications()
         setShowCashierModal({ type: 'withdraw', status: 'success' })
@@ -186,7 +168,7 @@ export default function App() {
   const placeBet = async () => {
     if (!selectedOutcome || !session?.user || !profile) return
     if (profile.wallet_balance < stakeAmount) return showToast('Insufficient balance for this transaction.')
-    if (stakeAmount < MIN_STAKE) return showToast(`Minimum accepted stake is ${MIN_STAKE} KSh.`)
+    if (stakeAmount < MIN_STAKE) return showToast(`Minimum accepted stake is ${MIN_STAKE} PTZ.`)
 
     const event = events.find(e => e.id === selectedOutcome.eventId)
     const outcomeName = event?.outcomes[selectedOutcome.idx] || 'Unknown Outcome'
@@ -213,7 +195,7 @@ export default function App() {
   const submitP2POffer = async () => {
     if (!p2pSelectedEventId || !session?.user || !profile) return
     if (profile.wallet_balance < p2pStake) return showToast('Insufficient balance for this transaction.')
-    if (p2pStake < MIN_STAKE) return showToast(`Minimum accepted stake is ${MIN_STAKE} KSh.`)
+    if (p2pStake < MIN_STAKE) return showToast(`Minimum accepted stake is ${MIN_STAKE} PTZ.`)
 
     const event = events.find(e => e.id === p2pSelectedEventId)
     const outcomeName = event?.outcomes[p2pSelectedOutcomeIdx] || 'Unknown Outcome'
@@ -244,7 +226,7 @@ export default function App() {
     if (!session?.user || !profile) return
     if (offer.user_id === session.user.id) return showToast("Protocol restricts matching your own liquidity.")
     const liability = Math.round((offer.stake * (offer.odds || 2)) - offer.stake)
-    if (profile.wallet_balance < liability) return showToast(`Insufficient funds. You need ${liability.toLocaleString()} KSh to cover liability.`)
+    if (profile.wallet_balance < liability) return showToast(`Insufficient funds. You need ${liability.toLocaleString()} PTZ to cover liability.`)
     setOfferToMatch(offer)
   }
 
@@ -316,17 +298,13 @@ export default function App() {
 
   if (!session) return <Landing />
   
-  // --- UPGRADED TERMINAL LOADING SCREEN ---
   if (loading) return (
     <div className="min-h-screen bg-[#0a0a0a] flex flex-col items-center justify-center relative overflow-hidden">
       <div className="absolute inset-0 bg-trading-grid opacity-10 animate-pan-grid pointer-events-none"></div>
       <div className="w-16 h-16 border-2 border-[#C5A880]/20 border-t-[#C5A880] rounded-full animate-spin mb-6 relative z-10 shadow-[0_0_15px_rgba(197,168,128,0.3)]"></div>
       <p className="text-[#C5A880] font-mono text-xs tracking-[0.3em] uppercase animate-pulse relative z-10">Syncing Ledger...</p>
       <style dangerouslySetInnerHTML={{__html: `
-        .bg-trading-grid {
-          background-size: 40px 40px;
-          background-image: linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px), linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-        }
+        .bg-trading-grid { background-size: 40px 40px; background-image: linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px), linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px); }
         @keyframes pan-grid { 0% { transform: translateY(0); } 100% { transform: translateY(40px); } }
         .animate-pan-grid { animation: pan-grid 3s linear infinite; }
       `}} />
@@ -336,7 +314,6 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white selection:bg-[#C5A880]/20 font-sans relative pb-20">
 
-      {/* --- GLOBAL TOAST NOTIFICATION --- */}
       {toast && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-top-10 fade-in duration-300">
           <div className={`flex items-center gap-3 px-5 py-3.5 rounded-2xl border shadow-[0_0_40px_rgba(0,0,0,0.8)] backdrop-blur-xl ${
@@ -348,7 +325,6 @@ export default function App() {
         </div>
       )}
 
-      {/* HEADER */}
       <header className="border-b border-[#ffffff0a] bg-[#0a0a0a]/90 backdrop-blur-xl sticky top-0 z-30">
         <div className="max-w-6xl mx-auto px-4 pt-4 pb-3 flex items-center justify-between">
           <h1 className="text-2xl font-bold tracking-tight cursor-pointer flex items-center gap-2" onClick={() => setActiveView('markets')}>
@@ -361,12 +337,10 @@ export default function App() {
                 <Bell className="w-4 h-4" />
                 {unreadCount > 0 && <span className="absolute top-2 right-2.5 w-2 h-2 bg-[#A3885C] rounded-full animate-pulse shadow-[0_0_5px_rgba(163,136,92,0.8)]"></span>}
               </button>
-             {showNotifications && (
+              
+              {showNotifications && (
                 <>
-                  {/* Invisible overlay so tapping outside closes it on mobile */}
                   <div className="fixed inset-0 z-40 sm:hidden" onClick={() => setShowNotifications(false)}></div>
-                  
-                  {/* Responsive Dropdown/Modal */}
                   <div className="fixed left-4 right-4 top-20 sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-3 sm:w-80 bg-[#111111] border border-[#ffffff15] rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] overflow-hidden z-50">
                     <div className="p-4 border-b border-[#ffffff0a] bg-[#0a0a0a] flex justify-between items-center"><h4 className="font-bold text-[#C5A880]">Notifications</h4></div>
                     <div className="max-h-[60vh] sm:max-h-80 overflow-y-auto custom-scrollbar">
@@ -389,7 +363,7 @@ export default function App() {
             <button onClick={() => setActiveView('wallet')} className="bg-[#111111] hover:bg-[#1a1a1a] border border-[#ffffff10] hover:border-[#C5A880]/50 rounded-xl px-3 sm:px-4 py-1.5 flex items-center gap-2 shadow-inner transition group">
               <Wallet className="w-4 h-4 text-[#C5A880] group-hover:scale-110 transition" />
               <span className="font-bold text-sm sm:text-base">{profile?.wallet_balance.toLocaleString() || '0'}</span>
-              <span className="text-gray-500 text-xs font-semibold uppercase tracking-wider hidden sm:inline">KSh</span>
+              <span className="text-gray-500 text-xs font-semibold uppercase tracking-wider hidden sm:inline">PTZ</span>
             </button>
 
             <button onClick={() => setShowLogoutModal(true)} className="w-9 h-9 flex items-center justify-center rounded-xl bg-[#111111] border border-[#ffffff10] hover:border-red-500/30 hover:text-red-400 text-gray-400 transition" title="Sign Out">
@@ -418,7 +392,6 @@ export default function App() {
       
       <main className="max-w-6xl mx-auto px-4 py-8">
         
-        {/* --- WALLET & CASHIER VIEW --- */}
         {activeView === 'wallet' ? (
           <div className="max-w-2xl mx-auto animate-in fade-in duration-300">
             <h2 className="text-2xl font-bold text-white mb-6">Cashier & Ledger</h2>
@@ -426,30 +399,24 @@ export default function App() {
               <div className="absolute top-0 right-0 w-64 h-64 bg-[#C5A880]/5 rounded-full blur-[80px]"></div>
               <p className="text-gray-400 text-sm font-semibold uppercase tracking-widest mb-2 relative z-10 flex items-center gap-2">Available Liquidity</p>
               <h1 className="text-5xl font-extrabold text-white mb-1 relative z-10 tracking-tight">
-                {profile?.wallet_balance.toLocaleString()} <span className="text-2xl text-[#C5A880]">KSh</span>
+                {profile?.wallet_balance.toLocaleString()} <span className="text-2xl text-[#C5A880]">PTZ</span>
               </h1>
-              <p className="text-gray-500 text-sm relative z-10 font-light mt-1">Free capital available for wagers or withdrawal.</p>
+              <p className="text-gray-500 text-sm relative z-10 font-light mt-1">Free testnet capital available for wagers.</p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-10">
+              
               <div className="bg-[#111111] border border-[#ffffff10] rounded-2xl p-6 relative overflow-hidden group hover:border-[#10b981]/30 transition">
-                <div className="flex items-center gap-3 mb-6 relative z-10">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-[#10b981]/5 rounded-full blur-3xl group-hover:bg-[#10b981]/10 transition"></div>
+                <div className="flex items-center gap-3 mb-4 relative z-10">
                   <div className="w-10 h-10 rounded-lg bg-[#10b981]/10 flex items-center justify-center border border-[#10b981]/20 group-hover:bg-[#10b981]/20 transition"><ArrowDownToLine className="w-5 h-5 text-[#10b981]" /></div>
-                  <h3 className="text-lg font-bold">Add Liquidity</h3>
+                  <h3 className="text-lg font-bold">Testnet Faucet</h3>
                 </div>
                 <div className="space-y-4 relative z-10">
-                  <div>
-                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1">M-Pesa Number</label>
-                    <input type="tel" placeholder="07XX XXX XXX" value={depositPhone} onChange={e => setDepositPhone(e.target.value)} className="w-full bg-[#0a0a0a] border border-[#ffffff15] rounded-xl p-3 focus:outline-none focus:border-[#10b981] transition font-medium" />
-                  </div>
-                  <div>
-                    <div className="flex justify-between items-center mb-1">
-                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount (KSh)</label>
-                      <span className="text-xs text-gray-600 font-medium">Max: 100k | Cap: 250k</span>
-                    </div>
-                    <input type="number" min="100" max="100000" value={depositAmount || ''} onChange={e => setDepositAmount(Number(e.target.value))} className="w-full bg-[#0a0a0a] border border-[#ffffff15] rounded-xl p-3 focus:outline-none focus:border-[#10b981] transition font-bold text-white" />
-                  </div>
-                  <button onClick={handleMpesaDeposit} className="w-full bg-[#10b981]/10 border border-[#10b981]/30 hover:bg-[#10b981] text-[#10b981] hover:text-[#0a0a0a] font-bold py-3.5 rounded-xl transition shadow-[0_0_15px_rgba(16,185,129,0.1)] hover:shadow-[0_0_20px_rgba(16,185,129,0.3)]">Trigger STK Push</button>
+                  <p className="text-sm text-gray-400 font-light mb-4">Claim your starting capital of 10,000 PTZ (Parlayz Testnet Tokens) to trade on the MVP network this weekend.</p>
+                  <button onClick={handleAirdrop} className="w-full bg-[#10b981]/10 border border-[#10b981]/30 hover:bg-[#10b981] text-[#10b981] hover:text-[#0a0a0a] font-bold py-3.5 rounded-xl transition shadow-[0_0_15px_rgba(16,185,129,0.1)] hover:shadow-[0_0_20px_rgba(16,185,129,0.3)]">
+                    Claim 10,000 PTZ Airdrop
+                  </button>
                 </div>
               </div>
 
@@ -465,7 +432,7 @@ export default function App() {
                   </div>
                   <div>
                     <div className="flex justify-between items-center mb-1">
-                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount (KSh)</label>
+                      <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount (PTZ)</label>
                       <span className="text-xs text-gray-600 font-medium">Available: {profile?.wallet_balance.toLocaleString()}</span>
                     </div>
                     <input type="number" placeholder="0" value={withdrawAmount || ''} onChange={e => setWithdrawAmount(Number(e.target.value))} className="w-full bg-[#0a0a0a] border border-[#ffffff15] rounded-xl p-3 focus:outline-none focus:border-[#C5A880] transition font-bold text-white" />
@@ -500,7 +467,7 @@ export default function App() {
                           </div>
                           <div className="text-right">
                             <p className={`font-bold ${isPositive ? 'text-[#10b981]' : 'text-[#f43f5e]'}`}>
-                              {isPositive ? '+' : '-'}{tx.message.match(/\d+/) ? tx.message.match(/\d+/)?.[0] : ''} KSh
+                              {isPositive ? '+' : '-'}{tx.message.match(/\d+/) ? tx.message.match(/\d+/)?.[0] : ''} PTZ
                             </p>
                             <p className="text-gray-600 text-xs font-mono mt-0.5">TxID: {tx.id.substring(0, 8)}</p>
                           </div>
@@ -515,7 +482,6 @@ export default function App() {
 
         ) : activeView === 'p2p' ? (
           
-          /* --- THE P2P ORDER BOOK --- */
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-[#111111] border border-[#C5A880]/30 rounded-2xl p-6 shadow-[0_0_20px_rgba(197,168,128,0.05)] gap-4">
               <div>
@@ -553,9 +519,9 @@ export default function App() {
                         <div className="text-white font-medium">{outcomeName}</div>
                       </div>
                       <div className="space-y-2 mb-5 relative z-10">
-                        <div className="flex justify-between text-sm text-gray-400"><span>Maker's Stake:</span><span className="text-white font-bold">{offer.stake.toLocaleString()} KSh</span></div>
+                        <div className="flex justify-between text-sm text-gray-400"><span>Maker's Stake:</span><span className="text-white font-bold">{offer.stake.toLocaleString()} PTZ</span></div>
                         <div className="flex justify-between text-sm text-gray-400"><span>Requested Odds:</span><span className="text-[#C5A880] font-bold">{offer.odds}x</span></div>
-                        <div className="flex justify-between text-sm pt-2 border-t border-[#ffffff10] mt-2"><span className="text-gray-500 font-semibold">Your Risk (Liability):</span><span className="text-[#f43f5e] font-bold">{liability.toLocaleString()} KSh</span></div>
+                        <div className="flex justify-between text-sm pt-2 border-t border-[#ffffff10] mt-2"><span className="text-gray-500 font-semibold">Your Risk (Liability):</span><span className="text-[#f43f5e] font-bold">{liability.toLocaleString()} PTZ</span></div>
                       </div>
                       <button onClick={() => initiateMatch(offer)} disabled={isOwnOffer} className={`w-full font-bold py-3.5 rounded-xl transition relative z-10 ${isOwnOffer ? 'bg-[#0a0a0a] text-gray-600 border border-[#ffffff10] cursor-not-allowed' : 'bg-[#1a1a1a] hover:bg-[#C5A880] hover:text-[#0a0a0a] text-white border border-[#ffffff15] hover:border-[#C5A880] hover:shadow-[0_0_20px_rgba(197,168,128,0.3)]'}`}>
                         {isOwnOffer ? 'Waiting for Taker...' : 'Match Offer'}
@@ -569,7 +535,6 @@ export default function App() {
 
         ) : activeView === 'wagers' ? (
           
-          /* --- MY WAGERS VIEW --- */
           <div className="space-y-10 animate-in fade-in duration-300">
             
             <div className="grid grid-cols-2 gap-4 sm:gap-6 mb-8">
@@ -578,12 +543,12 @@ export default function App() {
                   <PieChart className="w-4 h-4 text-gray-400" />
                   <p className="text-gray-400 text-xs font-semibold uppercase tracking-widest">Total Active Risk</p>
                 </div>
-                <p className="text-2xl sm:text-3xl font-bold text-white tracking-tight">{totalActiveStake.toLocaleString()} <span className="text-base font-medium text-gray-500">KSh</span></p>
+                <p className="text-2xl sm:text-3xl font-bold text-white tracking-tight">{totalActiveStake.toLocaleString()} <span className="text-base font-medium text-gray-500">PTZ</span></p>
               </div>
               <div className="bg-[#111111] border border-[#C5A880]/30 rounded-2xl p-5 sm:p-6 relative overflow-hidden flex flex-col justify-center shadow-[0_0_30px_rgba(197,168,128,0.05)]">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-[#C5A880]/10 rounded-full blur-2xl"></div>
                 <p className="text-[#C5A880] text-xs font-semibold uppercase tracking-widest mb-2 relative z-10 flex items-center gap-2">Max Est. Return</p>
-                <p className="text-2xl sm:text-3xl font-bold text-[#C5A880] relative z-10 tracking-tight">{totalEstPayout.toLocaleString()} <span className="text-base font-medium text-[#C5A880]/70">KSh</span></p>
+                <p className="text-2xl sm:text-3xl font-bold text-[#C5A880] relative z-10 tracking-tight">{totalEstPayout.toLocaleString()} <span className="text-base font-medium text-[#C5A880]/70">PTZ</span></p>
               </div>
             </div>
 
@@ -608,10 +573,10 @@ export default function App() {
                           <div className="text-white font-medium">{event.outcomes[bet.outcome_index]}</div>
                         </div>
                         <div className="space-y-2 text-sm">
-                          <div className="flex justify-between text-gray-400"><span>Your Stake:</span><span className="text-white">{bet.stake.toLocaleString()} KSh</span></div>
+                          <div className="flex justify-between text-gray-400"><span>Your Stake:</span><span className="text-white">{bet.stake.toLocaleString()} PTZ</span></div>
                           <div className="flex justify-between text-gray-400"><span>Requested Odds:</span><span className="text-[#C5A880]">{bet.odds}x</span></div>
                           <div className="flex justify-between font-bold pt-3 border-t border-[#ffffff10] mt-3">
-                            <span className="text-gray-500">Total Pot:</span><span className="text-white">{(bet.stake * (bet.odds || 2)).toLocaleString()} KSh</span>
+                            <span className="text-gray-500">Total Pot:</span><span className="text-white">{(bet.stake * (bet.odds || 2)).toLocaleString()} PTZ</span>
                           </div>
                         </div>
                       </div>
@@ -666,9 +631,9 @@ export default function App() {
                           <div className="text-white font-medium">{outcomeName}</div>
                         </div>
                         <div className="space-y-2 text-sm relative z-10">
-                          <div className="flex justify-between text-gray-400"><span>{isMatcher ? 'Your Risk:' : 'Original Stake:'}</span><span className="text-white">{displayStake.toLocaleString()} KSh</span></div>
+                          <div className="flex justify-between text-gray-400"><span>{isMatcher ? 'Your Risk:' : 'Original Stake:'}</span><span className="text-white">{displayStake.toLocaleString()} PTZ</span></div>
                           <div className="flex justify-between text-gray-400"><span>{bet.status === 'p2p_matched' ? 'Locked Odds:' : 'Market Odds:'}</span><span className="text-[#C5A880] font-medium">{currentOddsMultiplier}x</span></div>
-                          <div className="flex justify-between font-bold pt-3 border-t border-[#ffffff10] mt-3"><span className="text-[#C5A880]">Est. Payout:</span><span className="text-[#C5A880] text-lg">{estNetPayout.toLocaleString()} KSh</span></div>
+                          <div className="flex justify-between font-bold pt-3 border-t border-[#ffffff10] mt-3"><span className="text-[#C5A880]">Est. Payout:</span><span className="text-[#C5A880] text-lg">{estNetPayout.toLocaleString()} PTZ</span></div>
                         </div>
                       </div>
                     )
@@ -680,7 +645,6 @@ export default function App() {
 
         ) : (
           
-          /* --- MARKETS VIEW --- */
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
             {filteredEvents.length === 0 ? (
               <div className="col-span-full py-10 text-center text-gray-500">No live markets in this category yet.</div>
@@ -700,11 +664,13 @@ export default function App() {
                       const isSelected = selectedOutcome?.eventId === event.id && selectedOutcome?.idx === idx
                       return (
                         <div key={idx} className="space-y-2">
-                          <button onClick={() => { setSelectedOutcome({eventId: event.id, idx}); setStakeAmount(MIN_STAKE) }} className={`w-full flex items-center justify-between rounded-xl px-4 py-3 transition border ${isSelected ? 'bg-[#C5A880]/10 border-[#C5A880]' : 'bg-[#0a0a0a] border-[#ffffff10] hover:border-[#C5A880]/50'}`}>
+                          <button onClick={() => { setSelectedOutcome({eventId: event.id, idx}); setStakeAmount(MIN_STAKE) }} className={`w-full flex items-center justify-between rounded-xl px-4 py-3 transition border group ${isSelected ? 'bg-[#C5A880]/10 border-[#C5A880]' : 'bg-[#0a0a0a] border-[#ffffff10] hover:border-[#C5A880]/50'}`}>
                             <span className={`font-medium text-sm sm:text-base ${isSelected ? 'text-[#C5A880]' : 'text-white'}`}>{outcome}</span>
                             <div className="flex items-center gap-3">
-                              <div className="w-16 h-1.5 bg-[#1a1a1a] rounded-full overflow-hidden"><div className="h-full bg-[#C5A880]" style={{ width: `${oddsPercent}%` }} /></div>
-                              <span className="text-[#C5A880] font-bold text-sm w-10 text-right">{oddsPercent}%</span>
+                              <div className="hidden sm:block w-12 h-1.5 bg-[#1a1a1a] rounded-full overflow-hidden"><div className="h-full bg-[#C5A880]/30" style={{ width: `${oddsPercent}%` }} /></div>
+                              <span className={`font-bold text-sm sm:text-base px-3 py-1 rounded-lg border transition ${isSelected ? 'bg-[#C5A880] text-[#0a0a0a] border-[#C5A880] shadow-[0_0_15px_rgba(197,168,128,0.4)]' : 'bg-[#1a1a1a] text-[#C5A880] border-[#ffffff15] group-hover:border-[#C5A880]/50'}`}>
+                                {payout.odds}x
+                              </span>
                             </div>
                           </button>
                           {isSelected && (
@@ -714,7 +680,7 @@ export default function App() {
                                   <span className="text-gray-400">Wager Amount</span>
                                   <div className="flex items-center">
                                     <input type="number" value={stakeAmount || ''} onChange={(e) => setStakeAmount(Number(e.target.value))} className="bg-transparent text-[#C5A880] font-bold text-right w-20 focus:outline-none text-base" min={MIN_STAKE} />
-                                    <span className="text-gray-500 ml-1">KSh</span>
+                                    <span className="text-gray-500 ml-1">PTZ</span>
                                   </div>
                                 </div>
                                 <input type="range" min={MIN_STAKE} max={profile?.wallet_balance ? Math.max(profile.wallet_balance, 1000) : 10000} step="100" value={stakeAmount} onChange={(e) => setStakeAmount(Number(e.target.value))} className="w-full h-1 bg-[#1a1a1a] rounded-lg appearance-none cursor-pointer accent-[#C5A880]" />
@@ -723,7 +689,7 @@ export default function App() {
                                 <div className="flex justify-between text-gray-400"><span>Pool Odds:</span><span className="text-white">{payout.odds}x</span></div>
                                 <div className="flex justify-between text-gray-400"><span>Gross Payout:</span><span className="text-white">{payout.gross.toLocaleString()}</span></div>
                                 <div className="flex justify-between text-[#f43f5e]"><span>Fee ({PLATFORM_FEE_PERCENT}%):</span><span>-{payout.fee.toLocaleString()}</span></div>
-                                <div className="flex justify-between text-[#C5A880] font-bold pt-2 border-t border-[#ffffff10] mt-2"><span>You Receive:</span><span className="text-lg">{payout.net.toLocaleString()} KSh</span></div>
+                                <div className="flex justify-between text-[#C5A880] font-bold pt-2 border-t border-[#ffffff10] mt-2"><span>You Receive:</span><span className="text-lg">{payout.net.toLocaleString()} PTZ</span></div>
                               </div>
                               <button onClick={placeBet} disabled={!profile || profile.wallet_balance < stakeAmount || stakeAmount < MIN_STAKE} className="w-full bg-[#C5A880] hover:bg-[#A3885C] disabled:bg-[#1a1a1a] disabled:text-gray-600 text-[#0a0a0a] font-bold py-3.5 rounded-xl transition shadow-[0_0_15px_rgba(197,168,128,0.2)] mt-2">
                                 {!profile ? 'Loading...' : profile.wallet_balance < stakeAmount ? 'Insufficient Balance' : 'Confirm Wager'}
@@ -741,7 +707,6 @@ export default function App() {
         )}
       </main>
 
-      {/* --- PREMIUM CASHIER MODALS --- */}
       {showCashierModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200">
           <div className={`bg-[#111111] border rounded-3xl p-6 sm:p-8 w-full max-w-sm text-center relative overflow-hidden shadow-2xl ${showCashierModal.type === 'deposit' ? 'border-[#10b981]/30' : 'border-[#C5A880]/30'}`}>
@@ -752,14 +717,14 @@ export default function App() {
                   <div className="w-16 h-16 bg-[#1a1a1a] border border-[#ffffff15] rounded-2xl flex items-center justify-center mx-auto mb-5">
                     <div className={`w-8 h-8 border-4 border-t-transparent rounded-full animate-spin ${showCashierModal.type === 'deposit' ? 'border-[#10b981]' : 'border-[#C5A880]'}`}></div>
                   </div>
-                  <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">{showCashierModal.type === 'deposit' ? 'Awaiting M-Pesa PIN' : 'Processing Request'}</h3>
-                  <p className="text-gray-400 text-sm mb-2 font-light">{showCashierModal.type === 'deposit' ? 'Check your phone. Please enter your M-Pesa PIN to complete the transaction.' : 'Securing your withdrawal request on the ledger...'}</p>
+                  <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">{showCashierModal.type === 'deposit' ? 'Awaiting Protocol' : 'Processing Request'}</h3>
+                  <p className="text-gray-400 text-sm mb-2 font-light">{showCashierModal.type === 'deposit' ? 'Securing your testnet liquidity from the faucet...' : 'Securing your withdrawal request on the ledger...'}</p>
                 </>
               ) : (
                 <>
                   <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5 border ${showCashierModal.type === 'deposit' ? 'bg-[#10b981]/10 border-[#10b981]/40 text-[#10b981] shadow-[0_0_15px_rgba(16,185,129,0.2)]' : 'bg-[#C5A880]/10 border-[#C5A880]/40 text-[#C5A880] shadow-[0_0_15px_rgba(197,168,128,0.2)]'}`}><CheckCircle2 className="w-8 h-8" /></div>
                   <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">Transaction Successful</h3>
-                  <p className="text-gray-400 text-sm mb-6 font-light">{showCashierModal.type === 'deposit' ? 'Your liquidity has been added to the exchange.' : 'Your payout request has been queued.'}</p>
+                  <p className="text-gray-400 text-sm mb-6 font-light">{showCashierModal.type === 'deposit' ? 'Your testnet liquidity has been added to your wallet.' : 'Your payout request has been queued.'}</p>
                   <button onClick={() => setShowCashierModal(null)} className="w-full bg-[#1a1a1a] hover:bg-[#222222] border border-[#ffffff10] text-white font-bold py-3.5 rounded-xl transition">Return to Ledger</button>
                 </>
               )}
@@ -768,7 +733,6 @@ export default function App() {
         </div>
       )}
 
-      {/* P2P CREATE OFFER MODAL */}
       {showCreateOfferModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200">
           <div className="bg-[#111111] border border-[#C5A880]/30 rounded-3xl p-6 sm:p-8 w-full max-w-md shadow-[0_0_50px_rgba(197,168,128,0.15)] relative">
@@ -795,7 +759,7 @@ export default function App() {
               )}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Stake (KSh)</label>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Stake (PTZ)</label>
                   <input type="number" min={MIN_STAKE} value={p2pStake || ''} onChange={(e) => setP2pStake(Number(e.target.value))} className="w-full bg-[#0a0a0a] border border-[#ffffff15] text-white font-bold rounded-xl p-3.5 focus:outline-none focus:border-[#C5A880]" />
                 </div>
                 <div>
@@ -804,8 +768,8 @@ export default function App() {
                 </div>
               </div>
               <div className="bg-[#0a0a0a] rounded-xl p-4 text-sm space-y-2 border border-[#ffffff0a] mt-2 font-light">
-                <div className="flex justify-between text-gray-400"><span>Gross Output:</span><span>{Math.round(p2pStake * p2pOdds).toLocaleString()} KSh</span></div>
-                <div className="flex justify-between text-[#C5A880] font-bold pt-2 border-t border-[#ffffff10] mt-2"><span>Net Profit:</span><span>{Math.round((p2pStake * p2pOdds) * (1 - PLATFORM_FEE_PERCENT/100)).toLocaleString()} KSh</span></div>
+                <div className="flex justify-between text-gray-400"><span>Gross Output:</span><span>{Math.round(p2pStake * p2pOdds).toLocaleString()} PTZ</span></div>
+                <div className="flex justify-between text-[#C5A880] font-bold pt-2 border-t border-[#ffffff10] mt-2"><span>Net Profit:</span><span>{Math.round((p2pStake * p2pOdds) * (1 - PLATFORM_FEE_PERCENT/100)).toLocaleString()} PTZ</span></div>
               </div>
               <button onClick={submitP2POffer} disabled={!p2pSelectedEventId || p2pStake < MIN_STAKE || p2pOdds <= 1} className="w-full bg-[#C5A880] hover:bg-[#A3885C] disabled:bg-[#1a1a1a] disabled:text-gray-600 text-[#0a0a0a] font-bold py-4 rounded-xl transition shadow-[0_0_20px_rgba(197,168,128,0.2)] mt-2">Push to Exchange</button>
             </div>
@@ -813,7 +777,6 @@ export default function App() {
         </div>
       )}
 
-      {/* P2P MATCH MODAL */}
       {offerToMatch && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200">
           <div className="bg-[#111111] border border-[#C5A880]/40 rounded-3xl p-6 sm:p-8 w-full max-w-sm text-center shadow-[0_0_50px_rgba(197,168,128,0.15)] relative overflow-hidden">
@@ -823,8 +786,8 @@ export default function App() {
               <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">Lock Liability</h3>
               <p className="text-gray-400 text-sm mb-6 font-light">You are acting as the counterparty.</p>
               <div className="bg-[#0a0a0a] rounded-xl p-5 mb-6 text-left border border-[#ffffff10]">
-                <div className="flex justify-between items-center text-sm mb-3"><span className="text-gray-500">Capital Risked:</span><span className="text-[#f43f5e] font-bold">{Math.round((offerToMatch.stake * (offerToMatch.odds || 2)) - offerToMatch.stake).toLocaleString()} KSh</span></div>
-                <div className="flex justify-between items-center text-sm pt-3 border-t border-[#ffffff10]"><span className="text-gray-500">Max Return:</span><span className="text-[#C5A880] font-bold text-lg">{offerToMatch.stake.toLocaleString()} KSh</span></div>
+                <div className="flex justify-between items-center text-sm mb-3"><span className="text-gray-500">Capital Risked:</span><span className="text-[#f43f5e] font-bold">{Math.round((offerToMatch.stake * (offerToMatch.odds || 2)) - offerToMatch.stake).toLocaleString()} PTZ</span></div>
+                <div className="flex justify-between items-center text-sm pt-3 border-t border-[#ffffff10]"><span className="text-gray-500">Max Return:</span><span className="text-[#C5A880] font-bold text-lg">{offerToMatch.stake.toLocaleString()} PTZ</span></div>
               </div>
               <div className="flex gap-3 justify-center">
                 <button onClick={() => setOfferToMatch(null)} className="w-1/2 bg-[#1a1a1a] hover:bg-[#222222] border border-[#ffffff10] text-white font-semibold py-3.5 rounded-xl transition">Cancel</button>
@@ -835,7 +798,6 @@ export default function App() {
         </div>
       )}
 
-      {/* SUCCESS MODAL FOR BETS */}
       {showSuccessModal && lastBetDetails && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200">
           <div className="bg-[#111111] border border-[#10b981]/30 rounded-3xl p-6 sm:p-8 w-full max-w-sm text-center shadow-[0_0_50px_rgba(16,185,129,0.1)] relative overflow-hidden">
@@ -847,8 +809,8 @@ export default function App() {
               <div className="bg-[#0a0a0a] rounded-xl p-5 mb-6 text-left border border-[#ffffff10]">
                 <div className="text-xs text-gray-500 mb-1 uppercase tracking-wider font-semibold">Prediction</div>
                 <div className="text-white font-medium mb-4 line-clamp-1">{lastBetDetails.outcomeName}</div>
-                <div className="flex justify-between items-center text-sm mb-3"><span className="text-gray-500">Stake Placed:</span><span className="text-white font-bold">{lastBetDetails.stake.toLocaleString()} KSh</span></div>
-                <div className="flex justify-between items-center text-sm pt-3 border-t border-[#ffffff10]"><span className="text-gray-500">To Win:</span><span className="text-[#10b981] font-bold text-lg">{lastBetDetails.payout.toLocaleString()} KSh</span></div>
+                <div className="flex justify-between items-center text-sm mb-3"><span className="text-gray-500">Stake Placed:</span><span className="text-white font-bold">{lastBetDetails.stake.toLocaleString()} PTZ</span></div>
+                <div className="flex justify-between items-center text-sm pt-3 border-t border-[#ffffff10]"><span className="text-gray-500">To Win:</span><span className="text-[#10b981] font-bold text-lg">{lastBetDetails.payout.toLocaleString()} PTZ</span></div>
               </div>
               <button onClick={() => setShowSuccessModal(false)} className="w-full bg-[#1a1a1a] hover:bg-[#222222] border border-[#ffffff10] text-white font-bold py-3.5 rounded-xl transition">Return to Terminal</button>
             </div>
@@ -856,7 +818,6 @@ export default function App() {
         </div>
       )}
 
-      {/* LOGOUT MODAL */}
       {showLogoutModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200">
           <div className="bg-[#111111] border border-[#ffffff15] rounded-3xl p-6 sm:p-8 w-full max-w-sm text-center shadow-[0_0_50px_rgba(0,0,0,0.8)] relative overflow-hidden">
