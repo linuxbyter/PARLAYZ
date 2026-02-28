@@ -40,7 +40,7 @@ interface AppNotification {
 }
 
 const MIN_STAKE = 200
-const MAX_WALLET_CAP = 250000
+
 const PLATFORM_FEE_PERCENT = 3
 
 export default function App() {
