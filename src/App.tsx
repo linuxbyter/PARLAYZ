@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
 import Landing from './Landing'
-import { LogOut, X, AlertTriangle, Bell, Wallet, ArrowDownToLine, ArrowUpFromLine, CheckCircle2, History, Trophy, Activity, Users } from 'lucide-react'
+import { LogOut, X, AlertTriangle, Bell, Wallet, ArrowDownToLine, ArrowUpFromLine, CheckCircle2, History, Trophy, Activity } from 'lucide-react'
 
 interface Event { id: string; title: string; description: string; category: string; outcomes: string[]; closes_at: string; created_at: string; resolved: boolean }
 interface Bet { id: string; event_id: string; outcome_index: number; stake: number; odds?: number; status: string; user_id: string; matcher_id?: string }
@@ -28,7 +28,7 @@ export default function App() {
   const [showNotifications, setShowNotifications] = useState(false)
   const [lastBetDetails, setLastBetDetails] = useState<{stake: number, payout: number, outcomeName: string} | null>(null)
   
-  const [activeCategory, setActiveCategory] = useState<string>('All') 
+
   const [activeView, setActiveView] = useState<'markets' | 'orderbook' | 'wagers' | 'leaderboard' | 'wallet'>('orderbook')
 
   const [showCreateOfferModal, setShowCreateOfferModal] = useState(false)
@@ -180,9 +180,7 @@ export default function App() {
   }
 
   const activeEvents = events.filter(e => !e.resolved)
-  const categories = ['All', ...Array.from(new Set(activeEvents.map(e => e.category)))]
-  const filteredEvents = activeCategory === 'All' ? activeEvents : activeEvents.filter(e => e.category === activeCategory)
-  
+ const filteredEvents = activeEvents
   const myPendingOffers = bets.filter(b => b.user_id === session?.user?.id && b.status === 'p2p_open')
   const myActiveWagers = bets.filter(b => (b.user_id === session?.user?.id || b.matcher_id === session?.user?.id) && b.status === 'p2p_matched')
   const mySettledWagers = bets.filter(b => (b.user_id === session?.user?.id || b.matcher_id === session?.user?.id) && ['won', 'lost', 'refunded'].includes(b.status))
