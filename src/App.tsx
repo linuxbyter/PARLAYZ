@@ -11,6 +11,7 @@ interface Event {
   outcomes: string[]
   closes_at: string
   created_at: string
+  resolved: boolean
 }
 
 interface Bet {
@@ -40,7 +41,6 @@ interface AppNotification {
 }
 
 const MIN_STAKE = 200
-
 const PLATFORM_FEE_PERCENT = 3
 
 export default function App() {
@@ -112,8 +112,9 @@ export default function App() {
     }
   }
 
+  // FIXED BUG: Now fetches ALL events, so resolved bets don't magically disappear
   const fetchEvents = async () => {
-    const { data, error } = await supabase.from('events').select('*').eq('resolved', false).order('created_at', { ascending: false })
+    const { data, error } = await supabase.from('events').select('*').order('created_at', { ascending: false })
     if (!error) setEvents(data || [])
     setLoading(false)
   }
@@ -270,11 +271,15 @@ export default function App() {
     return { gross: Math.round(grossPayout), fee: Math.round(fee), net: Math.round(grossPayout - fee), odds: oddsDecimal.toFixed(2), oddsDecimal }
   }
 
-  const categories = ['All', ...Array.from(new Set(events.map(e => e.category)))]
-  const filteredEvents = activeCategory === 'All' ? events : events.filter(e => e.category === activeCategory)
+  // FIXED LOGIC: Organize markets and settled bets correctly
+  const activeEvents = events.filter(e => !e.resolved)
+  const categories = ['All', ...Array.from(new Set(activeEvents.map(e => e.category)))]
+  const filteredEvents = activeCategory === 'All' ? activeEvents : activeEvents.filter(e => e.category === activeCategory)
   
   const myPendingOffers = bets.filter(b => b.user_id === session?.user?.id && b.status === 'p2p_open')
-  const myActiveWagers = bets.filter(b => (b.user_id === session?.user?.id || b.matcher_id === session?.user?.id) && b.status !== 'p2p_open')
+  const myActiveWagers = bets.filter(b => (b.user_id === session?.user?.id || b.matcher_id === session?.user?.id) && ['open', 'p2p_matched'].includes(b.status))
+  const mySettledWagers = bets.filter(b => (b.user_id === session?.user?.id || b.matcher_id === session?.user?.id) && ['won', 'lost', 'refunded'].includes(b.status))
+  
   const unreadCount = notifications.filter(n => !n.is_read).length
   const ledgerTransactions = notifications.filter(n => ['deposit', 'withdrawal', 'payout', 'refund'].includes(n.type))
 
@@ -641,6 +646,58 @@ export default function App() {
                 </div>
               )}
             </div>
+
+            {/* --- BRAND NEW SETTLED WAGERS SECTION --- */}
+            {mySettledWagers.length > 0 && (
+              <div className="mt-12">
+                <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <History className="w-4 h-4" /> Settled History
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
+                  {mySettledWagers.reverse().map((bet, i) => {
+                    const event = events.find(e => e.id === bet.event_id)
+                    if (!event) return null
+                    const outcomeName = event.outcomes[bet.outcome_index] || 'Unknown'
+                    const isWin = bet.status === 'won'
+                    const isRefund = bet.status === 'refunded'
+                    
+                    let payout = 0
+                    if (isWin) {
+                      const gross = bet.stake * (bet.odds || 2)
+                      payout = Math.round(gross - (gross * (PLATFORM_FEE_PERCENT / 100)))
+                    } else if (isRefund) {
+                      payout = bet.stake
+                    }
+
+                    return (
+                      <div key={i} className={`bg-[#111111] border rounded-2xl p-5 relative overflow-hidden transition hover:scale-[1.02] ${isWin ? 'border-[#10b981]/50 shadow-[0_0_30px_rgba(16,185,129,0.1)]' : isRefund ? 'border-gray-600' : 'border-[#f43f5e]/20 opacity-70'}`}>
+                        {isWin && <div className="absolute top-0 right-0 w-32 h-32 bg-[#10b981]/15 rounded-full blur-3xl pointer-events-none"></div>}
+                        
+                        <div className="flex items-start justify-between mb-4 relative z-10">
+                          <span className={`text-xs font-bold uppercase tracking-wider px-2 py-1 rounded-md border ${isWin ? 'bg-[#10b981]/10 border-[#10b981]/30 text-[#10b981]' : isRefund ? 'bg-gray-800 border-gray-600 text-gray-400' : 'bg-[#f43f5e]/10 border-[#f43f5e]/30 text-[#f43f5e]'}`}>
+                            {isWin ? 'WINNER 🏆' : isRefund ? 'REFUNDED' : 'LOST ❌'}
+                          </span>
+                        </div>
+                        
+                        <h3 className={`text-lg font-bold mb-4 relative z-10 ${isWin ? 'text-white' : 'text-gray-400'}`}>{event.title}</h3>
+                        
+                        <div className="bg-[#0a0a0a] rounded-lg p-3 border border-[#ffffff0a] mb-4 relative z-10">
+                          <div className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1">Your Prediction</div>
+                          <div className={`font-medium ${isWin ? 'text-white' : 'text-gray-500 line-through'}`}>{outcomeName}</div>
+                        </div>
+                        
+                        <div className="flex justify-between font-bold pt-3 border-t border-[#ffffff10] mt-3 relative z-10">
+                          <span className="text-gray-500">Payout:</span>
+                          <span className={`text-lg ${isWin ? 'text-[#10b981]' : isRefund ? 'text-gray-400' : 'text-[#f43f5e]'}`}>
+                            {isWin ? `+ ${payout.toLocaleString()} PTZ` : isRefund ? `${payout.toLocaleString()} PTZ` : '0 PTZ'}
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
         ) : (
