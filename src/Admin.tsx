@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
-import { ShieldAlert, CheckCircle2, Plus, Trash2, X, Calendar, Tag, Type, FileText } from 'lucide-react'
+import { ShieldAlert, CheckCircle2, Plus, Trash2, X, Calendar, Tag, Type, FileText, Lock } from 'lucide-react'
 
 // --- IMPORTANT: Put your Supabase UUID here so ONLY YOU can use this page ---
 const ADMIN_UUIDS = ['e801546a-d868-47fd-a5a6-69cdae8ecb80'] 
@@ -36,14 +36,13 @@ export default function Admin() {
       if (session) fetchUnresolvedEvents()
     })
   }, [])
-
   const fetchUnresolvedEvents = async () => {
     const { data } = await supabase
       .from('events')
       .select('*')
       .eq('resolved', false)
       .order('created_at', { ascending: false })
-    
+
     setEvents(data || [])
     setLoading(false)
   }
@@ -69,26 +68,6 @@ export default function Admin() {
       alert("Please fill in all required fields.")
       return
     }
-
-  const handleDeleteMarket = async (eventId: string) => {
-    // Add a confirmation pop-up so you don't accidentally delete a market with fat thumbs!
-    if (!window.confirm("🚨 Are you sure you want to delete this market? This will wipe it from the board.")) return
-
-    const { error } = await supabase
-      .from('events')
-      .delete()
-      .eq('id', eventId)
-
-    if (error) {
-      alert(`Delete failed: ${error.message}`)
-    } else {
-      // If you have a toast notification system, use it here! Otherwise, standard alert.
-      alert("Market deleted successfully.")
-      // Call whatever function you use to refresh the board, likely fetchEvents() or similar
-      fetchEvents() 
-    }
-  }
-
 
     const validOutcomes = newOutcomes.map(o => o.trim()).filter(o => o !== '')
     if (validOutcomes.length < 2) {
@@ -119,13 +98,39 @@ export default function Admin() {
       setNewOutcomes(['', ''])
       fetchUnresolvedEvents()
     }
-    
     setIsCreating(false)
   }
 
+  const handleDeleteMarket = async (eventId: string) => {
+    if (!window.confirm("🚨 Are you sure you want to delete this market? This will wipe it completely from the database.")) return
+
+    const { error } = await supabase.from('events').delete().eq('id', eventId)
+
+    if (error) {
+      alert(`Delete failed: ${error.message}`)
+    } else {
+      alert("Market deleted successfully.")
+      fetchUnresolvedEvents() 
+    }
+  }
+
+  const handleCloseMarket = async (eventId: string) => {
+    if (!window.confirm("🔒 Are you sure you want to lock this market? Users will no longer be able to place bets.")) return
+
+    const rightNow = new Date(Date.now() - 1000).toISOString()
+    
+    const { error } = await supabase.from('events').update({ closes_at: rightNow }).eq('id', eventId)
+
+    if (error) {
+      alert(`Lock failed: ${error.message}`)
+    } else {
+      alert("Market locked! No new bets can be placed.")
+      fetchUnresolvedEvents() 
+    }
+  }
   const resolveEvent = async (eventId: string, winningOutcomeIdx: number, winningOutcomeName: string) => {
     if (!window.confirm(`Are you 100% sure "${winningOutcomeName}" won? This will distribute real money and cannot be undone.`)) return
-    
+
     setResolvingId(eventId)
 
     const { data: bets } = await supabase.from('bets').select('*').eq('event_id', eventId)
@@ -138,7 +143,7 @@ export default function Admin() {
     const poolBets = bets.filter(b => b.status === 'open')
     const totalPoolVolume = poolBets.reduce((sum, b) => sum + b.stake, 0)
     const winningPoolVolume = poolBets.filter(b => b.outcome_index === winningOutcomeIdx).reduce((sum, b) => sum + b.stake, 0)
-    
+
     for (const bet of bets) {
       let netPayout = 0
       let winnerId = null
@@ -158,7 +163,7 @@ export default function Admin() {
       } else if (bet.status === 'p2p_matched') {
         const grossPot = bet.stake * (bet.odds || 2)
         netPayout = Math.round(grossPot * (1 - PLATFORM_FEE_PERCENT / 100))
-        
+
         if (bet.outcome_index === winningOutcomeIdx) {
           winnerId = bet.user_id
           statusUpdate = 'won'
@@ -178,9 +183,9 @@ export default function Admin() {
           await supabase.from('profiles').update({ wallet_balance: profile.wallet_balance + netPayout }).eq('id', winnerId)
         }
         const notifMessage = statusUpdate === 'refunded' 
-          ? `Your ${bet.stake} KSh stake for an unresolved/unmatched wager was refunded.`
-          : `You WON ${netPayout.toLocaleString()} KSh on ${winningOutcomeName}!`
-          
+          ? `Your ${bet.stake} PTZ stake for an unresolved/unmatched wager was refunded.`
+          : `You WON ${netPayout.toLocaleString()} PTZ on ${winningOutcomeName}!`
+
         await supabase.from('notifications').insert({ user_id: winnerId, message: notifMessage, type: 'payout', is_read: false })
       }
       await supabase.from('bets').update({ status: statusUpdate }).eq('id', bet.id)
@@ -191,22 +196,17 @@ export default function Admin() {
     setResolvingId(null)
     fetchUnresolvedEvents()
   }
-
   if (!session) return <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center p-10 text-white text-center font-sans">Please log in to access the Admin Panel.</div>
-  
-  // 🚨 REMEMBER TO PASTE YOUR SUPABASE UUID ON LINE 6 OR YOU WILL SEE THIS SCREEN! 🚨
+
   if (!ADMIN_UUIDS.includes(session.user.id)) return <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center p-10 text-white text-center font-bold text-xl font-sans">Unauthorized Access.</div>
 
   if (loading) return <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center"><div className="w-8 h-8 border-2 border-[#C5A880] border-t-transparent rounded-full animate-spin"></div></div>
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white selection:bg-[#C5A880]/20 font-sans relative p-4 sm:p-8 overflow-hidden">
-      {/* Phantom Grid Background */}
       <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCI+PHBhdGggZD0iTTAgMGg0MHY0MEgweiIgZmlsbD0ibm9uZSIvPjxwYXRoIGQ9Ik0wIDM5LjVoNDBWMGgtMXYzOWgtMzl6IiBmaWxsPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMDMpIi8+PC9zdmc+')] opacity-20 pointer-events-none"></div>
 
       <div className="max-w-5xl mx-auto relative z-10">
-        
-        {/* PREMIUM HEADER */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8 border-b border-[#ffffff0a] pb-6">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 bg-[#C5A880]/10 border border-[#C5A880]/30 rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(197,168,128,0.15)]">
@@ -227,7 +227,7 @@ export default function Admin() {
         </div>
 
         <h2 className="text-xl font-bold text-white mb-4">Active Markets Pending Resolution</h2>
-        
+
         <div className="space-y-4">
           {events.length === 0 ? (
             <div className="py-16 text-center text-gray-500 border border-dashed border-[#ffffff10] rounded-2xl flex flex-col items-center">
@@ -239,38 +239,48 @@ export default function Admin() {
             </div>
           ) : (
             events.map((event) => (
-              <div key={event.id} className="bg-[#111111] border border-[#ffffff10] rounded-2xl p-6 shadow-lg relative overflow-hidden hover:border-[#C5A880]/30 transition">
+              <div key={event.id} className="bg-[#111111] border border-[#ffffff10] rounded-2xl p-6 shadow-lg relative overflow-hidden hover:border-[#C5A880]/30 transition group">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-[#C5A880]/5 rounded-full blur-3xl"></div>
-                <div className="flex justify-between items-start mb-4 relative z-10">
-                  <span className="text-xs font-semibold text-[#C5A880] uppercase tracking-wider bg-[#C5A880]/10 border border-[#C5A880]/20 px-3 py-1 rounded-full">{event.category}</span>
-                  <span className="text-xs text-gray-400 font-semibold border border-[#ffffff10] px-2 py-1 rounded">Closes: {new Date(event.closes_at).toLocaleDateString()}</span>
+                
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 relative z-10 gap-3">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-semibold text-[#C5A880] uppercase tracking-wider bg-[#C5A880]/10 border border-[#C5A880]/20 px-3 py-1 rounded-full">{event.category}</span>
+                    <span className="text-xs text-gray-400 font-semibold border border-[#ffffff10] px-2 py-1 rounded">Closes: {new Date(event.closes_at).toLocaleDateString()} {new Date(event.closes_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => handleCloseMarket(event.id)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-[#ffffff05] border border-[#ffffff10] hover:border-[#C5A880]/50 hover:text-[#C5A880] rounded-lg transition text-xs font-bold text-gray-400"
+                    >
+                      <Lock className="w-3 h-3" /> Lock Betting
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteMarket(event.id)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/10 border border-red-500/20 hover:bg-red-500 hover:text-white rounded-lg transition text-xs font-bold text-red-500"
+                    >
+                      <Trash2 className="w-3 h-3" /> Delete
+                    </button>
+                  </div>
                 </div>
-                
+
                 <h3 className="text-2xl font-bold text-white mb-6 relative z-10">{event.title}</h3>
-                
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 relative z-10">
                   {event.outcomes.map((outcome, idx) => (
                     <button
                       key={idx}
                       onClick={() => resolveEvent(event.id, idx, outcome)}
                       disabled={resolvingId === event.id}
-                      className="flex items-center justify-between w-full bg-[#0a0a0a] hover:bg-[#C5A880]/10 border border-[#ffffff10] hover:border-[#C5A880] text-white font-bold py-4 px-5 rounded-xl transition group disabled:opacity-50"
+                      className="flex items-center justify-between w-full bg-[#0a0a0a] hover:bg-[#C5A880]/10 border border-[#ffffff10] hover:border-[#C5A880] text-white font-bold py-4 px-5 rounded-xl transition disabled:opacity-50"
                     >
-                      <span>{outcome}</span>
+                      <span>Settle as "{outcome}"</span>
                       {resolvingId === event.id ? (
                         <div className="w-5 h-5 border-2 border-[#C5A880] border-t-transparent rounded-full animate-spin"></div>
                       ) : (
                         <CheckCircle2 className="w-5 h-5 text-gray-600 group-hover:text-[#C5A880] transition" />
                       )}
                     </button>
-
-<button 
-  onClick={() => handleDeleteMarket(event.id)} 
-  className="px-4 py-2 bg-red-500/10 text-red-500 border border-red-500/30 hover:bg-red-500 hover:text-white rounded-lg transition font-bold text-sm ml-2"
->
-  Delete Market
-</button>
-
                   ))}
                 </div>
               </div>
@@ -278,8 +288,6 @@ export default function Admin() {
           )}
         </div>
       </div>
-
-      {/* --- PREMIUM CREATE MARKET MODAL --- */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200 overflow-y-auto">
           <div className="bg-[#111111] border border-[#C5A880]/30 rounded-2xl p-6 sm:p-8 w-full max-w-lg shadow-[0_0_50px_rgba(197,168,128,0.1)] relative my-8">
@@ -289,15 +297,13 @@ export default function Admin() {
             >
               <X className="w-4 h-4" />
             </button>
-            
+
             <div className="mb-6">
               <h3 className="text-2xl font-bold text-white tracking-tight mb-1">Launch New Market</h3>
               <p className="text-gray-400 text-sm font-light">Deploy a new wager to the Parlayz exchange.</p>
             </div>
 
             <div className="space-y-5">
-              
-              {/* TITLE */}
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-2"><Type className="w-3 h-3"/> Market Question</label>
                 <input 
@@ -309,7 +315,6 @@ export default function Admin() {
                 />
               </div>
 
-              {/* DESCRIPTION */}
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-2"><FileText className="w-3 h-3"/> Description (Rules)</label>
                 <textarea 
@@ -320,7 +325,6 @@ export default function Admin() {
                 />
               </div>
 
-              {/* CATEGORY & CLOSES AT */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-2"><Tag className="w-3 h-3"/> Category</label>
@@ -343,7 +347,6 @@ export default function Admin() {
                 </div>
               </div>
 
-              {/* OUTCOMES BUILDER */}
               <div className="pt-2">
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Betting Outcomes</label>
                 <div className="space-y-3 bg-[#0a0a0a] p-4 rounded-xl border border-[#ffffff10]">
@@ -365,7 +368,7 @@ export default function Admin() {
                       </button>
                     </div>
                   ))}
-                  
+
                   <button 
                     onClick={addOutcomeField}
                     className="w-full flex items-center justify-center gap-2 bg-[#1a1a1a] hover:bg-[#222222] border border-dashed border-[#ffffff20] text-[#C5A880] font-semibold py-2.5 rounded-lg transition mt-2"
@@ -393,7 +396,7 @@ export default function Admin() {
           </div>
         </div>
       )}
-
     </div>
   )
 }
+
