@@ -28,7 +28,6 @@ export default function App() {
   const [showNotifications, setShowNotifications] = useState(false)
   const [lastBetDetails, setLastBetDetails] = useState<{stake: number, payout: number, outcomeName: string} | null>(null)
   
-
   const [activeView, setActiveView] = useState<'markets' | 'orderbook' | 'wagers' | 'leaderboard' | 'wallet'>('orderbook')
 
   const [showCreateOfferModal, setShowCreateOfferModal] = useState(false)
@@ -111,7 +110,7 @@ export default function App() {
 
   const handleWithdraw = async () => {
     if (withdrawAmount < 100) return showToast("Minimum withdrawal is 100 PTZ.")
-    if (profile && withdrawAmount > profile.wallet_balance) return showToast("Insufficient available liquidity.")
+    if (profile && withdrawAmount > profile.wallet_balance) return showToast("Insufficient available funds.")
     setShowCashierModal({ type: 'withdraw', status: 'processing' })
     setTimeout(async () => {
       if (profile) {
@@ -126,7 +125,7 @@ export default function App() {
 
   const submitP2POffer = async () => {
     if (!p2pSelectedEventId || !session?.user || !profile) return
-    if (profile.wallet_balance < p2pStake) return showToast('Insufficient balance for this transaction.')
+    if (profile.wallet_balance < p2pStake) return showToast('Insufficient balance for this bet.')
     if (p2pStake < MIN_STAKE) return showToast(`Minimum accepted stake is ${MIN_STAKE} PTZ.`)
 
     const event = events.find(e => e.id === p2pSelectedEventId)
@@ -140,17 +139,17 @@ export default function App() {
 
     if (!error) {
       await supabase.from('profiles').update({ wallet_balance: profile.wallet_balance - p2pStake }).eq('id', session.user.id)
-      setLastBetDetails({ stake: p2pStake, payout: netPayout, outcomeName: `[MAKER] ${outcomeName} @ ${p2pOdds}x` })
+      setLastBetDetails({ stake: p2pStake, payout: netPayout, outcomeName: `[CUSTOM BET] ${outcomeName} @ ${p2pOdds}x` })
       setShowCreateOfferModal(false); setShowSuccessModal(true); setP2pSelectedEventId(''); setP2pSelectedOutcomeIdx(0); setP2pStake(MIN_STAKE); setP2pOdds(2.00)
       fetchBets(); fetchProfile(); fetchAllProfiles()
-    } else { showToast('Error pushing offer to exchange.') }
+    } else { showToast('Error pushing bet to the board.') }
   }
 
   const initiateMatch = (offer: Bet) => {
     if (!session?.user || !profile) return
-    if (offer.user_id === session.user.id) return showToast("Protocol restricts matching your own liquidity.")
+    if (offer.user_id === session.user.id) return showToast("You cannot match your own bet.")
     const liability = Math.round((offer.stake * (offer.odds || 2)) - offer.stake)
-    if (profile.wallet_balance < liability) return showToast(`Insufficient funds. You need ${liability.toLocaleString()} PTZ to cover liability.`)
+    if (profile.wallet_balance < liability) return showToast(`Insufficient funds. You need ${liability.toLocaleString()} PTZ to play.`)
     setOfferToMatch(offer)
   }
 
@@ -167,8 +166,8 @@ export default function App() {
     await supabase.from('profiles').update({ wallet_balance: profile.wallet_balance - liability }).eq('id', session.user.id)
 
     const event = events.find(e => e.id === offerToMatch.event_id)
-    await supabase.from('notifications').insert({ user_id: offerToMatch.user_id, message: `Someone matched your ${offerToMatch.odds}x offer on ${event?.title || 'a market'}!`, type: 'p2p_matched', is_read: false })
-    showToast('Match secured successfully.', 'success')
+    await supabase.from('notifications').insert({ user_id: offerToMatch.user_id, message: `Someone matched your ${offerToMatch.odds}x bet on ${event?.title || 'a market'}!`, type: 'p2p_matched', is_read: false })
+    showToast('Bet placed successfully.', 'success')
   }
 
   const handleLogout = async () => { await supabase.auth.signOut(); setShowLogoutModal(false) }
@@ -180,7 +179,7 @@ export default function App() {
   }
 
   const activeEvents = events.filter(e => !e.resolved)
- const filteredEvents = activeEvents
+  
   const myPendingOffers = bets.filter(b => b.user_id === session?.user?.id && b.status === 'p2p_open')
   const myActiveWagers = bets.filter(b => (b.user_id === session?.user?.id || b.matcher_id === session?.user?.id) && b.status === 'p2p_matched')
   const mySettledWagers = bets.filter(b => (b.user_id === session?.user?.id || b.matcher_id === session?.user?.id) && ['won', 'lost', 'refunded'].includes(b.status))
@@ -270,7 +269,7 @@ export default function App() {
               Markets
             </button>
             <button onClick={() => setActiveView('wagers')} className={`whitespace-nowrap text-sm font-semibold transition-colors pb-1 border-b-2 flex items-center gap-2 ${activeView === 'wagers' ? 'text-[#C5A880] border-[#C5A880]' : 'text-gray-500 border-transparent hover:text-gray-300'}`}>
-              My Wagers
+              My Bets
             </button>
             <button onClick={() => setActiveView('leaderboard')} className={`whitespace-nowrap text-sm font-semibold transition-colors pb-1 border-b-2 flex items-center gap-2 ${activeView === 'leaderboard' ? 'text-[#C5A880] border-[#C5A880]' : 'text-gray-500 border-transparent hover:text-gray-300'}`}>
               <Trophy className="w-4 h-4 text-yellow-500" /> Top Traders
@@ -286,7 +285,7 @@ export default function App() {
             <h2 className="text-2xl font-bold text-white mb-6">Cashier & Ledger</h2>
             <div className="bg-gradient-to-br from-[#1a1a1a] to-[#0a0a0a] border border-[#ffffff15] rounded-3xl p-8 mb-8 relative overflow-hidden shadow-2xl">
               <div className="absolute top-0 right-0 w-64 h-64 bg-[#C5A880]/5 rounded-full blur-[80px]"></div>
-              <p className="text-gray-400 text-sm font-semibold uppercase tracking-widest mb-2 relative z-10 flex items-center gap-2">Available Liquidity</p>
+              <p className="text-gray-400 text-sm font-semibold uppercase tracking-widest mb-2 relative z-10 flex items-center gap-2">Available Balance</p>
               <h1 className="text-5xl font-extrabold text-white mb-1 relative z-10 tracking-tight">{profile?.wallet_balance.toLocaleString()} <span className="text-2xl text-[#C5A880]">PTZ</span></h1>
               <p className="text-gray-500 text-sm relative z-10 font-light mt-1">Free testnet capital available for wagers.</p>
             </div>
@@ -336,15 +335,15 @@ export default function App() {
           <div className="space-y-6 animate-in fade-in duration-300">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-[#111111] border border-[#C5A880]/30 rounded-2xl p-6 shadow-[0_0_20px_rgba(197,168,128,0.05)] gap-4">
               <div>
-                <h3 className="text-xl font-bold text-white mb-1 flex items-center gap-2"><Activity className="w-5 h-5 text-[#C5A880]" /> Open Order Book</h3>
-                <p className="text-gray-400 text-sm font-light">Global P2P liquidity. Match an offer or dictate your own terms.</p>
+                <h3 className="text-xl font-bold text-white mb-1 flex items-center gap-2"><Activity className="w-5 h-5 text-[#C5A880]" /> Live Order Book</h3>
+                <p className="text-gray-400 text-sm font-light">Global P2P exchange. Match a bet or create your own odds.</p>
               </div>
-              <button onClick={() => setShowCreateOfferModal(true)} className="bg-[#C5A880] hover:bg-[#E8D4B0] text-[#0a0a0a] font-bold py-3 px-6 rounded-xl transition shadow-[0_0_15px_rgba(197,168,128,0.2)] w-full sm:w-auto">+ Provide Liquidity</button>
+              <button onClick={() => setShowCreateOfferModal(true)} className="bg-[#C5A880] hover:bg-[#E8D4B0] text-[#0a0a0a] font-bold py-3 px-6 rounded-xl transition shadow-[0_0_15px_rgba(197,168,128,0.2)] w-full sm:w-auto">+ Create Custom Bet</button>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
               {bets.filter(b => b.status === 'p2p_open').length === 0 ? (
-                <div className="col-span-full py-16 text-center text-gray-500 border border-dashed border-[#ffffff10] rounded-2xl bg-[#111111]/50">The Order Book is currently empty. Be the first Vendor to provide liquidity!</div>
+                <div className="col-span-full py-16 text-center text-gray-500 border border-dashed border-[#ffffff10] rounded-2xl bg-[#111111]/50">The Order Book is currently empty. Be the first to post a bet!</div>
               ) : (
                 bets.filter(b => b.status === 'p2p_open').map((offer, i) => {
                   const event = events.find(e => e.id === offer.event_id)
@@ -370,16 +369,17 @@ export default function App() {
                       </div>
                       <h4 className="text-white font-bold mb-3 line-clamp-2 relative z-10 text-sm border-b border-[#ffffff10] pb-3">{event.title}</h4>
                       <div className="bg-[#0a0a0a] rounded-lg p-3 mb-5 border border-[#ffffff0a] relative z-10">
-                        <div className="text-xs text-gray-500 mb-1 uppercase tracking-wider font-semibold">Vendor's Prediction</div>
+                        <div className="text-xs text-gray-500 mb-1 uppercase tracking-wider font-semibold">Their Prediction</div>
                         <div className="text-white font-medium">{outcomeName}</div>
                       </div>
-                      <div className="space-y-2 mb-5 relative z-10">
-                        <div className="flex justify-between text-sm text-gray-400"><span>Vendor Risk:</span><span className="text-white font-bold">{offer.stake.toLocaleString()} PTZ</span></div>
-                        <div className="flex justify-between text-sm text-gray-400"><span>Requested Odds:</span><span className="text-[#C5A880] font-bold text-lg">{offer.odds}x</span></div>
-                        <div className="flex justify-between text-sm pt-2 border-t border-[#ffffff10] mt-2"><span className="text-gray-500 font-semibold">Cost to Match:</span><span className="text-[#f43f5e] font-bold">{liability.toLocaleString()} PTZ</span></div>
+                      <div className="space-y-2 mb-2 relative z-10">
+                        <div className="flex justify-between text-sm text-gray-400"><span>Their Stake:</span><span className="text-white font-bold">{offer.stake.toLocaleString()} PTZ</span></div>
+                        <div className="flex justify-between text-sm text-gray-400"><span>Odds:</span><span className="text-[#C5A880] font-bold text-lg">{offer.odds}x</span></div>
+                        <div className="flex justify-between text-sm pt-2 border-t border-[#ffffff10] mt-2"><span className="text-gray-400 font-semibold">Your Stake (To Play):</span><span className="text-white font-bold">{liability.toLocaleString()} PTZ</span></div>
+                        <div className="flex justify-between items-center pt-2"><span className="text-[#10b981] font-bold uppercase tracking-wider text-xs">Est. Payout:</span><span className="text-[#10b981] font-black text-xl drop-shadow-md">{Math.round(offer.stake * (offer.odds || 2)).toLocaleString()} PTZ</span></div>
                       </div>
-                      <button onClick={() => initiateMatch(offer)} disabled={isOwnOffer} className={`w-full font-bold py-3.5 rounded-xl transition relative z-10 ${isOwnOffer ? 'bg-[#0a0a0a] text-gray-600 border border-[#ffffff10] cursor-not-allowed' : 'bg-[#1a1a1a] hover:bg-[#C5A880] hover:text-[#0a0a0a] text-white border border-[#ffffff15] hover:border-[#C5A880] hover:shadow-[0_0_20px_rgba(197,168,128,0.3)]'}`}>
-                        {isOwnOffer ? 'Waiting for Taker...' : 'Match Liquidity'}
+                      <button onClick={() => initiateMatch(offer)} disabled={isOwnOffer} className={`w-full font-bold py-3.5 rounded-xl transition relative z-10 mt-4 ${isOwnOffer ? 'bg-[#0a0a0a] text-gray-600 border border-[#ffffff10] cursor-not-allowed' : 'bg-[#10b981]/10 border border-[#10b981]/30 hover:bg-[#10b981] hover:text-[#0a0a0a] text-[#10b981] hover:shadow-[0_0_20px_rgba(16,185,129,0.3)]'}`}>
+                        {isOwnOffer ? 'Waiting for Taker...' : 'Place Bet'}
                       </button>
                     </div>
                   )
@@ -429,7 +429,7 @@ export default function App() {
           <div className="space-y-10 animate-in fade-in duration-300">
             <div className="grid grid-cols-2 gap-4 sm:gap-6 mb-8">
               <div className="bg-[#111111] border border-[#ffffff10] rounded-2xl p-5 sm:p-6 flex flex-col justify-center">
-                <div className="flex items-center gap-2 mb-2 opacity-70"><Activity className="w-4 h-4 text-gray-400" /><p className="text-gray-400 text-xs font-semibold uppercase tracking-widest">Active Escrow</p></div>
+                <div className="flex items-center gap-2 mb-2 opacity-70"><Activity className="w-4 h-4 text-gray-400" /><p className="text-gray-400 text-xs font-semibold uppercase tracking-widest">Active Stake</p></div>
                 <p className="text-2xl sm:text-3xl font-bold text-white tracking-tight">{totalActiveStake.toLocaleString()} <span className="text-base font-medium text-gray-500">PTZ</span></p>
               </div>
               <div className="bg-[#111111] border border-[#C5A880]/30 rounded-2xl p-5 sm:p-6 relative overflow-hidden flex flex-col justify-center shadow-[0_0_30px_rgba(197,168,128,0.05)]">
@@ -441,13 +441,13 @@ export default function App() {
 
             {myPendingOffers.length > 0 && (
               <div>
-                <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#C5A880] animate-pulse"></span> My Open Offers</h3>
+                <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#C5A880] animate-pulse"></span> My Open Bets</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
                   {myPendingOffers.reverse().map((bet, i) => {
                     const event = events.find(e => e.id === bet.event_id); if (!event) return null
                     return (
                       <div key={i} className="bg-[#111111] border border-[#C5A880]/30 rounded-2xl p-5 opacity-80 hover:opacity-100 transition relative overflow-hidden">
-                        <div className="flex items-start justify-between mb-4"><span className="text-xs font-semibold text-[#C5A880] uppercase tracking-wider bg-[#C5A880]/10 border border-[#C5A880]/20 px-2 py-1 rounded-md">{event.category}</span><span className="text-xs px-2 py-1 rounded bg-[#0a0a0a] border border-[#C5A880]/50 text-[#C5A880] uppercase tracking-wide">Listed</span></div>
+                        <div className="flex items-start justify-between mb-4"><span className="text-xs font-semibold text-[#C5A880] uppercase tracking-wider bg-[#C5A880]/10 border border-[#C5A880]/20 px-2 py-1 rounded-md">{event.category}</span><span className="text-xs px-2 py-1 rounded bg-[#0a0a0a] border border-[#C5A880]/50 text-[#C5A880] uppercase tracking-wide">Awaiting Taker</span></div>
                         <h3 className="text-lg font-bold text-white mb-4">{event.title}</h3>
                         <div className="bg-[#0a0a0a] rounded-lg p-3 border border-[#ffffff0a] mb-4"><div className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1">Your Prediction</div><div className="text-white font-medium">{event.outcomes[bet.outcome_index]}</div></div>
                         <div className="space-y-2 text-sm">
@@ -462,8 +462,8 @@ export default function App() {
             )}
 
             <div>
-              <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-4">Locked Active Wagers</h3>
-              {myActiveWagers.length === 0 ? <div className="py-16 text-center text-gray-500 flex flex-col items-center border border-dashed border-[#ffffff10] rounded-2xl"><div className="w-16 h-16 rounded-2xl bg-[#111111] border border-[#ffffff10] flex items-center justify-center mb-4"><span className="text-2xl opacity-50">🤝</span></div><p>No active P2P contracts.</p><button onClick={() => setActiveView('orderbook')} className="mt-4 text-[#C5A880] hover:text-[#E8D4B0] font-semibold">View Order Book →</button></div> : (
+              <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-4">Locked Bets</h3>
+              {myActiveWagers.length === 0 ? <div className="py-16 text-center text-gray-500 flex flex-col items-center border border-dashed border-[#ffffff10] rounded-2xl"><div className="w-16 h-16 rounded-2xl bg-[#111111] border border-[#ffffff10] flex items-center justify-center mb-4"><span className="text-2xl opacity-50">🤝</span></div><p>No active bets locked in.</p><button onClick={() => setActiveView('orderbook')} className="mt-4 text-[#C5A880] hover:text-[#E8D4B0] font-semibold">View Order Book →</button></div> : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
                   {myActiveWagers.reverse().map((bet, i) => {
                     const event = events.find(e => e.id === bet.event_id); if (!event) return null
@@ -474,13 +474,13 @@ export default function App() {
                     return (
                       <div key={i} className="bg-[#111111] border border-[#C5A880]/40 rounded-2xl p-5 transition relative overflow-hidden">
                         <div className="absolute top-0 right-0 w-32 h-32 bg-[#C5A880]/5 rounded-full blur-3xl"></div>
-                        <div className="flex items-start justify-between mb-4 relative z-10"><span className="text-xs font-semibold text-[#C5A880] uppercase tracking-wider bg-[#C5A880]/10 border border-[#C5A880]/20 px-2 py-1 rounded-md">{event.category}</span><span className="text-xs px-2 py-1 rounded bg-[#0a0a0a] border border-[#C5A880]/50 text-[#C5A880] uppercase tracking-wide">P2P Escrow Locked</span></div>
+                        <div className="flex items-start justify-between mb-4 relative z-10"><span className="text-xs font-semibold text-[#C5A880] uppercase tracking-wider bg-[#C5A880]/10 border border-[#C5A880]/20 px-2 py-1 rounded-md">{event.category}</span><span className="text-xs px-2 py-1 rounded bg-[#0a0a0a] border border-[#C5A880]/50 text-[#C5A880] uppercase tracking-wide">Locked</span></div>
                         <h3 className="text-lg font-bold text-white mb-4 relative z-10">{event.title}</h3>
                         <div className="bg-[#0a0a0a] rounded-lg p-3 border border-[#ffffff0a] mb-4 relative z-10"><div className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1">{isMatcher ? 'You bet AGAINST' : 'Your Prediction'}</div><div className="text-white font-medium">{event.outcomes[bet.outcome_index]}</div></div>
                         <div className="space-y-2 text-sm relative z-10">
-                          <div className="flex justify-between text-gray-400"><span>Your Risk:</span><span className="text-white">{displayStake.toLocaleString()} PTZ</span></div>
-                          <div className="flex justify-between text-gray-400"><span>Locked Odds:</span><span className="text-[#C5A880] font-medium">{bet.odds}x</span></div>
-                          <div className="flex justify-between font-bold pt-3 border-t border-[#ffffff10] mt-3"><span className="text-[#C5A880]">To Win:</span><span className="text-[#C5A880] text-lg">{estNetPayout.toLocaleString()} PTZ</span></div>
+                          <div className="flex justify-between text-gray-400"><span>Your Stake:</span><span className="text-white">{displayStake.toLocaleString()} PTZ</span></div>
+                          <div className="flex justify-between text-gray-400"><span>Odds:</span><span className="text-[#C5A880] font-medium">{bet.odds}x</span></div>
+                          <div className="flex justify-between font-bold pt-3 border-t border-[#ffffff10] mt-3"><span className="text-[#10b981]">Est. Payout:</span><span className="text-[#10b981] text-lg">{estNetPayout.toLocaleString()} PTZ</span></div>
                         </div>
                       </div>
                     )
@@ -516,13 +516,13 @@ export default function App() {
         ) : (
           
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6 animate-in fade-in duration-300">
-            {filteredEvents.length === 0 ? <div className="col-span-full py-10 text-center text-gray-500">No active markets to trade.</div> : (
-              filteredEvents.map((event) => (
+            {activeEvents.length === 0 ? <div className="col-span-full py-10 text-center text-gray-500">No active markets.</div> : (
+              activeEvents.map((event) => (
                 <div key={event.id} className="bg-[#111111] border border-[#ffffff10] rounded-2xl p-5 sm:p-6 hover:border-[#C5A880]/50 transition flex flex-col">
                   <div className="flex items-start justify-between mb-3 sm:mb-4"><span className="text-xs font-semibold text-[#C5A880] uppercase tracking-wider bg-[#C5A880]/10 border border-[#C5A880]/20 px-2 py-1 rounded-md">{event.category}</span><span className="text-xs text-gray-500">{new Date(event.closes_at).toLocaleDateString()}</span></div>
                   <h3 className="text-xl font-bold text-white mb-2">{event.title}</h3>
                   <p className="text-gray-400 text-sm mb-6 line-clamp-2 font-light flex-grow">{event.description}</p>
-                  <button onClick={() => { setP2pSelectedEventId(event.id); setP2pSelectedOutcomeIdx(0); setShowCreateOfferModal(true) }} className="w-full bg-[#1a1a1a] hover:bg-[#C5A880] hover:text-[#0a0a0a] border border-[#ffffff15] hover:border-[#C5A880] text-white font-bold py-3.5 rounded-xl transition flex items-center justify-center gap-2 group"><Activity className="w-4 h-4 text-[#C5A880] group-hover:text-[#0a0a0a]" /> Provide Liquidity</button>
+                  <button onClick={() => { setP2pSelectedEventId(event.id); setP2pSelectedOutcomeIdx(0); setShowCreateOfferModal(true) }} className="w-full bg-[#1a1a1a] hover:bg-[#C5A880] hover:text-[#0a0a0a] border border-[#ffffff15] hover:border-[#C5A880] text-white font-bold py-3.5 rounded-xl transition flex items-center justify-center gap-2 group"><Activity className="w-4 h-4 text-[#C5A880] group-hover:text-[#0a0a0a]" /> Create Custom Bet</button>
                 </div>
               ))
             )}
@@ -530,7 +530,7 @@ export default function App() {
         )}
       </main>
 
-      {/* MODALS KEEP THEIR EXISTING CODE STRUCTURE BELOW */}
+      {/* MODALS */}
       {showCashierModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200">
           <div className={`bg-[#111111] border rounded-3xl p-6 sm:p-8 w-full max-w-sm text-center relative overflow-hidden shadow-2xl ${showCashierModal.type === 'deposit' ? 'border-[#10b981]/30' : 'border-[#C5A880]/30'}`}>
@@ -546,7 +546,7 @@ export default function App() {
                 <>
                   <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5 border ${showCashierModal.type === 'deposit' ? 'bg-[#10b981]/10 border-[#10b981]/40 text-[#10b981]' : 'bg-[#C5A880]/10 border-[#C5A880]/40 text-[#C5A880]'}`}><CheckCircle2 className="w-8 h-8" /></div>
                   <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">Success</h3>
-                  <p className="text-gray-400 text-sm mb-6 font-light">Transaction finalized on the ledger.</p>
+                  <p className="text-gray-400 text-sm mb-6 font-light">Transaction finalized.</p>
                   <button onClick={() => setShowCashierModal(null)} className="w-full bg-[#1a1a1a] hover:bg-[#222222] border border-[#ffffff10] text-white font-bold py-3.5 rounded-xl transition">Return</button>
                 </>
               )}
@@ -559,8 +559,8 @@ export default function App() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200">
           <div className="bg-[#111111] border border-[#C5A880]/30 rounded-3xl p-6 sm:p-8 w-full max-w-md shadow-[0_0_50px_rgba(197,168,128,0.15)] relative">
             <button onClick={() => setShowCreateOfferModal(false)} className="absolute top-5 right-5 w-8 h-8 flex items-center justify-center rounded-xl bg-[#1a1a1a] text-gray-400 hover:text-white border border-[#ffffff10]"><X className="w-4 h-4" /></button>
-            <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">Create Exchange Offer</h3>
-            <p className="text-gray-400 text-sm mb-6 font-light">Dictate your risk. Await a taker.</p>
+            <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">Create Custom Bet</h3>
+            <p className="text-gray-400 text-sm mb-6 font-light">Set your own odds. Await a taker.</p>
             <div className="space-y-5">
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">1. Select Market</label>
@@ -571,7 +571,7 @@ export default function App() {
               </div>
               {p2pSelectedEventId && (
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">2. Your Position</label>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">2. Your Prediction</label>
                   <div className="grid grid-cols-2 gap-2">
                     {events.find(e => e.id === p2pSelectedEventId)?.outcomes.map((outcome, idx) => (
                       <button key={idx} onClick={() => setP2pSelectedOutcomeIdx(idx)} className={`p-2.5 rounded-xl border text-sm font-medium transition ${p2pSelectedOutcomeIdx === idx ? 'bg-[#C5A880]/10 border-[#C5A880] text-[#C5A880]' : 'bg-[#0a0a0a] border-[#ffffff15] text-gray-400 hover:border-gray-500'}`}>{outcome}</button>
@@ -581,19 +581,18 @@ export default function App() {
               )}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Risk Capital (PTZ)</label>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Your Stake (PTZ)</label>
                   <input type="number" min={MIN_STAKE} value={p2pStake || ''} onChange={(e) => setP2pStake(Number(e.target.value))} className="w-full bg-[#0a0a0a] border border-[#ffffff15] text-white font-bold rounded-xl p-3.5 focus:outline-none focus:border-[#C5A880]" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Requested Odds (x)</label>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Custom Odds (x)</label>
                   <input type="number" min="1.01" step="0.01" value={p2pOdds || ''} onChange={(e) => setP2pOdds(Number(e.target.value))} className="w-full bg-[#0a0a0a] border border-[#ffffff15] text-[#C5A880] font-bold rounded-xl p-3.5 focus:outline-none focus:border-[#C5A880]" />
                 </div>
               </div>
               <div className="bg-[#0a0a0a] rounded-xl p-4 text-sm space-y-2 border border-[#ffffff0a] mt-2 font-light">
-                <div className="flex justify-between text-gray-400"><span>Gross Output:</span><span>{Math.round(p2pStake * p2pOdds).toLocaleString()} PTZ</span></div>
-                <div className="flex justify-between text-[#C5A880] font-bold pt-2 border-t border-[#ffffff10] mt-2"><span>Net Profit:</span><span>{Math.round((p2pStake * p2pOdds) * (1 - PLATFORM_FEE_PERCENT/100)).toLocaleString()} PTZ</span></div>
+                <div className="flex justify-between items-center pt-2"><span className="text-[#10b981] font-bold uppercase tracking-wider text-xs">Est. Payout:</span><span className="text-[#10b981] font-black text-xl drop-shadow-md">{Math.round((p2pStake * p2pOdds) * (1 - PLATFORM_FEE_PERCENT/100)).toLocaleString()} PTZ</span></div>
               </div>
-              <button onClick={submitP2POffer} disabled={!p2pSelectedEventId || p2pStake < MIN_STAKE || p2pOdds <= 1} className="w-full bg-[#C5A880] hover:bg-[#A3885C] disabled:bg-[#1a1a1a] disabled:text-gray-600 text-[#0a0a0a] font-bold py-4 rounded-xl transition shadow-[0_0_20px_rgba(197,168,128,0.2)] mt-2">Sign & Post Offer</button>
+              <button onClick={submitP2POffer} disabled={!p2pSelectedEventId || p2pStake < MIN_STAKE || p2pOdds <= 1} className="w-full bg-[#C5A880] hover:bg-[#A3885C] disabled:bg-[#1a1a1a] disabled:text-gray-600 text-[#0a0a0a] font-bold py-4 rounded-xl transition shadow-[0_0_20px_rgba(197,168,128,0.2)] mt-2">Post Bet</button>
             </div>
           </div>
         </div>
@@ -605,15 +604,15 @@ export default function App() {
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-40 h-40 bg-[#C5A880]/10 rounded-full blur-3xl pointer-events-none"></div>
             <div className="relative z-10">
               <div className="w-16 h-16 bg-[#C5A880]/10 border border-[#C5A880]/30 text-[#C5A880] rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-[0_0_15px_rgba(197,168,128,0.15)]"><AlertTriangle className="w-8 h-8" /></div>
-              <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">Lock Liability</h3>
-              <p className="text-gray-400 text-sm mb-6 font-light">You are acting as the counterparty.</p>
+              <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">Confirm Bet</h3>
+              <p className="text-gray-400 text-sm mb-6 font-light">You are taking the other side of this wager.</p>
               <div className="bg-[#0a0a0a] rounded-xl p-5 mb-6 text-left border border-[#ffffff10]">
-                <div className="flex justify-between items-center text-sm mb-3"><span className="text-gray-500">Capital Risked:</span><span className="text-[#f43f5e] font-bold">{Math.round((offerToMatch.stake * (offerToMatch.odds || 2)) - offerToMatch.stake).toLocaleString()} PTZ</span></div>
-                <div className="flex justify-between items-center text-sm pt-3 border-t border-[#ffffff10]"><span className="text-gray-500">Max Return:</span><span className="text-[#C5A880] font-bold text-lg">{offerToMatch.stake.toLocaleString()} PTZ</span></div>
+                <div className="flex justify-between items-center text-sm mb-3"><span className="text-gray-400">Your Stake:</span><span className="text-white font-bold text-lg">{Math.round((offerToMatch.stake * (offerToMatch.odds || 2)) - offerToMatch.stake).toLocaleString()} PTZ</span></div>
+                <div className="flex justify-between items-center text-sm pt-3 border-t border-[#ffffff10]"><span className="text-[#10b981] font-bold uppercase tracking-wider text-xs">Est. Payout:</span><span className="text-[#10b981] font-black text-2xl">{Math.round(offerToMatch.stake * (offerToMatch.odds || 2)).toLocaleString()} PTZ</span></div>
               </div>
               <div className="flex gap-3 justify-center">
                 <button onClick={() => setOfferToMatch(null)} className="w-1/2 bg-[#1a1a1a] hover:bg-[#222222] border border-[#ffffff10] text-white font-semibold py-3.5 rounded-xl transition">Cancel</button>
-                <button onClick={confirmMatch} className="w-1/2 bg-[#C5A880] hover:bg-[#A3885C] text-[#0a0a0a] font-bold py-3.5 rounded-xl transition shadow-[0_0_15px_rgba(197,168,128,0.2)]">Execute</button>
+                <button onClick={confirmMatch} className="w-1/2 bg-[#10b981] hover:bg-[#059669] text-[#0a0a0a] font-bold py-3.5 rounded-xl transition shadow-[0_0_20px_rgba(16,185,129,0.3)]">Place Bet</button>
               </div>
             </div>
           </div>
@@ -626,8 +625,8 @@ export default function App() {
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-40 h-40 bg-[#10b981]/10 rounded-full blur-3xl pointer-events-none"></div>
             <div className="relative z-10">
               <div className="w-16 h-16 bg-[#10b981]/10 border border-[#10b981]/40 text-[#10b981] rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-[0_0_15px_rgba(16,185,129,0.2)]"><CheckCircle2 className="w-8 h-8" /></div>
-              <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">Offer Pushed</h3>
-              <p className="text-gray-400 text-sm mb-6 font-light">Your liquidity is active on the Order Book.</p>
+              <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">Bet Pushed</h3>
+              <p className="text-gray-400 text-sm mb-6 font-light">Your bet is active on the Order Book.</p>
               <button onClick={() => setShowSuccessModal(false)} className="w-full bg-[#1a1a1a] hover:bg-[#222222] border border-[#ffffff10] text-white font-bold py-3.5 rounded-xl transition">Return to Exchange</button>
             </div>
           </div>
