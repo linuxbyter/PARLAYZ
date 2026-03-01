@@ -104,6 +104,7 @@ export default function App() {
     await supabase.from('profiles').update({ username: newUsername, avatar: newAvatar }).eq('id', session.user.id)
     setShowProfileSetup(false)
     fetchProfile()
+    fetchAllProfiles()
     showToast('Identity updated successfully.', 'success')
   }
 
@@ -227,7 +228,12 @@ export default function App() {
     return { trades: userBets.length, winRate, activeRisk, awaitingPayout }
   }
 
-  // Derived State Calculations
+  // Helper to sanitize emails automatically everywhere
+  const sanitizeName = (name: string | undefined) => {
+    if (!name) return 'Anonymous'
+    return name.includes('@') ? name.split('@')[0] : name
+  }
+
   const activeEvents = events.filter(e => !e.resolved)
   const myPendingOffers = bets.filter(b => b.user_id === session?.user?.id && b.status === 'p2p_open')
   const myActiveWagers = bets.filter(b => (b.user_id === session?.user?.id || b.matcher_id === session?.user?.id) && b.status === 'p2p_matched')
@@ -337,11 +343,16 @@ export default function App() {
         
         {activeView === 'wallet' && (
           <div className="max-w-2xl mx-auto animate-in fade-in duration-300">
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
               <h2 className="text-2xl font-bold text-white">Cashier & Profile</h2>
-              <button onClick={togglePrivacy} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold uppercase tracking-wider transition ${profile?.is_public ? 'bg-[#10b981]/10 border-[#10b981]/30 text-[#10b981]' : 'bg-gray-800 border-gray-600 text-gray-400'}`}>
-                {profile?.is_public ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />} {profile?.is_public ? 'Profile Public' : 'Profile Private'}
-              </button>
+              <div className="flex gap-2">
+                <button onClick={() => { setNewUsername(sanitizeName(profile?.username)); setNewAvatar(profile?.avatar || '🦊'); setShowProfileSetup(true); }} className="flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-[#1a1a1a] border-[#ffffff20] text-gray-300 hover:text-white text-xs font-semibold uppercase tracking-wider transition">
+                  Edit Identity
+                </button>
+                <button onClick={togglePrivacy} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold uppercase tracking-wider transition ${profile?.is_public ? 'bg-[#10b981]/10 border-[#10b981]/30 text-[#10b981]' : 'bg-gray-800 border-gray-600 text-gray-400'}`}>
+                  {profile?.is_public ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />} {profile?.is_public ? 'Public' : 'Private'}
+                </button>
+              </div>
             </div>
 
             <div className="bg-gradient-to-br from-[#1a1a1a] to-[#0a0a0a] border border-[#ffffff15] rounded-3xl p-8 mb-8 relative overflow-hidden shadow-2xl">
@@ -422,7 +433,9 @@ export default function App() {
                     <div className="col-span-6 flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-[#0a0a0a] border border-[#ffffff15] flex items-center justify-center text-xl shadow-inner">{user.avatar || '👤'}</div>
                       <div>
-                        <span className={`font-bold block ${session?.user?.id === user.id ? 'text-[#C5A880]' : 'text-white'}`}>{user.username} {session?.user?.id === user.id && '(You)'}</span>
+                        <span className={`font-bold block ${session?.user?.id === user.id ? 'text-[#C5A880]' : 'text-white'}`}>
+                          {sanitizeName(user.username)} {session?.user?.id === user.id && '(You)'}
+                        </span>
                         {!user.is_public && <span className="text-[10px] text-gray-500 flex items-center gap-1 uppercase tracking-wider"><EyeOff className="w-3 h-3" /> Private</span>}
                       </div>
                     </div>
@@ -483,7 +496,7 @@ export default function App() {
                       <div key={i} className="bg-[#111111] border border-[#C5A880]/40 rounded-3xl p-6 transition relative overflow-hidden shadow-[0_0_30px_rgba(197,168,128,0.05)]">
                         <div className="absolute top-0 right-0 w-32 h-32 bg-[#C5A880]/5 rounded-full blur-3xl"></div>
                         <div className="flex items-center justify-between mb-4 pb-4 border-b border-[#ffffff10] relative z-10">
-                          <div><p className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Matchup</p><p className="font-bold text-white text-sm">You <span className="text-[#f43f5e] mx-1">VS</span> {opponentProfile?.avatar} {opponentProfile?.username}</p></div>
+                          <div><p className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Matchup</p><p className="font-bold text-white text-sm">You <span className="text-[#f43f5e] mx-1">VS</span> {opponentProfile?.avatar} {sanitizeName(opponentProfile?.username)}</p></div>
                           <button onClick={() => setActiveChatBet(bet)} className="bg-[#1a1a1a] hover:bg-[#222222] border border-[#ffffff20] text-gray-300 hover:text-white px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition shadow-md"><MessageSquare className="w-4 h-4 text-[#C5A880]" /> Taunt</button>
                         </div>
                         <h3 className="text-lg font-bold text-white mb-4 relative z-10 leading-tight">{event.title}</h3>
@@ -546,7 +559,7 @@ export default function App() {
                       <div className="flex justify-between items-start mb-5 relative z-10">
                         <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition" onClick={() => setSelectedPublicProfile(maker || null)}>
                           <div className="w-10 h-10 rounded-full bg-[#1a1a1a] border border-[#ffffff20] flex items-center justify-center text-lg">{maker?.avatar || '👤'}</div>
-                          <div><p className="text-sm font-bold text-white">{maker?.username || 'Anonymous'}</p><p className="text-[10px] text-gray-500 uppercase tracking-widest">{getUserStats(maker?.id || '').winRate}% Win Rate</p></div>
+                          <div><p className="text-sm font-bold text-white">{sanitizeName(maker?.username)}</p><p className="text-[10px] text-gray-500 uppercase tracking-widest">{getUserStats(maker?.id || '').winRate}% Win Rate</p></div>
                         </div>
                       </div>
                       <h4 className="text-white font-bold mb-4 line-clamp-2 relative z-10 text-sm border-b border-[#ffffff10] pb-4">{event.title}</h4>
@@ -591,7 +604,7 @@ export default function App() {
           <div className="bg-[#111111] border border-[#ffffff15] rounded-3xl p-8 w-full max-w-sm text-center shadow-[0_0_50px_rgba(0,0,0,0.8)] relative" onClick={e => e.stopPropagation()}>
             <button onClick={() => setSelectedPublicProfile(null)} className="absolute top-5 right-5 w-8 h-8 rounded-xl bg-[#1a1a1a] flex items-center justify-center text-gray-400 hover:text-white"><X className="w-4 h-4" /></button>
             <div className="w-24 h-24 rounded-full bg-[#0a0a0a] border-2 border-[#C5A880]/30 flex items-center justify-center text-5xl mx-auto mb-4 shadow-inner">{selectedPublicProfile.avatar}</div>
-            <h3 className="text-2xl font-black text-white mb-1">{selectedPublicProfile.username}</h3>
+            <h3 className="text-2xl font-black text-white mb-1">{sanitizeName(selectedPublicProfile.username)}</h3>
             {!selectedPublicProfile.is_public && selectedPublicProfile.id !== session?.user?.id ? (
               <div className="mt-8 py-8 bg-[#0a0a0a] rounded-2xl border border-[#ffffff05]"><EyeOff className="w-8 h-8 text-gray-600 mx-auto mb-3" /><p className="text-gray-500 font-semibold text-sm">This trader's stats are private.</p></div>
             ) : (
@@ -623,7 +636,7 @@ export default function App() {
                   const sender = allProfiles.find(p => p.id === msg.sender_id)
                   return (
                     <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-                      <span className="text-[10px] text-gray-600 font-bold uppercase mb-1 px-1">{sender?.username}</span>
+                      <span className="text-[10px] text-gray-600 font-bold uppercase mb-1 px-1">{sanitizeName(sender?.username)}</span>
                       <div className={`px-4 py-2.5 rounded-2xl max-w-[85%] text-sm shadow-md ${isMe ? 'bg-[#C5A880] text-[#0a0a0a] rounded-tr-sm font-medium' : 'bg-[#1a1a1a] text-white border border-[#ffffff10] rounded-tl-sm'}`}>{msg.message}</div>
                     </div>
                   )
