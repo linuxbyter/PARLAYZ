@@ -22,30 +22,26 @@ export default function App() {
   const [notifications, setNotifications] = useState<AppNotification[]>([])
   const [loading, setLoading] = useState(true)
 
-  // Premium Toast
   const [toast, setToast] = useState<{msg: string, type: 'error' | 'success'} | null>(null)
   const showToast = (msg: string, type: 'error' | 'success' = 'error') => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500) }
 
-  // Views & Modals
   const [activeView, setActiveView] = useState<'markets' | 'orderbook' | 'wagers' | 'leaderboard' | 'wallet'>('orderbook')
   const [showProfileSetup, setShowProfileSetup] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
+  
   const [showCreateOfferModal, setShowCreateOfferModal] = useState(false)
   const [offerToMatch, setOfferToMatch] = useState<Bet | null>(null)
   const [showSuccessModal, setShowSuccessModal] = useState(false)
+  const [showLogoutModal, setShowLogoutModal] = useState(false)
   const [lastBetDetails, setLastBetDetails] = useState<{stake: number, payout: number, outcomeName: string} | null>(null)
-  const [showCashierModal, setShowCashierModal] = useState<{type: 'deposit' | 'withdraw', status: 'processing' | 'success' | 'error', msg?: string} | null>(null)
+  const [showCashierModal, setShowCashierModal] = useState<{type: 'deposit' | 'withdraw', status: 'processing' | 'success' | 'error'} | null>(null)
 
-  // Leaderboard Public Profile Modal
   const [selectedPublicProfile, setSelectedPublicProfile] = useState<Profile | null>(null)
-
-  // Taunt Chat Modal
   const [activeChatBet, setActiveChatBet] = useState<Bet | null>(null)
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [chatInput, setChatInput] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  // Form States
   const [p2pSelectedEventId, setP2pSelectedEventId] = useState<string>('')
   const [p2pSelectedOutcomeIdx, setP2pSelectedOutcomeIdx] = useState<number>(0)
   const [p2pStake, setP2pStake] = useState<number>(MIN_STAKE)
@@ -53,7 +49,6 @@ export default function App() {
   const [withdrawAmount, setWithdrawAmount] = useState<number>(0)
   const [withdrawPhone, setWithdrawPhone] = useState<string>('')
 
-  // Profile Setup State
   const [newUsername, setNewUsername] = useState('')
   const [newAvatar, setNewAvatar] = useState('🦊')
 
@@ -69,7 +64,6 @@ export default function App() {
       const betsChannel = supabase.channel('bets_channel').on('postgres_changes', { event: '*', schema: 'public', table: 'bets' }, () => { fetchBets(); fetchProfile(); fetchAllProfiles() }).subscribe()
       const profilesChannel = supabase.channel('profiles_channel').on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => { fetchAllProfiles() }).subscribe()
       const notifsChannel = supabase.channel('notifs_channel').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${session.user.id}` }, () => fetchNotifications()).subscribe()
-      
       return () => { betsChannel.unsubscribe(); notifsChannel.unsubscribe(); profilesChannel.unsubscribe() }
     }
   }, [session])
@@ -95,7 +89,7 @@ export default function App() {
     const { data } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
     if (data) {
       setProfile(data)
-      if (data.username === session.user.email || !data.username) { setShowProfileSetup(true) }
+      if (data.username === session.user.email || !data.username) setShowProfileSetup(true)
     }
   }
 
@@ -172,6 +166,14 @@ export default function App() {
     } else { showToast('Network error pushing bet.') }
   }
 
+  const initiateMatch = (offer: Bet) => {
+    if (!session?.user || !profile) return
+    if (offer.user_id === session.user.id) return showToast("You cannot match your own bet.")
+    const liability = Math.round((offer.stake * (offer.odds || 2)) - offer.stake)
+    if (profile.wallet_balance < liability) return showToast(`Insufficient funds. You need ${liability.toLocaleString()} KSh to play.`)
+    setOfferToMatch(offer)
+  }
+
   const confirmMatch = async () => {
     if (!offerToMatch || !session?.user || !profile) return
     const liability = Math.round((offerToMatch.stake * (offerToMatch.odds || 2)) - offerToMatch.stake)
@@ -195,6 +197,18 @@ export default function App() {
     await supabase.from('match_messages').insert({ bet_id: activeChatBet.id, sender_id: session.user.id, message: msg })
   }
 
+  const markNotificationsAsRead = async () => {
+    const unreadIds = notifications.filter(n => !n.is_read).map(n => n.id)
+    if (unreadIds.length === 0) return
+    setNotifications(notifications.map(n => ({ ...n, is_read: true })))
+    await supabase.from('notifications').update({ is_read: true }).in('id', unreadIds)
+  }
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    setShowLogoutModal(false)
+  }
+
   const getUserStats = (userId: string) => {
     const userBets = bets.filter(b => b.user_id === userId || b.matcher_id === userId)
     const settled = userBets.filter(b => ['won', 'lost'].includes(b.status))
@@ -213,11 +227,23 @@ export default function App() {
     return { trades: userBets.length, winRate, activeRisk, awaitingPayout }
   }
 
+  // Derived State Calculations
   const activeEvents = events.filter(e => !e.resolved)
   const myPendingOffers = bets.filter(b => b.user_id === session?.user?.id && b.status === 'p2p_open')
   const myActiveWagers = bets.filter(b => (b.user_id === session?.user?.id || b.matcher_id === session?.user?.id) && b.status === 'p2p_matched')
   const mySettledWagers = bets.filter(b => (b.user_id === session?.user?.id || b.matcher_id === session?.user?.id) && ['won', 'lost', 'refunded'].includes(b.status))
   const sortedLeaderboard = [...allProfiles].sort((a, b) => b.wallet_balance - a.wallet_balance).slice(0, 10)
+  const ledgerTransactions = notifications.filter(n => ['deposit', 'withdrawal', 'payout', 'refund'].includes(n.type))
+
+  let totalActiveStake = 0
+  let totalEstPayout = 0
+  myPendingOffers.forEach(bet => { totalActiveStake += bet.stake })
+  myActiveWagers.forEach(bet => {
+    const isMatcher = bet.matcher_id === session?.user?.id
+    const gross = bet.stake * (bet.odds || 2)
+    totalEstPayout += Math.round(gross - (gross * (PLATFORM_FEE_PERCENT / 100)))
+    totalActiveStake += isMatcher ? Math.round(gross - bet.stake) : bet.stake
+  })
 
   if (!session) return <Landing />
   if (loading) return (
@@ -227,7 +253,6 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white font-sans relative pb-20">
       
-      {/* Global Toast Notification */}
       {toast && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-top-10 fade-in duration-300">
           <div className={`flex items-center gap-3 px-5 py-3.5 rounded-2xl border shadow-[0_0_40px_rgba(0,0,0,0.8)] backdrop-blur-xl ${toast.type === 'error' ? 'bg-[#f43f5e]/10 border-[#f43f5e]/30 text-[#f43f5e]' : 'bg-[#10b981]/10 border-[#10b981]/30 text-[#10b981]'}`}>
@@ -237,7 +262,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Profile Setup Identity Wall */}
       {showProfileSetup && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#0a0a0a]/95 backdrop-blur-xl p-4">
           <div className="bg-[#111111] border border-[#C5A880]/30 rounded-3xl p-8 w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-300 relative overflow-hidden">
@@ -263,23 +287,40 @@ export default function App() {
         </div>
       )}
 
-      {/* Navigation Header */}
       <header className="border-b border-[#ffffff0a] bg-[#0a0a0a]/90 backdrop-blur-xl sticky top-0 z-30">
         <div className="max-w-6xl mx-auto px-4 pt-4 pb-3 flex items-center justify-between">
           <h1 className="text-2xl font-black tracking-tight cursor-pointer flex items-center gap-2" onClick={() => setActiveView('orderbook')}>
             Parlayz<span className="text-[#C5A880]">KSh</span>
           </h1>
           <div className="flex items-center gap-2 sm:gap-4">
-            <button onClick={() => setShowNotifications(!showNotifications)} className="w-9 h-9 flex items-center justify-center rounded-xl bg-[#111111] border border-[#ffffff10] text-gray-400 hover:text-[#C5A880] transition relative">
-              <Bell className="w-4 h-4" />
-              {notifications.filter(n => !n.is_read).length > 0 && <span className="absolute top-2 right-2.5 w-2 h-2 bg-[#A3885C] rounded-full animate-pulse shadow-[0_0_5px_rgba(163,136,92,0.8)]"></span>}
-            </button>
+            <div className="relative">
+              <button onClick={() => { if (!showNotifications) markNotificationsAsRead(); setShowNotifications(!showNotifications); }} className="w-9 h-9 flex items-center justify-center rounded-xl bg-[#111111] border border-[#ffffff10] text-gray-400 hover:text-[#C5A880] transition relative">
+                <Bell className="w-4 h-4" />
+                {notifications.filter(n => !n.is_read).length > 0 && <span className="absolute top-2 right-2.5 w-2 h-2 bg-[#A3885C] rounded-full animate-pulse shadow-[0_0_5px_rgba(163,136,92,0.8)]"></span>}
+              </button>
+              {showNotifications && (
+                <>
+                  <div className="fixed inset-0 z-40 sm:hidden" onClick={() => setShowNotifications(false)}></div>
+                  <div className="fixed left-4 right-4 top-20 sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-3 sm:w-80 bg-[#111111] border border-[#ffffff15] rounded-xl shadow-[0_10px_40px_rgba(0,0,0,0.8)] overflow-hidden z-50">
+                    <div className="p-4 border-b border-[#ffffff0a] bg-[#0a0a0a] flex justify-between items-center"><h4 className="font-bold text-[#C5A880]">Notifications</h4></div>
+                    <div className="max-h-[60vh] sm:max-h-80 overflow-y-auto custom-scrollbar">
+                      {notifications.length === 0 ? <div className="p-6 text-center text-gray-500 text-sm">No new notifications.</div> : notifications.map(n => (
+                        <div key={n.id} className={`p-4 border-b border-[#ffffff05] text-sm ${!n.is_read ? 'bg-[#C5A880]/5' : 'bg-transparent'}`}>
+                          <p className="text-gray-300">{n.message}</p>
+                          <span className="text-xs text-gray-600 mt-2 block">{new Date(n.created_at).toLocaleDateString()}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
             <button onClick={() => setActiveView('wallet')} className="bg-[#111111] border border-[#ffffff10] hover:border-[#C5A880]/50 rounded-xl px-3 sm:px-4 py-1.5 flex items-center gap-2 transition group">
               <Wallet className="w-4 h-4 text-[#C5A880]" />
               <span className="font-bold text-sm sm:text-base">{profile?.wallet_balance.toLocaleString() || '0'}</span>
               <span className="text-gray-500 text-xs font-semibold uppercase tracking-wider hidden sm:inline">KSh</span>
             </button>
-            <div className="w-9 h-9 rounded-xl bg-[#1a1a1a] border border-[#ffffff20] flex items-center justify-center text-lg shadow-inner cursor-pointer" onClick={() => supabase.auth.signOut()} title="Sign Out">{profile?.avatar || '👤'}</div>
+            <button onClick={() => setShowLogoutModal(true)} className="w-9 h-9 rounded-xl bg-[#1a1a1a] border border-[#ffffff20] flex items-center justify-center text-lg hover:border-red-500/50 transition cursor-pointer" title="Sign Out">{profile?.avatar || '👤'}</button>
           </div>
         </div>
         <div className="max-w-6xl mx-auto px-4 mt-1">
@@ -292,10 +333,8 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main Views */}
       <main className="max-w-6xl mx-auto px-4 py-8">
         
-        {/* --- WALLET VIEW --- */}
         {activeView === 'wallet' && (
           <div className="max-w-2xl mx-auto animate-in fade-in duration-300">
             <div className="flex justify-between items-center mb-6">
@@ -312,19 +351,17 @@ export default function App() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-10">
-              {/* One-Time Airdrop Card */}
               <div className={`bg-[#111111] border border-[#ffffff10] rounded-2xl p-6 relative overflow-hidden transition ${profile?.has_claimed_airdrop ? 'opacity-60 grayscale' : 'hover:border-[#C5A880]/30'}`}>
                 <div className="flex items-center gap-3 mb-4 relative z-10"><div className="w-10 h-10 rounded-lg bg-[#C5A880]/10 flex items-center justify-center border border-[#C5A880]/20"><ArrowDownToLine className="w-5 h-5 text-[#C5A880]" /></div><h3 className="text-lg font-bold">Initial Airdrop</h3></div>
                 <div className="space-y-4 relative z-10">
-                  <p className="text-sm text-gray-400 font-light mb-4">Claim your starting capital of 10,000 KSh. <span className="text-white font-semibold">This can only be claimed once.</span> Manage it wisely to climb the leaderboard.</p>
+                  <p className="text-sm text-gray-400 font-light mb-4">Claim your starting capital of 10,000 KSh. <span className="text-white font-semibold">This can only be claimed once.</span></p>
                   <button onClick={handleAirdrop} disabled={profile?.has_claimed_airdrop} className={`w-full font-bold py-3.5 rounded-xl transition ${profile?.has_claimed_airdrop ? 'bg-[#0a0a0a] border border-[#ffffff10] text-gray-600' : 'bg-[#C5A880]/10 border border-[#C5A880]/30 text-[#C5A880] hover:bg-[#C5A880] hover:text-[#0a0a0a] shadow-[0_0_15px_rgba(197,168,128,0.1)]'}`}>
                     {profile?.has_claimed_airdrop ? 'Airdrop Claimed' : 'Claim 10,000 KSh'}
                   </button>
                 </div>
               </div>
-              {/* Withdrawal Card */}
               <div className="bg-[#111111] border border-[#ffffff10] rounded-2xl p-6 relative overflow-hidden group hover:border-[#10b981]/30 transition">
-                <div className="flex items-center gap-3 mb-6 relative z-10"><div className="w-10 h-10 rounded-lg bg-[#10b981]/10 flex items-center justify-center border border-[#10b981]/20"><ArrowUpFromLine className="w-5 h-5 text-[#10b981]" /></div><h3 className="text-lg font-bold">M-Pesa Withdraw</h3></div>
+                <div className="flex items-center gap-3 mb-6 relative z-10"><div className="w-10 h-10 rounded-lg bg-[#10b981]/10 flex items-center justify-center border border-[#10b981]/20"><ArrowUpFromLine className="w-5 h-5 text-[#10b981]" /></div><h3 className="text-lg font-bold">Withdraw</h3></div>
                 <div className="space-y-4 relative z-10">
                   <div><label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1">M-Pesa Number</label><input type="tel" placeholder="07XXXXXXXX" value={withdrawPhone} onChange={e => setWithdrawPhone(e.target.value.replace(/\D/g, '').substring(0,10))} className="w-full bg-[#0a0a0a] border border-[#ffffff15] text-white rounded-xl p-3 focus:outline-none focus:border-[#10b981] font-mono tracking-wider" /></div>
                   <div><div className="flex justify-between items-center mb-1"><label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount (KSh)</label></div><input type="number" value={withdrawAmount || ''} onChange={e => setWithdrawAmount(Number(e.target.value))} className="w-full bg-[#0a0a0a] border border-[#ffffff15] rounded-xl p-3 focus:outline-none focus:border-[#10b981] font-bold text-white" /></div>
@@ -332,10 +369,31 @@ export default function App() {
                 </div>
               </div>
             </div>
+
+            <div>
+              <div className="flex items-center gap-2 mb-4"><History className="w-5 h-5 text-gray-500" /><h3 className="text-lg font-bold text-white">Transaction Ledger</h3></div>
+              <div className="bg-[#111111] border border-[#ffffff10] rounded-2xl overflow-hidden">
+                {ledgerTransactions.length === 0 ? <div className="p-8 text-center text-gray-500 font-light">No financial transactions recorded yet.</div> : (
+                  <div className="divide-y divide-[#ffffff0a]">
+                    {ledgerTransactions.map((tx) => {
+                      const isPositive = ['deposit', 'payout', 'refund'].includes(tx.type)
+                      return (
+                        <div key={tx.id} className="p-4 sm:p-5 flex items-center justify-between hover:bg-[#1a1a1a] transition">
+                          <div className="flex items-center gap-4">
+                            <div className={`w-10 h-10 rounded-full flex items-center justify-center border ${isPositive ? 'bg-[#10b981]/10 border-[#10b981]/20 text-[#10b981]' : 'bg-[#f43f5e]/10 border-[#f43f5e]/20 text-[#f43f5e]'}`}>{isPositive ? <ArrowDownToLine className="w-4 h-4" /> : <ArrowUpFromLine className="w-4 h-4" />}</div>
+                            <div><p className="text-white font-semibold text-sm sm:text-base">{tx.type.charAt(0).toUpperCase() + tx.type.slice(1)}</p><p className="text-gray-500 text-xs mt-0.5">{new Date(tx.created_at).toLocaleString()}</p></div>
+                          </div>
+                          <div className="text-right"><p className={`font-bold ${isPositive ? 'text-[#10b981]' : 'text-[#f43f5e]'}`}>{isPositive ? '+' : '-'}{tx.message.match(/\d+/) ? tx.message.match(/\d+/)?.[0] : ''} KSh</p><p className="text-gray-600 text-xs font-mono mt-0.5">TxID: {tx.id.substring(0, 8)}</p></div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
-        {/* --- LEADERBOARD VIEW --- */}
         {activeView === 'leaderboard' && (
           <div className="max-w-3xl mx-auto animate-in fade-in duration-300">
             <div className="bg-gradient-to-r from-yellow-500/10 via-yellow-500/5 to-transparent border border-yellow-500/30 rounded-2xl p-4 sm:p-6 mb-8 text-center flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -376,9 +434,39 @@ export default function App() {
           </div>
         )}
 
-        {/* --- WAGERS VIEW (WITH TAUNT CHAT INTEGRATION) --- */}
         {activeView === 'wagers' && (
           <div className="space-y-10 animate-in fade-in duration-300">
+            <div className="grid grid-cols-2 gap-4 sm:gap-6 mb-8">
+              <div className="bg-[#111111] border border-[#ffffff10] rounded-2xl p-5 sm:p-6 flex flex-col justify-center">
+                <div className="flex items-center gap-2 mb-2 opacity-70"><Activity className="w-4 h-4 text-gray-400" /><p className="text-gray-400 text-xs font-semibold uppercase tracking-widest">Active Stake</p></div>
+                <p className="text-2xl sm:text-3xl font-bold text-white tracking-tight">{totalActiveStake.toLocaleString()} <span className="text-base font-medium text-gray-500">KSh</span></p>
+              </div>
+              <div className="bg-[#111111] border border-[#C5A880]/30 rounded-2xl p-5 sm:p-6 relative overflow-hidden flex flex-col justify-center shadow-[0_0_30px_rgba(197,168,128,0.05)]">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-[#C5A880]/10 rounded-full blur-2xl"></div>
+                <p className="text-[#C5A880] text-xs font-semibold uppercase tracking-widest mb-2 relative z-10 flex items-center gap-2">Max Est. Return</p>
+                <p className="text-2xl sm:text-3xl font-bold text-[#C5A880] relative z-10 tracking-tight">{totalEstPayout.toLocaleString()} <span className="text-base font-medium text-[#C5A880]/70">KSh</span></p>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-4">My Pending Offers</h3>
+              {myPendingOffers.length === 0 ? <div className="py-10 text-center text-gray-500 border border-dashed border-[#ffffff10] rounded-2xl">No unmatched offers on the board.</div> : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                  {myPendingOffers.reverse().map((bet, i) => {
+                    const event = events.find(e => e.id === bet.event_id); if (!event) return null
+                    return (
+                      <div key={i} className="bg-[#111111] border border-[#ffffff10] rounded-3xl p-6 relative overflow-hidden">
+                        <div className="flex justify-between items-center mb-4"><span className="text-[#C5A880] text-xs font-bold uppercase">Awaiting Taker</span></div>
+                        <h3 className="text-lg font-bold text-white mb-2">{event.title}</h3>
+                        <p className="text-sm text-gray-400 mb-4">You predicted: <span className="text-white font-medium">{event.outcomes[bet.outcome_index]}</span></p>
+                        <div className="flex justify-between text-sm"><span className="text-gray-500">Your Stake:</span><span className="text-white font-bold">{bet.stake.toLocaleString()} KSh</span></div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
             <div>
               <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-4">Locked Wagers (The Arena)</h3>
               {myActiveWagers.length === 0 ? <div className="py-16 text-center text-gray-500 border border-dashed border-[#ffffff10] rounded-2xl">No active wagers locked in.</div> : (
@@ -410,11 +498,31 @@ export default function App() {
                 </div>
               )}
             </div>
-            {/* Settled History goes here, keeping it brief for token limit, exact same mapping as before */}
+
+            <div>
+              <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2"><History className="w-4 h-4" /> Settled History</h3>
+              {mySettledWagers.length === 0 ? <div className="py-10 text-center text-gray-500 border border-dashed border-[#ffffff10] rounded-2xl">No settled history yet.</div> : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                  {mySettledWagers.reverse().map((bet, i) => {
+                    const event = events.find(e => e.id === bet.event_id); if (!event) return null
+                    const isWin = bet.status === 'won'; const isRefund = bet.status === 'refunded'
+                    let payout = 0; if (isWin) { const gross = bet.stake * (bet.odds || 2); payout = Math.round(gross - (gross * (PLATFORM_FEE_PERCENT / 100))) } else if (isRefund) payout = bet.stake
+
+                    return (
+                      <div key={i} className={`bg-[#111111] border rounded-3xl p-6 relative overflow-hidden transition hover:scale-[1.02] ${isWin ? 'border-[#10b981]/50 shadow-[0_0_30px_rgba(16,185,129,0.1)]' : isRefund ? 'border-gray-600' : 'border-[#f43f5e]/20 opacity-70'}`}>
+                        {isWin && <div className="absolute top-0 right-0 w-32 h-32 bg-[#10b981]/15 rounded-full blur-3xl pointer-events-none"></div>}
+                        <div className="flex items-start justify-between mb-4 relative z-10"><span className={`text-xs font-bold uppercase tracking-wider px-2 py-1 rounded-md border ${isWin ? 'bg-[#10b981]/10 border-[#10b981]/30 text-[#10b981]' : isRefund ? 'bg-gray-800 border-gray-600 text-gray-400' : 'bg-[#f43f5e]/10 border-[#f43f5e]/30 text-[#f43f5e]'}`}>{isWin ? 'WINNER 🏆' : isRefund ? 'REFUNDED' : 'LOST ❌'}</span></div>
+                        <h3 className={`text-lg font-bold mb-4 relative z-10 ${isWin ? 'text-white' : 'text-gray-400'}`}>{event.title}</h3>
+                        <div className="flex justify-between font-bold pt-3 border-t border-[#ffffff10] mt-3 relative z-10"><span className="text-gray-500">Payout:</span><span className={`text-lg ${isWin ? 'text-[#10b981]' : isRefund ? 'text-gray-400' : 'text-[#f43f5e]'}`}>{isWin ? `+ ${payout.toLocaleString()} KSh` : isRefund ? `${payout.toLocaleString()} KSh` : '0 KSh'}</span></div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
-        {/* --- ORDERBOOK VIEW --- */}
         {activeView === 'orderbook' && (
           <div className="space-y-6 animate-in fade-in duration-300">
              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-[#111111] border border-[#C5A880]/30 rounded-3xl p-6 sm:p-8 shadow-[0_0_30px_rgba(197,168,128,0.05)] gap-4">
@@ -423,50 +531,67 @@ export default function App() {
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-              {bets.filter(b => b.status === 'p2p_open').map((offer, i) => {
-                const event = events.find(e => e.id === offer.event_id); if (!event) return null
-                const liability = Math.round((offer.stake * (offer.odds || 2)) - offer.stake)
-                const isOwnOffer = offer.user_id === session?.user?.id
-                const maker = allProfiles.find(p => p.id === offer.user_id)
+              {bets.filter(b => b.status === 'p2p_open').length === 0 ? (
+                <div className="col-span-full py-16 text-center text-gray-500 border border-dashed border-[#ffffff10] rounded-2xl bg-[#111111]/50">The Order Book is currently empty. Be the first to post a bet!</div>
+              ) : (
+                bets.filter(b => b.status === 'p2p_open').map((offer, i) => {
+                  const event = activeEvents.find(e => e.id === offer.event_id); if (!event) return null
+                  const liability = Math.round((offer.stake * (offer.odds || 2)) - offer.stake)
+                  const isOwnOffer = offer.user_id === session?.user?.id
+                  const maker = allProfiles.find(p => p.id === offer.user_id)
 
-                return (
-                  <div key={i} className="bg-[#111111] border border-[#ffffff10] rounded-3xl p-6 sm:p-7 hover:border-[#C5A880]/40 transition relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 w-40 h-40 bg-[#C5A880]/5 rounded-full blur-[60px] group-hover:bg-[#C5A880]/15 transition"></div>
-                    <div className="flex justify-between items-start mb-5 relative z-10">
-                      <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition" onClick={() => setSelectedPublicProfile(maker || null)}>
-                        <div className="w-10 h-10 rounded-full bg-[#1a1a1a] border border-[#ffffff20] flex items-center justify-center text-lg">{maker?.avatar || '👤'}</div>
-                        <div><p className="text-sm font-bold text-white">{maker?.username || 'Anonymous'}</p><p className="text-[10px] text-gray-500 uppercase tracking-widest">{getUserStats(maker?.id || '').winRate}% Win Rate</p></div>
+                  return (
+                    <div key={i} className="bg-[#111111] border border-[#ffffff10] rounded-3xl p-6 sm:p-7 hover:border-[#C5A880]/40 transition relative overflow-hidden group">
+                      <div className="absolute top-0 right-0 w-40 h-40 bg-[#C5A880]/5 rounded-full blur-[60px] group-hover:bg-[#C5A880]/15 transition"></div>
+                      <div className="flex justify-between items-start mb-5 relative z-10">
+                        <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition" onClick={() => setSelectedPublicProfile(maker || null)}>
+                          <div className="w-10 h-10 rounded-full bg-[#1a1a1a] border border-[#ffffff20] flex items-center justify-center text-lg">{maker?.avatar || '👤'}</div>
+                          <div><p className="text-sm font-bold text-white">{maker?.username || 'Anonymous'}</p><p className="text-[10px] text-gray-500 uppercase tracking-widest">{getUserStats(maker?.id || '').winRate}% Win Rate</p></div>
+                        </div>
                       </div>
+                      <h4 className="text-white font-bold mb-4 line-clamp-2 relative z-10 text-sm border-b border-[#ffffff10] pb-4">{event.title}</h4>
+                      <div className="bg-[#0a0a0a] rounded-xl p-4 mb-6 border border-[#ffffff0a] relative z-10 text-center"><div className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1">Their Prediction</div><div className="text-white font-bold text-lg">{event.outcomes[offer.outcome_index]}</div></div>
+                      <div className="space-y-3 mb-2 relative z-10">
+                        <div className="flex justify-between text-sm text-gray-400"><span>Their Stake:</span><span className="text-white font-bold">{offer.stake.toLocaleString()} KSh</span></div>
+                        <div className="flex justify-between text-sm text-gray-400"><span>Odds:</span><span className="text-[#C5A880] font-bold text-lg">{offer.odds}x</span></div>
+                        <div className="flex justify-between items-center pt-4 border-t border-[#ffffff10] mt-4"><span className="text-gray-400 font-bold text-xs uppercase tracking-wider">Your Cost to Play:</span><span className="text-white font-black text-xl">{liability.toLocaleString()} KSh</span></div>
+                        <div className="flex justify-between items-center"><span className="text-[#10b981] font-bold uppercase tracking-wider text-xs">Est. Payout:</span><span className="text-[#10b981] font-black text-2xl drop-shadow-md">{Math.round(offer.stake * (offer.odds || 2)).toLocaleString()} KSh</span></div>
+                      </div>
+                      <button onClick={() => initiateMatch(offer)} disabled={isOwnOffer} className={`w-full font-bold py-4 rounded-xl transition relative z-10 mt-6 uppercase tracking-wider text-sm ${isOwnOffer ? 'bg-[#0a0a0a] text-gray-600 border border-[#ffffff10] cursor-not-allowed' : 'bg-[#10b981]/10 border border-[#10b981]/30 hover:bg-[#10b981] hover:text-[#0a0a0a] text-[#10b981] hover:shadow-[0_0_20px_rgba(16,185,129,0.3)]'}`}>
+                        {isOwnOffer ? 'Waiting for Taker...' : 'Take Bet'}
+                      </button>
                     </div>
-                    <h4 className="text-white font-bold mb-4 line-clamp-2 relative z-10 text-sm border-b border-[#ffffff10] pb-4">{event.title}</h4>
-                    <div className="bg-[#0a0a0a] rounded-xl p-4 mb-6 border border-[#ffffff0a] relative z-10 text-center"><div className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1">Their Prediction</div><div className="text-white font-bold text-lg">{event.outcomes[offer.outcome_index]}</div></div>
-                    <div className="space-y-3 mb-2 relative z-10">
-                      <div className="flex justify-between text-sm text-gray-400"><span>Their Stake:</span><span className="text-white font-bold">{offer.stake.toLocaleString()} KSh</span></div>
-                      <div className="flex justify-between text-sm text-gray-400"><span>Odds:</span><span className="text-[#C5A880] font-bold text-lg">{offer.odds}x</span></div>
-                      <div className="flex justify-between items-center pt-4 border-t border-[#ffffff10] mt-4"><span className="text-gray-400 font-bold text-xs uppercase tracking-wider">Your Cost to Play:</span><span className="text-white font-black text-xl">{liability.toLocaleString()} KSh</span></div>
-                      <div className="flex justify-between items-center"><span className="text-[#10b981] font-bold uppercase tracking-wider text-xs">Est. Payout:</span><span className="text-[#10b981] font-black text-2xl drop-shadow-md">{Math.round(offer.stake * (offer.odds || 2)).toLocaleString()} KSh</span></div>
-                    </div>
-                    <button onClick={() => setOfferToMatch(offer)} disabled={isOwnOffer} className={`w-full font-bold py-4 rounded-xl transition relative z-10 mt-6 uppercase tracking-wider text-sm ${isOwnOffer ? 'bg-[#0a0a0a] text-gray-600 border border-[#ffffff10] cursor-not-allowed' : 'bg-[#10b981]/10 border border-[#10b981]/30 hover:bg-[#10b981] hover:text-[#0a0a0a] text-[#10b981] hover:shadow-[0_0_20px_rgba(16,185,129,0.3)]'}`}>
-                      {isOwnOffer ? 'Waiting for Taker...' : 'Take Bet'}
-                    </button>
-                  </div>
-                )
-              })}
+                  )
+                })
+              )}
             </div>
+          </div>
+        )}
+
+        {activeView === 'markets' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 animate-in fade-in duration-300">
+            {activeEvents.length === 0 ? <div className="col-span-full py-10 text-center text-gray-500">No active markets.</div> : (
+              activeEvents.map((event) => (
+                <div key={event.id} className="bg-[#111111] border border-[#ffffff10] rounded-3xl p-6 hover:border-[#C5A880]/50 transition flex flex-col">
+                  <div className="flex items-start justify-between mb-4"><span className="text-xs font-semibold text-[#C5A880] uppercase tracking-wider bg-[#C5A880]/10 border border-[#C5A880]/20 px-2 py-1 rounded-md">{event.category}</span><span className="text-xs text-gray-500">{new Date(event.closes_at).toLocaleDateString()}</span></div>
+                  <h3 className="text-xl font-bold text-white mb-2">{event.title}</h3>
+                  <p className="text-gray-400 text-sm mb-6 font-light flex-grow">{event.description}</p>
+                  <button onClick={() => { setP2pSelectedEventId(event.id); setP2pSelectedOutcomeIdx(0); setShowCreateOfferModal(true) }} className="w-full bg-[#1a1a1a] hover:bg-[#C5A880] hover:text-[#0a0a0a] border border-[#ffffff15] hover:border-[#C5A880] text-white font-bold py-3.5 rounded-xl transition flex items-center justify-center gap-2 group"><Activity className="w-4 h-4 text-[#C5A880] group-hover:text-[#0a0a0a]" /> Create Custom Bet</button>
+                </div>
+              ))
+            )}
           </div>
         )}
       </main>
 
       {/* --- MODALS OVERLAYS --- */}
       
-      {/* Public Profile Modal */}
       {selectedPublicProfile && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-md p-4 animate-in fade-in duration-200" onClick={() => setSelectedPublicProfile(null)}>
           <div className="bg-[#111111] border border-[#ffffff15] rounded-3xl p-8 w-full max-w-sm text-center shadow-[0_0_50px_rgba(0,0,0,0.8)] relative" onClick={e => e.stopPropagation()}>
-            <button onClick={() => setSelectedPublicProfile(null)} className="absolute top-5 right-5 w-8 h-8 rounded-xl bg-[#1a1a1a] flex items-center justify-center text-gray-400"><X className="w-4 h-4" /></button>
+            <button onClick={() => setSelectedPublicProfile(null)} className="absolute top-5 right-5 w-8 h-8 rounded-xl bg-[#1a1a1a] flex items-center justify-center text-gray-400 hover:text-white"><X className="w-4 h-4" /></button>
             <div className="w-24 h-24 rounded-full bg-[#0a0a0a] border-2 border-[#C5A880]/30 flex items-center justify-center text-5xl mx-auto mb-4 shadow-inner">{selectedPublicProfile.avatar}</div>
             <h3 className="text-2xl font-black text-white mb-1">{selectedPublicProfile.username}</h3>
-            
             {!selectedPublicProfile.is_public && selectedPublicProfile.id !== session?.user?.id ? (
               <div className="mt-8 py-8 bg-[#0a0a0a] rounded-2xl border border-[#ffffff05]"><EyeOff className="w-8 h-8 text-gray-600 mx-auto mb-3" /><p className="text-gray-500 font-semibold text-sm">This trader's stats are private.</p></div>
             ) : (
@@ -483,47 +608,29 @@ export default function App() {
         </div>
       )}
 
-      {/* Taunt Chat Arena Modal */}
       {activeChatBet && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/95 backdrop-blur-md p-2 sm:p-4 animate-in fade-in zoom-in-95 duration-200">
           <div className="bg-[#0a0a0a] border border-[#C5A880]/30 rounded-3xl w-full max-w-md h-[85vh] sm:h-[80vh] flex flex-col overflow-hidden shadow-[0_0_50px_rgba(197,168,128,0.1)]">
-            {/* Chat Header */}
             <div className="bg-[#111111] p-4 border-b border-[#ffffff10] flex items-center justify-between">
-              <div>
-                <h3 className="text-white font-black flex items-center gap-2"><MessageSquare className="w-5 h-5 text-[#C5A880]" /> The Arena</h3>
-                <p className="text-xs text-gray-500 uppercase tracking-wider font-semibold mt-1">Escrow Locked • Winner Takes All</p>
-              </div>
+              <div><h3 className="text-white font-black flex items-center gap-2"><MessageSquare className="w-5 h-5 text-[#C5A880]" /> The Arena</h3><p className="text-xs text-gray-500 uppercase tracking-wider font-semibold mt-1">Escrow Locked • Winner Takes All</p></div>
               <button onClick={() => { setActiveChatBet(null); setChatMessages([]) }} className="w-8 h-8 rounded-xl bg-[#1a1a1a] flex items-center justify-center text-gray-400 hover:text-white"><X className="w-4 h-4" /></button>
             </div>
-            
-            {/* Chat Warning */}
-            <div className="bg-yellow-500/10 border-b border-yellow-500/20 px-4 py-2 flex items-start gap-3">
-              <ShieldAlert className="w-4 h-4 text-yellow-500 shrink-0 mt-0.5" />
-              <p className="text-xs text-yellow-500/80 font-medium leading-tight">Taunts are allowed, but the blockchain remembers. Be mindful of personal attacks. Violators will be slashed.</p>
-            </div>
-
-            {/* Chat History */}
+            <div className="bg-yellow-500/10 border-b border-yellow-500/20 px-4 py-2 flex items-start gap-3"><ShieldAlert className="w-4 h-4 text-yellow-500 shrink-0 mt-0.5" /><p className="text-xs text-yellow-500/80 font-medium leading-tight">Taunts are allowed, but the blockchain remembers. Be mindful of personal attacks.</p></div>
             <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
-              {chatMessages.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-gray-500 opacity-50"><MessageSquare className="w-12 h-12 mb-3" /><p>The arena is silent. Start the trash talk.</p></div>
-              ) : (
+              {chatMessages.length === 0 ? <div className="h-full flex flex-col items-center justify-center text-gray-500 opacity-50"><MessageSquare className="w-12 h-12 mb-3" /><p>The arena is silent. Start the trash talk.</p></div> : (
                 chatMessages.map(msg => {
                   const isMe = msg.sender_id === session?.user?.id
                   const sender = allProfiles.find(p => p.id === msg.sender_id)
                   return (
                     <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                       <span className="text-[10px] text-gray-600 font-bold uppercase mb-1 px-1">{sender?.username}</span>
-                      <div className={`px-4 py-2.5 rounded-2xl max-w-[85%] text-sm shadow-md ${isMe ? 'bg-[#C5A880] text-[#0a0a0a] rounded-tr-sm font-medium' : 'bg-[#1a1a1a] text-white border border-[#ffffff10] rounded-tl-sm'}`}>
-                        {msg.message}
-                      </div>
+                      <div className={`px-4 py-2.5 rounded-2xl max-w-[85%] text-sm shadow-md ${isMe ? 'bg-[#C5A880] text-[#0a0a0a] rounded-tr-sm font-medium' : 'bg-[#1a1a1a] text-white border border-[#ffffff10] rounded-tl-sm'}`}>{msg.message}</div>
                     </div>
                   )
                 })
               )}
               <div ref={messagesEndRef} />
             </div>
-
-            {/* Chat Input */}
             <div className="p-4 bg-[#111111] border-t border-[#ffffff10]">
               <form onSubmit={sendMessage} className="flex gap-2">
                 <input type="text" value={chatInput} onChange={e => setChatInput(e.target.value)} placeholder="Type a taunt..." className="flex-1 bg-[#0a0a0a] border border-[#ffffff15] rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-[#C5A880]" />
@@ -534,7 +641,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Confirm Bet Modal */}
       {offerToMatch && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-md p-4 animate-in fade-in duration-200">
           <div className="bg-[#111111] border border-[#C5A880]/40 rounded-3xl p-6 sm:p-8 w-full max-w-sm text-center shadow-[0_0_50px_rgba(197,168,128,0.15)] relative overflow-hidden">
@@ -556,8 +662,101 @@ export default function App() {
         </div>
       )}
 
-      {/* Create Custom Bet Modal - (Omitted to save space, identical to previous but PTZ -> KSh) */}
+      {showCreateOfferModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200">
+          <div className="bg-[#111111] border border-[#C5A880]/30 rounded-3xl p-6 sm:p-8 w-full max-w-md shadow-[0_0_50px_rgba(197,168,128,0.15)] relative">
+            <button onClick={() => setShowCreateOfferModal(false)} className="absolute top-5 right-5 w-8 h-8 flex items-center justify-center rounded-xl bg-[#1a1a1a] text-gray-400 hover:text-white border border-[#ffffff10]"><X className="w-4 h-4" /></button>
+            <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">Create Custom Bet</h3>
+            <p className="text-gray-400 text-sm mb-6 font-light">Set your own odds. Await a taker.</p>
+            <div className="space-y-5">
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">1. Select Market</label>
+                <select className="w-full bg-[#0a0a0a] border border-[#ffffff15] text-white rounded-xl p-3.5 focus:outline-none focus:border-[#C5A880]" value={p2pSelectedEventId} onChange={(e) => { setP2pSelectedEventId(e.target.value); setP2pSelectedOutcomeIdx(0) }}>
+                  <option value="" disabled>Choose active market...</option>
+                  {activeEvents.map(e => (<option key={e.id} value={e.id}>{e.title}</option>))}
+                </select>
+              </div>
+              {p2pSelectedEventId && (
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">2. Your Prediction</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {activeEvents.find(e => e.id === p2pSelectedEventId)?.outcomes.map((outcome, idx) => (
+                      <button key={idx} onClick={() => setP2pSelectedOutcomeIdx(idx)} className={`p-2.5 rounded-xl border text-sm font-medium transition ${p2pSelectedOutcomeIdx === idx ? 'bg-[#C5A880]/10 border-[#C5A880] text-[#C5A880]' : 'bg-[#0a0a0a] border-[#ffffff15] text-gray-400 hover:border-gray-500'}`}>{outcome}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Your Stake (KSh)</label>
+                  <input type="number" min={MIN_STAKE} value={p2pStake || ''} onChange={(e) => setP2pStake(Number(e.target.value))} className="w-full bg-[#0a0a0a] border border-[#ffffff15] text-white font-bold rounded-xl p-3.5 focus:outline-none focus:border-[#C5A880]" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Custom Odds (x)</label>
+                  <input type="number" min="1.01" step="0.01" value={p2pOdds || ''} onChange={(e) => setP2pOdds(Number(e.target.value))} className="w-full bg-[#0a0a0a] border border-[#ffffff15] text-[#C5A880] font-bold rounded-xl p-3.5 focus:outline-none focus:border-[#C5A880]" />
+                </div>
+              </div>
+              <div className="bg-[#0a0a0a] rounded-xl p-4 text-sm space-y-2 border border-[#ffffff0a] mt-2 font-light">
+                <div className="flex justify-between items-center pt-2"><span className="text-[#10b981] font-bold uppercase tracking-wider text-xs">Est. Payout:</span><span className="text-[#10b981] font-black text-xl drop-shadow-md">{Math.round((p2pStake * p2pOdds) * (1 - PLATFORM_FEE_PERCENT/100)).toLocaleString()} KSh</span></div>
+              </div>
+              <button onClick={submitP2POffer} disabled={!p2pSelectedEventId || p2pStake < MIN_STAKE || p2pOdds <= 1} className="w-full bg-[#C5A880] hover:bg-[#A3885C] disabled:bg-[#1a1a1a] disabled:text-gray-600 text-[#0a0a0a] font-bold py-4 rounded-xl transition shadow-[0_0_20px_rgba(197,168,128,0.2)] mt-2">Post Bet</button>
+            </div>
+          </div>
+        </div>
+      )}
 
+      {showCashierModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200">
+          <div className={`bg-[#111111] border rounded-3xl p-6 sm:p-8 w-full max-w-sm text-center relative overflow-hidden shadow-2xl ${showCashierModal.type === 'deposit' ? 'border-[#10b981]/30' : 'border-[#C5A880]/30'}`}>
+            <div className={`absolute top-0 left-1/2 -translate-x-1/2 w-40 h-40 rounded-full blur-3xl pointer-events-none ${showCashierModal.type === 'deposit' ? 'bg-[#10b981]/10' : 'bg-[#C5A880]/10'}`}></div>
+            <div className="relative z-10">
+              {showCashierModal.status === 'processing' ? (
+                <>
+                  <div className="w-16 h-16 bg-[#1a1a1a] border border-[#ffffff15] rounded-2xl flex items-center justify-center mx-auto mb-5"><div className={`w-8 h-8 border-4 border-t-transparent rounded-full animate-spin ${showCashierModal.type === 'deposit' ? 'border-[#10b981]' : 'border-[#C5A880]'}`}></div></div>
+                  <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">Processing Transfer</h3>
+                  <p className="text-gray-400 text-sm mb-2 font-light">Securing protocol confirmation...</p>
+                </>
+              ) : (
+                <>
+                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5 border ${showCashierModal.type === 'deposit' ? 'bg-[#10b981]/10 border-[#10b981]/40 text-[#10b981]' : 'bg-[#C5A880]/10 border-[#C5A880]/40 text-[#C5A880]'}`}><CheckCircle2 className="w-8 h-8" /></div>
+                  <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">Success</h3>
+                  <p className="text-gray-400 text-sm mb-6 font-light">Transaction finalized.</p>
+                  <button onClick={() => setShowCashierModal(null)} className="w-full bg-[#1a1a1a] hover:bg-[#222222] border border-[#ffffff10] text-white font-bold py-3.5 rounded-xl transition">Return</button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSuccessModal && lastBetDetails && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200">
+          <div className="bg-[#111111] border border-[#10b981]/30 rounded-3xl p-6 sm:p-8 w-full max-w-sm text-center shadow-[0_0_50px_rgba(16,185,129,0.1)] relative overflow-hidden">
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-40 h-40 bg-[#10b981]/10 rounded-full blur-3xl pointer-events-none"></div>
+            <div className="relative z-10">
+              <div className="w-16 h-16 bg-[#10b981]/10 border border-[#10b981]/40 text-[#10b981] rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-[0_0_15px_rgba(16,185,129,0.2)]"><CheckCircle2 className="w-8 h-8" /></div>
+              <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">Bet Pushed</h3>
+              <p className="text-gray-400 text-sm mb-6 font-light">Your bet is active on the Order Book.</p>
+              <button onClick={() => setShowSuccessModal(false)} className="w-full bg-[#1a1a1a] hover:bg-[#222222] border border-[#ffffff10] text-white font-bold py-3.5 rounded-xl transition">Return to Exchange</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showLogoutModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200">
+          <div className="bg-[#111111] border border-[#ffffff15] rounded-3xl p-6 sm:p-8 w-full max-w-sm text-center shadow-[0_0_50px_rgba(0,0,0,0.8)] relative overflow-hidden">
+            <div className="relative z-10">
+              <div className="w-16 h-16 bg-[#f43f5e]/10 border border-[#f43f5e]/30 text-[#f43f5e] rounded-2xl flex items-center justify-center mx-auto mb-5"><LogOut className="w-7 h-7 ml-1" /></div>
+              <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">Disconnect?</h3>
+              <div className="flex gap-3 justify-center mt-6">
+                <button onClick={() => setShowLogoutModal(false)} className="w-1/2 bg-[#1a1a1a] hover:bg-[#222222] border border-[#ffffff10] text-white font-semibold py-3.5 rounded-xl transition">Cancel</button>
+                <button onClick={handleLogout} className="w-1/2 bg-[#f43f5e]/10 border border-[#f43f5e]/30 hover:bg-[#f43f5e] text-[#f43f5e] hover:text-white font-bold py-3.5 rounded-xl transition">Disconnect</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
