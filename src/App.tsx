@@ -262,7 +262,7 @@ export default function App() {
   const myPendingOffers = bets.filter(b => b.user_id === session?.user?.id && b.status === 'p2p_open')
   const myActiveWagers = bets.filter(b => (b.user_id === session?.user?.id || b.matcher_id === session?.user?.id) && b.status === 'p2p_matched')
   const mySettledWagers = bets.filter(b => (b.user_id === session?.user?.id || b.matcher_id === session?.user?.id) && ['won', 'lost', 'refunded'].includes(b.status))
-  const sortedLeaderboard = [...allProfiles].sort((a, b) => b.wallet_balance - a.wallet_balance).slice(0, 10)
+  const sortedLeaderboard = [...allProfiles].sort((a, b) => b.wallet_balance - a.wallet_balance)
   const ledgerTransactions = notifications.filter(n => ['deposit', 'withdrawal', 'payout', 'refund'].includes(n.type))
 
   let totalActiveStake = 0
