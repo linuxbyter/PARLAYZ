@@ -70,6 +70,26 @@ export default function Admin() {
       return
     }
 
+  const handleDeleteMarket = async (eventId: string) => {
+    // Add a confirmation pop-up so you don't accidentally delete a market with fat thumbs!
+    if (!window.confirm("🚨 Are you sure you want to delete this market? This will wipe it from the board.")) return
+
+    const { error } = await supabase
+      .from('events')
+      .delete()
+      .eq('id', eventId)
+
+    if (error) {
+      alert(`Delete failed: ${error.message}`)
+    } else {
+      // If you have a toast notification system, use it here! Otherwise, standard alert.
+      alert("Market deleted successfully.")
+      // Call whatever function you use to refresh the board, likely fetchEvents() or similar
+      fetchEvents() 
+    }
+  }
+
+
     const validOutcomes = newOutcomes.map(o => o.trim()).filter(o => o !== '')
     if (validOutcomes.length < 2) {
       alert("A market must have at least 2 valid outcomes.")
@@ -243,6 +263,14 @@ export default function Admin() {
                         <CheckCircle2 className="w-5 h-5 text-gray-600 group-hover:text-[#C5A880] transition" />
                       )}
                     </button>
+
+<button 
+  onClick={() => handleDeleteMarket(event.id)} 
+  className="px-4 py-2 bg-red-500/10 text-red-500 border border-red-500/30 hover:bg-red-500 hover:text-white rounded-lg transition font-bold text-sm ml-2"
+>
+  Delete Market
+</button>
+
                   ))}
                 </div>
               </div>
