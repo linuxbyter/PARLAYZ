@@ -434,7 +434,7 @@ export default function App() {
             <div className="bg-gradient-to-r from-yellow-500/10 via-yellow-500/5 to-transparent border border-yellow-500/30 rounded-2xl p-4 sm:p-6 mb-8 text-center flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="text-left">
                 <h3 className="text-lg font-black text-white uppercase tracking-wider">March Madness Event</h3>
-                <p className="text-yellow-500/80 text-sm font-semibold">Ends March 18th, 2026 at Midnight.</p>
+                <p className="text-yellow-500/80 text-sm font-semibold">Ends March 25th, 2026 at Midnight.</p>
               </div>
               <div className="bg-[#0a0a0a] px-4 py-2 rounded-xl border border-yellow-500/20 text-sm font-bold shadow-[0_0_15px_rgba(234,179,8,0.15)] text-white">Top 3 Wallets Win Cash Prizes 💰</div>
             </div>
