@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from './lib/supabase'
 import Landing from './Landing'
-import { LogOut, X, AlertTriangle, Bell, Wallet, ArrowDownToLine, ArrowUpFromLine, CheckCircle2, History, Trophy, Activity, MessageSquare, Eye, EyeOff, ShieldAlert, Send } from 'lucide-react'
+import { LogOut, X, AlertTriangle, Bell, Wallet, ArrowDownToLine, ArrowUpFromLine, CheckCircle2, History, Trophy, Activity, MessageSquare, Eye, EyeOff, ShieldAlert, Send, Share2 } from 'lucide-react'
 
 interface Event { id: string; title: string; description: string; category: string; outcomes: string[]; closes_at: string; created_at: string; resolved: boolean }
 interface Bet { id: string; event_id: string; outcome_index: number; stake: number; odds?: number; status: string; user_id: string; matcher_id?: string }
@@ -79,6 +79,25 @@ export default function App() {
   }, [activeChatBet])
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [chatMessages])
+
+  // Deep Link Interceptor
+  useEffect(() => {
+    if (session?.user && bets.length > 0) {
+      const urlParams = new URLSearchParams(window.location.search)
+      const matchId = urlParams.get('match')
+      
+      if (matchId) {
+        const betToMatch = bets.find(b => b.id === matchId && b.status === 'p2p_open')
+        if (betToMatch && betToMatch.user_id !== session.user.id) {
+          setOfferToMatch(betToMatch)
+          window.history.replaceState({}, document.title, window.location.pathname)
+        } else if (betToMatch && betToMatch.user_id === session.user.id) {
+          showToast("This is your own bet link. Send it to a challenger!", "success")
+          window.history.replaceState({}, document.title, window.location.pathname)
+        }
+      }
+    }
+  }, [session, bets])
 
   const fetchData = async () => {
     await Promise.all([fetchProfile(), fetchAllProfiles(), fetchEvents(), fetchBets(), fetchNotifications()])
@@ -210,6 +229,12 @@ export default function App() {
     setShowLogoutModal(false)
   }
 
+  const handleShareLink = (betId: string) => {
+    const shareUrl = `${window.location.origin}/?match=${betId}`
+    navigator.clipboard.writeText(shareUrl)
+    showToast('Match link copied! Drop it in your group.', 'success')
+  }
+
   const getUserStats = (userId: string) => {
     const userBets = bets.filter(b => b.user_id === userId || b.matcher_id === userId)
     const settled = userBets.filter(b => ['won', 'lost'].includes(b.status))
@@ -228,7 +253,6 @@ export default function App() {
     return { trades: userBets.length, winRate, activeRisk, awaitingPayout }
   }
 
-  // Helper to sanitize emails automatically everywhere
   const sanitizeName = (name: string | undefined) => {
     if (!name) return 'Anonymous'
     return name.includes('@') ? name.split('@')[0] : name
@@ -469,7 +493,12 @@ export default function App() {
                     const event = events.find(e => e.id === bet.event_id); if (!event) return null
                     return (
                       <div key={i} className="bg-[#111111] border border-[#ffffff10] rounded-3xl p-6 relative overflow-hidden">
-                        <div className="flex justify-between items-center mb-4"><span className="text-[#C5A880] text-xs font-bold uppercase">Awaiting Taker</span></div>
+                        <div className="flex justify-between items-center mb-4 pb-4 border-b border-[#ffffff10]">
+                          <span className="text-[#C5A880] text-xs font-bold uppercase tracking-wider">Awaiting Taker</span>
+                          <button onClick={() => handleShareLink(bet.id)} className="bg-[#C5A880]/10 border border-[#C5A880]/30 hover:bg-[#C5A880] text-[#C5A880] hover:text-[#0a0a0a] px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition shadow-md">
+                            <Share2 className="w-3 h-3" /> Copy Link
+                          </button>
+                        </div>
                         <h3 className="text-lg font-bold text-white mb-2">{event.title}</h3>
                         <p className="text-sm text-gray-400 mb-4">You predicted: <span className="text-white font-medium">{event.outcomes[bet.outcome_index]}</span></p>
                         <div className="flex justify-between text-sm"><span className="text-gray-500">Your Stake:</span><span className="text-white font-bold">{bet.stake.toLocaleString()} KSh</span></div>
@@ -561,6 +590,7 @@ export default function App() {
                           <div className="w-10 h-10 rounded-full bg-[#1a1a1a] border border-[#ffffff20] flex items-center justify-center text-lg">{maker?.avatar || '👤'}</div>
                           <div><p className="text-sm font-bold text-white">{sanitizeName(maker?.username)}</p><p className="text-[10px] text-gray-500 uppercase tracking-widest">{getUserStats(maker?.id || '').winRate}% Win Rate</p></div>
                         </div>
+                        <button onClick={() => handleShareLink(offer.id)} className="w-8 h-8 rounded-xl bg-[#1a1a1a] border border-[#ffffff20] text-gray-400 hover:text-[#C5A880] flex items-center justify-center transition" title="Share Match Link"><Share2 className="w-4 h-4" /></button>
                       </div>
                       <h4 className="text-white font-bold mb-4 line-clamp-2 relative z-10 text-sm border-b border-[#ffffff10] pb-4">{event.title}</h4>
                       <div className="bg-[#0a0a0a] rounded-xl p-4 mb-6 border border-[#ffffff0a] relative z-10 text-center"><div className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1">Their Prediction</div><div className="text-white font-bold text-lg">{event.outcomes[offer.outcome_index]}</div></div>
@@ -570,7 +600,7 @@ export default function App() {
                         <div className="flex justify-between items-center pt-4 border-t border-[#ffffff10] mt-4"><span className="text-gray-400 font-bold text-xs uppercase tracking-wider">Your Cost to Play:</span><span className="text-white font-black text-xl">{liability.toLocaleString()} KSh</span></div>
                         <div className="flex justify-between items-center"><span className="text-[#10b981] font-bold uppercase tracking-wider text-xs">Est. Payout:</span><span className="text-[#10b981] font-black text-2xl drop-shadow-md">{Math.round(offer.stake * (offer.odds || 2)).toLocaleString()} KSh</span></div>
                       </div>
-                      <button onClick={() => initiateMatch(offer)} disabled={isOwnOffer} className={`w-full font-bold py-4 rounded-xl transition relative z-10 mt-6 uppercase tracking-wider text-sm ${isOwnOffer ? 'bg-[#0a0a0a] text-gray-600 border border-[#ffffff10] cursor-not-allowed' : 'bg-[#10b981]/10 border border-[#10b981]/30 hover:bg-[#10b981] hover:text-[#0a0a0a] text-[#10b981] hover:shadow-[0_0_20px_rgba(16,185,129,0.3)]'}`}>
+                      <button onClick={() => setOfferToMatch(offer)} disabled={isOwnOffer} className={`w-full font-bold py-4 rounded-xl transition relative z-10 mt-6 uppercase tracking-wider text-sm ${isOwnOffer ? 'bg-[#0a0a0a] text-gray-600 border border-[#ffffff10] cursor-not-allowed' : 'bg-[#10b981]/10 border border-[#10b981]/30 hover:bg-[#10b981] hover:text-[#0a0a0a] text-[#10b981] hover:shadow-[0_0_20px_rgba(16,185,129,0.3)]'}`}>
                         {isOwnOffer ? 'Waiting for Taker...' : 'Take Bet'}
                       </button>
                     </div>
@@ -667,7 +697,7 @@ export default function App() {
                 <div className="flex justify-between items-center text-sm pt-4 border-t border-[#ffffff10]"><span className="text-[#10b981] font-bold uppercase tracking-wider text-xs">Est. Payout:</span><span className="text-[#10b981] font-black text-3xl drop-shadow-md">{Math.round(offerToMatch.stake * (offerToMatch.odds || 2)).toLocaleString()} KSh</span></div>
               </div>
               <div className="flex gap-3 justify-center">
-                <button onClick={() => setOfferToMatch(null)} className="w-1/2 bg-[#1a1a1a] hover:bg-[#222222] border border-[#ffffff10] text-white font-bold py-4 rounded-xl transition uppercase tracking-wider text-sm">Cancel</button>
+                <button onClick={() => { setOfferToMatch(null); window.history.replaceState({}, document.title, window.location.pathname); }} className="w-1/2 bg-[#1a1a1a] hover:bg-[#222222] border border-[#ffffff10] text-white font-bold py-4 rounded-xl transition uppercase tracking-wider text-sm">Cancel</button>
                 <button onClick={confirmMatch} className="w-1/2 bg-[#10b981] hover:bg-[#059669] text-[#0a0a0a] font-black py-4 rounded-xl transition shadow-[0_0_20px_rgba(16,185,129,0.3)] uppercase tracking-wider text-sm">Lock Bet</button>
               </div>
             </div>
