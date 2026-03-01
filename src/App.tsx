@@ -600,7 +600,7 @@ export default function App() {
                         <div className="flex justify-between items-center pt-4 border-t border-[#ffffff10] mt-4"><span className="text-gray-400 font-bold text-xs uppercase tracking-wider">Your Cost to Play:</span><span className="text-white font-black text-xl">{liability.toLocaleString()} KSh</span></div>
                         <div className="flex justify-between items-center"><span className="text-[#10b981] font-bold uppercase tracking-wider text-xs">Est. Payout:</span><span className="text-[#10b981] font-black text-2xl drop-shadow-md">{Math.round(offer.stake * (offer.odds || 2)).toLocaleString()} KSh</span></div>
                       </div>
-                      <button onClick={() => setOfferToMatch(offer)} disabled={isOwnOffer} className={`w-full font-bold py-4 rounded-xl transition relative z-10 mt-6 uppercase tracking-wider text-sm ${isOwnOffer ? 'bg-[#0a0a0a] text-gray-600 border border-[#ffffff10] cursor-not-allowed' : 'bg-[#10b981]/10 border border-[#10b981]/30 hover:bg-[#10b981] hover:text-[#0a0a0a] text-[#10b981] hover:shadow-[0_0_20px_rgba(16,185,129,0.3)]'}`}>
+                      <button onClick={() => initiateMatch(offer)} disabled={isOwnOffer} className={`w-full font-bold py-4 rounded-xl transition relative z-10 mt-6 uppercase tracking-wider text-sm ${isOwnOffer ? 'bg-[#0a0a0a] text-gray-600 border border-[#ffffff10] cursor-not-allowed' : 'bg-[#10b981]/10 border border-[#10b981]/30 hover:bg-[#10b981] hover:text-[#0a0a0a] text-[#10b981] hover:shadow-[0_0_20px_rgba(16,185,129,0.3)]'}`}>
                         {isOwnOffer ? 'Waiting for Taker...' : 'Take Bet'}
                       </button>
                     </div>
