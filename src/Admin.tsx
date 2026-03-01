@@ -36,98 +36,48 @@ export default function Admin() {
       if (session) fetchUnresolvedEvents()
     })
   }, [])
-  const fetchUnresolvedEvents = async () => {
-    const { data } = await supabase
-      .from('events')
-      .select('*')
-      .eq('resolved', false)
-      .order('created_at', { ascending: false })
 
-    setEvents(data || [])
-    setLoading(false)
-  }
 
-  const handleOutcomeChange = (index: number, value: string) => {
-    const updatedOutcomes = [...newOutcomes]
-    updatedOutcomes[index] = value
-    setNewOutcomes(updatedOutcomes)
-  }
+const handleDeleteMarket = async (eventId: string) => {
+    if (!window.confirm("🚨 Are you sure you want to delete this market? This will automatically refund all users who placed bets and wipe the market from the board.")) return
 
-  const addOutcomeField = () => {
-    setNewOutcomes([...newOutcomes, ''])
-  }
+    // STEP 1: Find all bets placed on this market
+    const { data: bets } = await supabase.from('bets').select('*').eq('event_id', eventId)
 
-  const removeOutcomeField = (index: number) => {
-    if (newOutcomes.length <= 2) return
-    const updatedOutcomes = newOutcomes.filter((_, i) => i !== index)
-    setNewOutcomes(updatedOutcomes)
-  }
-
-  const handleCreateMarket = async () => {
-    if (!newTitle || !newCategory || !newClosesAt) {
-      alert("Please fill in all required fields.")
-      return
+    if (bets && bets.length > 0) {
+      // STEP 2: Loop through every bet and refund the user
+      for (const bet of bets) {
+        const { data: profile } = await supabase.from('profiles').select('wallet_balance').eq('id', bet.user_id).single()
+        
+        if (profile) {
+          // Add their stake back to their wallet
+          await supabase.from('profiles').update({ wallet_balance: profile.wallet_balance + bet.stake }).eq('id', bet.user_id)
+          
+          // Send them a notification
+          await supabase.from('notifications').insert({ 
+            user_id: bet.user_id, 
+            message: `A market was cancelled. Your ${bet.stake} PTZ stake has been fully refunded.`, 
+            type: 'payout', 
+            is_read: false 
+          })
+        }
+      }
+      
+      // STEP 3: Delete the bets to clear the foreign key constraint
+      await supabase.from('bets').delete().eq('event_id', eventId)
     }
 
-    const validOutcomes = newOutcomes.map(o => o.trim()).filter(o => o !== '')
-    if (validOutcomes.length < 2) {
-      alert("A market must have at least 2 valid outcomes.")
-      return
-    }
-
-    setIsCreating(true)
-
-    const { error } = await supabase.from('events').insert({
-      title: newTitle,
-      description: newDescription,
-      category: newCategory,
-      closes_at: new Date(newClosesAt).toISOString(),
-      outcomes: validOutcomes,
-      resolved: false
-    })
-
-    if (error) {
-      alert("Error creating market: " + error.message)
-    } else {
-      alert("Market successfully launched to the board!")
-      setShowCreateModal(false)
-      setNewTitle('')
-      setNewDescription('')
-      setNewCategory('')
-      setNewClosesAt('')
-      setNewOutcomes(['', ''])
-      fetchUnresolvedEvents()
-    }
-    setIsCreating(false)
-  }
-
-  const handleDeleteMarket = async (eventId: string) => {
-    if (!window.confirm("🚨 Are you sure you want to delete this market? This will wipe it completely from the database.")) return
-
+    // STEP 4: Now that the bets are gone, safely delete the market itself
     const { error } = await supabase.from('events').delete().eq('id', eventId)
 
     if (error) {
       alert(`Delete failed: ${error.message}`)
     } else {
-      alert("Market deleted successfully.")
+      alert("Market deleted and all affected users have been refunded!")
       fetchUnresolvedEvents() 
     }
   }
 
-  const handleCloseMarket = async (eventId: string) => {
-    if (!window.confirm("🔒 Are you sure you want to lock this market? Users will no longer be able to place bets.")) return
-
-    const rightNow = new Date(Date.now() - 1000).toISOString()
-    
-    const { error } = await supabase.from('events').update({ closes_at: rightNow }).eq('id', eventId)
-
-    if (error) {
-      alert(`Lock failed: ${error.message}`)
-    } else {
-      alert("Market locked! No new bets can be placed.")
-      fetchUnresolvedEvents() 
-    }
-  }
   const resolveEvent = async (eventId: string, winningOutcomeIdx: number, winningOutcomeName: string) => {
     if (!window.confirm(`Are you 100% sure "${winningOutcomeName}" won? This will distribute real money and cannot be undone.`)) return
 
