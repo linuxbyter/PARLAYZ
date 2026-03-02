@@ -26,6 +26,7 @@ export default function App() {
   const showToast = (msg: string, type: 'error' | 'success' = 'error') => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500) }
 
   const [activeView, setActiveView] = useState<'markets' | 'orderbook' | 'wagers' | 'leaderboard' | 'wallet'>('orderbook')
+  const [selectedCategory, setSelectedCategory] = useState('All')
   const [showProfileSetup, setShowProfileSetup] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
   
@@ -80,7 +81,6 @@ export default function App() {
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [chatMessages])
 
-  // Deep Link Interceptor
   useEffect(() => {
     if (session?.user && bets.length > 0) {
       const urlParams = new URLSearchParams(window.location.search)
@@ -258,7 +258,11 @@ export default function App() {
     return name.includes('@') ? name.split('@')[0] : name
   }
 
-  const activeEvents = events.filter(e => !e.resolved)
+  // --- NEW MARKET FILTER LOGIC HERE ---
+  const activeEvents = events.filter(e => 
+    !e.resolved && 
+    (selectedCategory === 'All' || e.category.toLowerCase() === selectedCategory.toLowerCase())
+  )
   const myPendingOffers = bets.filter(b => b.user_id === session?.user?.id && b.status === 'p2p_open')
   const myActiveWagers = bets.filter(b => (b.user_id === session?.user?.id || b.matcher_id === session?.user?.id) && b.status === 'p2p_matched')
   const mySettledWagers = bets.filter(b => (b.user_id === session?.user?.id || b.matcher_id === session?.user?.id) && ['won', 'lost', 'refunded'].includes(b.status))
@@ -577,7 +581,7 @@ export default function App() {
                 <div className="col-span-full py-16 text-center text-gray-500 border border-dashed border-[#ffffff10] rounded-2xl bg-[#111111]/50">The Order Book is currently empty. Be the first to post a bet!</div>
               ) : (
                 bets.filter(b => b.status === 'p2p_open').map((offer, i) => {
-                  const event = activeEvents.find(e => e.id === offer.event_id); if (!event) return null
+                  const event = events.find(e => e.id === offer.event_id && !e.resolved); if (!event) return null
                   const liability = Math.round((offer.stake * (offer.odds || 2)) - offer.stake)
                   const isOwnOffer = offer.user_id === session?.user?.id
                   const maker = allProfiles.find(p => p.id === offer.user_id)
@@ -611,18 +615,44 @@ export default function App() {
           </div>
         )}
 
+        {/* --- NEW UPDATED MARKETS VIEW --- */}
         {activeView === 'markets' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 animate-in fade-in duration-300">
-            {activeEvents.length === 0 ? <div className="col-span-full py-10 text-center text-gray-500">No active markets.</div> : (
-              activeEvents.map((event) => (
-                <div key={event.id} className="bg-[#111111] border border-[#ffffff10] rounded-3xl p-6 hover:border-[#C5A880]/50 transition flex flex-col">
-                  <div className="flex items-start justify-between mb-4"><span className="text-xs font-semibold text-[#C5A880] uppercase tracking-wider bg-[#C5A880]/10 border border-[#C5A880]/20 px-2 py-1 rounded-md">{event.category}</span><span className="text-xs text-gray-500">{new Date(event.closes_at).toLocaleDateString()}</span></div>
-                  <h3 className="text-xl font-bold text-white mb-2">{event.title}</h3>
-                  <p className="text-gray-400 text-sm mb-6 font-light flex-grow">{event.description}</p>
-                  <button onClick={() => { setP2pSelectedEventId(event.id); setP2pSelectedOutcomeIdx(0); setShowCreateOfferModal(true) }} className="w-full bg-[#1a1a1a] hover:bg-[#C5A880] hover:text-[#0a0a0a] border border-[#ffffff15] hover:border-[#C5A880] text-white font-bold py-3.5 rounded-xl transition flex items-center justify-center gap-2 group"><Activity className="w-4 h-4 text-[#C5A880] group-hover:text-[#0a0a0a]" /> Create Custom Bet</button>
-                </div>
-              ))
-            )}
+          <div className="animate-in fade-in duration-300">
+            {/* CATEGORY FILTER BAR */}
+            <div className="flex gap-2 overflow-x-auto pb-6 no-scrollbar mb-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
+              {['All', 'Sports', 'Crypto', 'Culture', 'Politics', 'Finance'].map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition border whitespace-nowrap ${
+                    selectedCategory === cat 
+                      ? 'bg-[#C5A880] text-[#0a0a0a] border-[#C5A880] shadow-[0_0_15px_rgba(197,168,128,0.3)]' 
+                      : 'bg-[#111111] text-gray-400 border-[#ffffff10] hover:border-[#C5A880]/50 hover:text-white'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+              {activeEvents.length === 0 ? <div className="col-span-full py-16 text-center text-gray-500 border border-dashed border-[#ffffff10] rounded-3xl bg-[#111111]/30">No active markets in this category.</div> : (
+                activeEvents.map((event) => (
+                  <div key={event.id} className="bg-[#111111] border border-[#ffffff10] rounded-3xl p-6 hover:border-[#C5A880]/50 transition flex flex-col group relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-[#C5A880]/5 rounded-full blur-[50px] group-hover:bg-[#C5A880]/15 transition pointer-events-none"></div>
+                    <div className="flex items-start justify-between mb-4 relative z-10">
+                      <span className="text-xs font-bold text-[#C5A880] uppercase tracking-wider bg-[#C5A880]/10 border border-[#C5A880]/20 px-3 py-1.5 rounded-lg shadow-sm">{event.category}</span>
+                      <span className="text-xs font-semibold text-gray-500 bg-[#0a0a0a] border border-[#ffffff0a] px-2.5 py-1 rounded-md">Closes {new Date(event.closes_at).toLocaleDateString(undefined, {month: 'short', day: 'numeric'})}</span>
+                    </div>
+                    <h3 className="text-xl font-bold text-white mb-3 relative z-10 leading-snug group-hover:text-[#C5A880] transition-colors">{event.title}</h3>
+                    <p className="text-gray-400 text-sm mb-6 font-light flex-grow relative z-10 leading-relaxed">{event.description}</p>
+                    <button onClick={() => { setP2pSelectedEventId(event.id); setP2pSelectedOutcomeIdx(0); setShowCreateOfferModal(true) }} className="w-full bg-[#1a1a1a] hover:bg-[#C5A880] hover:text-[#0a0a0a] border border-[#ffffff15] hover:border-[#C5A880] text-white font-bold py-3.5 rounded-xl transition flex items-center justify-center gap-2 group/btn relative z-10 shadow-sm hover:shadow-[0_0_20px_rgba(197,168,128,0.2)]">
+                      <Activity className="w-4 h-4 text-[#C5A880] group-hover/btn:text-[#0a0a0a]" /> Create Custom Bet
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         )}
       </main>
