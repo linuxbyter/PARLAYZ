@@ -3,7 +3,7 @@ import { supabase } from './lib/supabase'
 import Landing from './Landing'
 import { LogOut, X, AlertTriangle, Bell, Wallet, ArrowDownToLine, ArrowUpFromLine, CheckCircle2, History, Trophy, Activity, Eye, EyeOff, PieChart } from 'lucide-react'
 
-// V2 Interfaces: P2P baggage removed.
+// V2 Interfaces
 interface Event { id: string; title: string; description: string; category: string; outcomes: string[]; closes_at: string; created_at: string; resolved: boolean }
 interface Bet { id: string; event_id: string; outcome_index: number; stake: number; status: string; user_id: string; }
 interface Profile { id: string; username: string; wallet_balance: number; avatar: string; has_claimed_airdrop: boolean; is_public: boolean }
@@ -174,7 +174,7 @@ export default function App() {
     const totalPoolVolume = eventBets.reduce((sum, b) => sum + b.stake, 0) + newStake
     const winningPoolVolume = eventBets.filter(b => b.outcome_index === outcomeIdx).reduce((sum, b) => sum + b.stake, 0) + newStake
     
-    // NEW LOGIC: If the pool is completely one-sided, just return their exact stake (no fees applied)
+    // NEW LOGIC: If the pool is completely one-sided, just return exact stake (no fees applied)
     if (winningPoolVolume === 0 || totalPoolVolume === winningPoolVolume) {
       return newStake 
     }
@@ -447,7 +447,6 @@ export default function App() {
                   {mySettledWagers.reverse().map((bet, i) => {
                     const event = events.find(e => e.id === bet.event_id); if (!event) return null
                     const isWin = bet.status === 'won'; const isRefund = bet.status === 'refunded'
-                    // We calculate historical parimutuel payout if won. For simplicity here, we assume if the bet is 'won', the user's balance was already updated. We can just show the dynamic est payout at time of resolution.
                     const historicalPayout = isWin ? calculateEstPayout(event.id, bet.outcome_index, 0) : isRefund ? bet.stake : 0
 
                     return (
@@ -492,7 +491,6 @@ export default function App() {
                   const ORB_COLORS = ['197, 168, 128', '16, 185, 129', '244, 63, 94', '59, 130, 246'] 
 
                   return (
-                    // Added "select-none" here to fix the text cursor bug, reduced padding to p-5
                     <div key={event.id} className="bg-[#111111] border border-[#ffffff10] rounded-3xl p-5 hover:border-[#C5A880]/50 transition flex flex-col group relative overflow-hidden select-none">
                       <div className="absolute top-0 right-0 w-32 h-32 bg-[#C5A880]/5 rounded-full blur-[50px] group-hover:bg-[#C5A880]/15 transition pointer-events-none"></div>
                       
@@ -501,7 +499,6 @@ export default function App() {
                         <span className="text-[10px] font-semibold text-gray-500 bg-[#0a0a0a] border border-[#ffffff0a] px-2 py-1 rounded-md">Closes {new Date(event.closes_at).toLocaleDateString(undefined, {month: 'short', day: 'numeric'})}</span>
                       </div>
                       
-                      {/* Reduced text sizes and margins to save vertical height */}
                       <h3 className="text-lg font-bold text-white mb-1.5 relative z-10 leading-snug group-hover:text-[#C5A880] transition-colors line-clamp-2">{event.title}</h3>
                       <p className="text-gray-400 text-xs mb-4 font-light relative z-10 leading-relaxed line-clamp-1">{event.description}</p>
                       
@@ -515,7 +512,6 @@ export default function App() {
                           const glowIntensity = totalPoolVolume === 0 ? 0.02 : (percent / 100) * 0.5
                           const borderOpacity = totalPoolVolume === 0 ? 0.1 : 0.2 + (percent / 100) * 0.8
                           
-                          // If there's an odd 3rd item (like Draw), make it a wide horizontal bar to save vertical space
                           const isOddLast = event.outcomes.length % 2 !== 0 && idx === event.outcomes.length - 1
 
                           return (
@@ -547,17 +543,11 @@ export default function App() {
                   )
                 })
               )}
-            </div>           </button>
-                    </div>
-                  )
-                })
-              )}
             </div>
           </div>
         )}
       </main>
 
-      
       {/* --- MODALS OVERLAYS --- */}
       
       {selectedPublicProfile && (
