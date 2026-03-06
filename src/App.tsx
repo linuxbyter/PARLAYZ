@@ -495,8 +495,8 @@ export default function App() {
                   key={cat}
                   onClick={() => setSelectedCategory(cat)}
                   className={`px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition border whitespace-nowrap ${
-                    selectedCategory === cat 
-                      ? 'bg-[#C5A880] text-[#0a0a0a] border-[#C5A880] shadow-[0_0_15px_rgba(197,168,128,0.3)]' 
+                    selectedCategory === cat 
+                      ? 'bg-[#C5A880] text-[#0a0a0a] border-[#C5A880] shadow-[0_0_15px_rgba(197,168,128,0.3)]' 
                       : 'bg-[#111111] text-gray-400 border-[#ffffff10] hover:border-[#C5A880]/50 hover:text-white'
                   }`}
                 >
@@ -510,7 +510,7 @@ export default function App() {
                 activeEvents.map((event) => {
                   const eventBets = bets.filter(b => b.event_id === event.id && b.status === 'open')
                   const totalPoolVolume = eventBets.reduce((sum, b) => sum + b.stake, 0)
-                  const ORB_COLORS = ['197, 168, 128', '16, 185, 129', '244, 63, 94', '59, 130, 246'] 
+                  const ORB_COLORS = ['197, 168, 128', '16, 185, 129', '244, 63, 94', '59, 130, 246'] 
 
                   return (
                     <div key={event.id} className="bg-[#111111] border border-[#ffffff10] rounded-3xl p-5 hover:border-[#C5A880]/50 transition flex flex-col group relative overflow-hidden select-none">
@@ -624,7 +624,7 @@ export default function App() {
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">1. Your Stance</label>
                 <div className="grid grid-cols-2 gap-2">
                   {activeEvents.find(e => e.id === selectedEventId)?.outcomes.map((outcome, idx) => (
-                    <button key={idx} onClick={() => setSelectedOutcomeIdx(idx)} className={`p-3 rounded-xl border text-sm font-bold transition ${selectedOutcomeIdx === idx ? 'bg-[#C5A880] text-[#0a0a0a] border-[#C5A880] shadow-[0_0_15px_rgba(197,168,128,0.2)]' : 'bg-[#0a0a0a] border-[#ffffff15] text-gray-400 hover:border-gray-500'}`}>{outcome}</button>
+                    <button key={idx} onClick={() => setSelectedOutcomeIdx(idx)} className={`p-3 rounded-xl border text-sm font-bold transition ${selectedOutcomeIdx === idx ? 'bg-[#C5A880]/10 border-[#C5A880] text-[#C5A880] shadow-[0_0_15px_rgba(197,168,128,0.2)]' : 'bg-[#0a0a0a] border-[#ffffff15] text-gray-400 hover:border-gray-500'}`}>{outcome}</button>
                   ))}
                 </div>
               </div>
