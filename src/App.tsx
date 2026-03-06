@@ -272,7 +272,8 @@ export default function App() {
         </div>
       )}
 
-      <header className="border-b border-[#ffffff0a] bg-[#0a0a0a]/90 backdrop-blur-xl sticky top-0 z-30">
+      {/* ADDED SELECT-NONE TO HEADER SO CURSOR DOESNT STICK TO LOGO/TABS */}
+      <header className="border-b border-[#ffffff0a] bg-[#0a0a0a]/90 backdrop-blur-xl sticky top-0 z-30 select-none">
         <div className="max-w-6xl mx-auto px-4 pt-4 pb-3 flex items-center justify-between">
           <h1 className="text-2xl font-black tracking-tight cursor-pointer flex items-center gap-2" onClick={() => setActiveView('markets')}>
             PARLAYZ
@@ -489,7 +490,8 @@ export default function App() {
        {/* --- THE KALSHI STYLE POOL MARKETS --- */}
         {activeView === 'markets' && (
           <div className="animate-in fade-in duration-300">
-            <div className="flex gap-2 overflow-x-auto pb-6 no-scrollbar mb-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
+            {/* ADDED SELECT-NONE HERE SO BUTTONS DONT HIGHLIGHT ON CLICK */}
+            <div className="flex gap-2 overflow-x-auto pb-6 no-scrollbar mb-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none'] select-none">
               {['All', 'Sports', 'Crypto', 'Culture', 'Politics', 'Finance'].map((cat) => (
                 <button
                   key={cat}
@@ -570,19 +572,55 @@ export default function App() {
         )}
       </main>
 
-      {/* --- DUEL MODAL --- */}
+      {/* --- DUEL / CHALLENGE MODAL --- */}
       {duelData && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#0a0a0a]/95 p-4 animate-in zoom-in-95 duration-200">
-          <div className="bg-[#111111] border-2 border-[#f43f5e]/40 rounded-3xl p-8 w-full max-w-md text-center shadow-2xl relative overflow-hidden">
-            <Swords className="w-16 h-16 text-[#f43f5e] mx-auto mb-4" />
-            <h2 className="text-2xl font-black italic text-white uppercase italic tracking-tighter">Challenge Received</h2>
-            <p className="text-gray-400 text-sm mt-2 mb-6">Opponent Stance: <span className="text-white font-bold">{events.find(e => e.id === duelData.eventId)?.outcomes[duelData.side]}</span></p>
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/95 backdrop-blur-xl p-4 animate-in fade-in zoom-in-95 duration-300">
+          <div className="bg-[#111111] border-2 border-[#f43f5e]/50 rounded-3xl p-8 w-full max-w-md shadow-[0_0_50px_rgba(244,63,94,0.2)] relative overflow-hidden text-center">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#f43f5e] to-transparent"></div>
+            <Swords className="w-12 h-12 text-[#f43f5e] mx-auto mb-4 drop-shadow-[0_0_15px_rgba(244,63,94,0.5)]" />
+            
+            <h2 className="text-2xl font-black text-white mb-1 uppercase tracking-tighter italic">Challenge Received</h2>
+            <p className="text-gray-400 text-xs mb-6 font-light">
+              You've been called out on <span className="text-white font-bold">{events.find(e => e.id === duelData.eventId)?.title}</span>
+            </p>
+            
+            <div className="bg-[#0a0a0a] border border-[#ffffff10] rounded-2xl p-4 mb-6 text-left">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Their Side:</span>
+                <span className="bg-[#f43f5e]/10 text-[#f43f5e] text-[10px] font-black px-2 py-0.5 rounded-full border border-[#f43f5e]/20 uppercase">
+                  {events.find(e => e.id === duelData.eventId)?.outcomes[duelData.side]}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Their Stake:</span>
+                <span className="text-white font-mono font-bold text-lg">{duelData.stake.toLocaleString()} KSh</span>
+              </div>
+            </div>
+
+            <p className="text-white text-[10px] font-bold uppercase tracking-[0.2em] mb-4 opacity-50">Pick Your Response</p>
+
             <div className="grid gap-2">
-              {events.find(e => e.id === duelData.eventId)?.outcomes.map((o, i) => {
-                if (i === duelData.side) return null
-                return <button key={i} onClick={() => submitPoolBet(duelData.eventId, i, duelData.stake)} className="bg-white/5 border border-white/10 p-4 rounded-xl font-bold hover:bg-[#10b981] hover:text-black transition uppercase text-xs tracking-widest">Bet on {o}</button>
+              {events.find(e => e.id === duelData.eventId)?.outcomes.map((outcome, idx) => {
+                // Hide challenger's outcome so they have to pick opposing side
+                if (idx === duelData.side) return null;
+
+                return (
+                  <button 
+                    key={idx}
+                    onClick={() => submitPoolBet(duelData.eventId, idx, duelData.stake)}
+                    className="w-full bg-[#1a1a1a] hover:bg-[#10b981] border border-[#ffffff10] hover:border-[#10b981] text-white hover:text-[#0a0a0a] font-bold py-3 rounded-xl transition flex items-center justify-center gap-2 group text-sm"
+                  >
+                    Bet on {outcome}
+                  </button>
+                );
               })}
-              <button onClick={() => setDuelData(null)} className="text-gray-500 text-[10px] mt-4 font-bold uppercase tracking-widest">Decline</button>
+              
+              <button 
+                onClick={() => setDuelData(null)} 
+                className="w-full bg-transparent text-gray-600 font-bold py-2 hover:text-white transition text-xs mt-2"
+              >
+                Decline & Close
+              </button>
             </div>
           </div>
         </div>
