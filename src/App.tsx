@@ -168,13 +168,17 @@ export default function App() {
     setShowLogoutModal(false)
   }
 
-  // Dynamic Payout Calculator for Parimutuel Math
+ // Dynamic Payout Calculator for Parimutuel Math
   const calculateEstPayout = (eventId: string, outcomeIdx: number, newStake: number = 0) => {
     const eventBets = bets.filter(b => b.event_id === eventId && b.status === 'open')
     const totalPoolVolume = eventBets.reduce((sum, b) => sum + b.stake, 0) + newStake
     const winningPoolVolume = eventBets.filter(b => b.outcome_index === outcomeIdx).reduce((sum, b) => sum + b.stake, 0) + newStake
     
-    if (winningPoolVolume === 0) return newStake // Fallback if pool is empty
+    // NEW LOGIC: If the pool is completely one-sided, just return their exact stake (no fees applied)
+    if (winningPoolVolume === 0 || totalPoolVolume === winningPoolVolume) {
+      return newStake 
+    }
+
     const grossPayout = (newStake / winningPoolVolume) * totalPoolVolume
     return Math.round(grossPayout * (1 - PLATFORM_FEE_PERCENT / 100))
   }
