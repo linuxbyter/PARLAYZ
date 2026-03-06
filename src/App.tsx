@@ -487,8 +487,11 @@ export default function App() {
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
               {activeEvents.length === 0 ? <div className="col-span-full py-16 text-center text-gray-500 border border-dashed border-[#ffffff10] rounded-3xl bg-[#111111]/30">No active markets in this category.</div> : (
                 activeEvents.map((event) => {
-                  const eventPoolSize = bets.filter(b => b.event_id === event.id && b.status === 'open').reduce((sum, b) => sum + b.stake, 0)
-                  
+                  const eventBets = bets.filter(b => b.event_id === event.id && b.status === 'open')
+                  const totalPoolVolume = eventBets.reduce((sum, b) => sum + b.stake, 0)
+                  // RGB values for Gold, Emerald, Rose, Blue (assigns a unique color to each orb)
+                  const ORB_COLORS = ['197, 168, 128', '16, 185, 129', '244, 63, 94', '59, 130, 246'] 
+
                   return (
                     <div key={event.id} className="bg-[#111111] border border-[#ffffff10] rounded-3xl p-6 hover:border-[#C5A880]/50 transition flex flex-col group relative overflow-hidden">
                       <div className="absolute top-0 right-0 w-32 h-32 bg-[#C5A880]/5 rounded-full blur-[50px] group-hover:bg-[#C5A880]/15 transition pointer-events-none"></div>
@@ -496,26 +499,48 @@ export default function App() {
                         <span className="text-xs font-bold text-[#C5A880] uppercase tracking-wider bg-[#C5A880]/10 border border-[#C5A880]/20 px-3 py-1.5 rounded-lg shadow-sm">{event.category}</span>
                         <span className="text-xs font-semibold text-gray-500 bg-[#0a0a0a] border border-[#ffffff0a] px-2.5 py-1 rounded-md">Closes {new Date(event.closes_at).toLocaleDateString(undefined, {month: 'short', day: 'numeric'})}</span>
                       </div>
-                      <h3 className="text-xl font-bold text-white mb-3 relative z-10 leading-snug group-hover:text-[#C5A880] transition-colors">{event.title}</h3>
-                      <p className="text-gray-400 text-sm mb-6 font-light flex-grow relative z-10 leading-relaxed">{event.description}</p>
+                      <h3 className="text-xl font-bold text-white mb-2 relative z-10 leading-snug group-hover:text-[#C5A880] transition-colors">{event.title}</h3>
+                      <p className="text-gray-400 text-sm mb-5 font-light relative z-10 leading-relaxed line-clamp-2">{event.description}</p>
                       
-                      <div className="flex justify-between items-center text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3 border-t border-[#ffffff10] pt-4">
-                         <span>Pool Volume:</span>
-                         <span className="text-white">{eventPoolSize.toLocaleString()} KSh</span>
+                      {/* --- THE LIQUIDITY ORBS --- */}
+                      <div className="grid grid-cols-2 gap-3 mb-5 relative z-10 flex-grow">
+                        {event.outcomes.map((outcome, idx) => {
+                          const outcomeVolume = eventBets.filter(b => b.outcome_index === idx).reduce((sum, b) => sum + b.stake, 0)
+                          const percent = totalPoolVolume === 0 ? 0 : Math.round((outcomeVolume / totalPoolVolume) * 100)
+                          const rgb = ORB_COLORS[idx % ORB_COLORS.length]
+                          
+                          // The math that drives the dynamic glowing effect
+                          const glowIntensity = totalPoolVolume === 0 ? 0.02 : (percent / 100) * 0.5
+                          const borderOpacity = totalPoolVolume === 0 ? 0.1 : 0.2 + (percent / 100) * 0.8
+
+                          return (
+                            <div key={idx} className="flex flex-col items-center justify-center p-4 rounded-2xl bg-[#0a0a0a]/80 backdrop-blur-md transition-all duration-700 relative overflow-hidden"
+                                 style={{
+                                   borderColor: `rgba(${rgb}, ${borderOpacity})`,
+                                   borderWidth: '1px',
+                                   boxShadow: `0 0 ${20 + (percent/2)}px rgba(${rgb}, ${glowIntensity}) inset, 0 0 ${10 + percent}px rgba(${rgb}, ${glowIntensity / 2})`
+                                 }}>
+                              <span className="text-sm font-bold text-white text-center mb-1 drop-shadow-md">{outcome}</span>
+                              <span className="text-lg font-black tracking-tight" style={{ color: `rgba(${rgb}, 1)` }}>{percent}%</span>
+                              <span className="text-[10px] text-gray-500 uppercase tracking-widest mt-1">{outcomeVolume.toLocaleString()} KSh</span>
+                            </div>
+                          )
+                        })}
                       </div>
 
-                      <button onClick={() => { setSelectedEventId(event.id); setSelectedOutcomeIdx(null); setShowBetModal(true) }} className="w-full bg-[#1a1a1a] hover:bg-[#C5A880] hover:text-[#0a0a0a] border border-[#ffffff15] hover:border-[#C5A880] text-white font-bold py-3.5 rounded-xl transition flex items-center justify-center gap-2 group/btn relative z-10 shadow-sm hover:shadow-[0_0_20px_rgba(197,168,128,0.2)] uppercase tracking-widest text-sm">
-                         Predict & Trade
+                      <div className="flex justify-between items-center text-xs font-semibold text-gray-500 uppercase tracking-widest mb-4 pt-3 border-t border-[#ffffff0a] relative z-10">
+                         <span>Total Liquidity:</span>
+                         <span className="text-white font-mono">{totalPoolVolume.toLocaleString()} KSh</span>
+                      </div>
+
+                      <button onClick={() => { setSelectedEventId(event.id); setSelectedOutcomeIdx(null); setShowBetModal(true) }} className="w-full mt-auto bg-[#1a1a1a] hover:bg-[#C5A880] hover:text-[#0a0a0a] border border-[#ffffff15] hover:border-[#C5A880] text-white font-bold py-3.5 rounded-xl transition flex items-center justify-center gap-2 group/btn relative z-10 shadow-sm hover:shadow-[0_0_20px_rgba(197,168,128,0.2)] uppercase tracking-widest text-sm">
+                         Enter Arena
                       </button>
                     </div>
                   )
                 })
               )}
             </div>
-          </div>
-        )}
-      </main>
-
       {/* --- MODALS OVERLAYS --- */}
       
       {selectedPublicProfile && (
