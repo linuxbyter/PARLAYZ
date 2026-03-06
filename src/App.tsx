@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
 import Landing from './Landing'
-import { LogOut, X, AlertTriangle, Bell, Wallet, ArrowUpFromLine, CheckCircle2, Trophy, Share2, Swords } from 'lucide-react'
+import { X, Bell, Wallet, CheckCircle2, Share2, Swords } from 'lucide-react'
 
 // V2 Interfaces
 interface Event { id: string; title: string; description: string; category: string; outcomes: string[]; closes_at: string; created_at: string; resolved: boolean }
@@ -11,7 +11,6 @@ interface AppNotification { id: string; user_id: string; message: string; type: 
 
 const MIN_STAKE = 200
 const PLATFORM_FEE_PERCENT = 3
-const AVATARS = ['🦊', '🐯', '🦅', '🦈', '🐍', '🦍', '🐉', '🦂', '🦉', '🐺']
 
 export default function App() {
   const [session, setSession] = useState<any>(null)
@@ -47,7 +46,6 @@ export default function App() {
   const [withdrawAmount, setWithdrawAmount] = useState<number>(0)
   const [withdrawPhone, setWithdrawPhone] = useState<string>('')
   const [newUsername, setNewUsername] = useState('')
-  const [newAvatar, setNewAvatar] = useState('🦊')
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => setSession(session))
@@ -84,13 +82,13 @@ export default function App() {
   const fetchNotifications = async () => { const { data } = await supabase.from('notifications').select('*').eq('user_id', session.user.id).order('created_at', { ascending: false }); if (data) setNotifications(data) }
 
   const handleUpdateProfile = async () => {
-    if (newUsername.length < 3) return showToast('Username too short.')
-    await supabase.from('profiles').update({ username: newUsername, avatar: newAvatar }).eq('id', session.user.id)
+    if (newUsername.length < 3) return showToast('Alias too short.')
+    await supabase.from('profiles').update({ username: newUsername }).eq('id', session.user.id)
     setShowProfileSetup(false); fetchProfile(); fetchAllProfiles(); showToast('Identity locked.', 'success')
   }
 
   const handleAirdrop = async () => {
-    if (!profile || profile.has_claimed_airdrop) return showToast("Airdrop already claimed.")
+    if (!profile || profile.has_claimed_airdrop) return showToast("Claimed.")
     setShowCashierModal({ type: 'deposit', status: 'processing' })
     setTimeout(async () => {
       await supabase.from('profiles').update({ wallet_balance: profile.wallet_balance + 10000, has_claimed_airdrop: true }).eq('id', session.user.id)
@@ -100,7 +98,7 @@ export default function App() {
   }
 
   const handleWithdraw = async () => {
-    if (withdrawAmount < 100 || (profile && withdrawAmount > profile.wallet_balance)) return showToast("Invalid amount.")
+    if (withdrawAmount < 100 || (profile && withdrawAmount > profile.wallet_balance)) return showToast("Error.")
     setShowCashierModal({ type: 'withdraw', status: 'processing' })
     setTimeout(async () => {
       if (profile) {
@@ -120,12 +118,12 @@ export default function App() {
 
   const submitPoolBet = async (overrideE?: string, overrideO?: number, overrideS?: number) => {
     const eId = overrideE || selectedEventId; const oIdx = overrideO !== undefined ? overrideO : selectedOutcomeIdx; const stake = overrideS || poolStake
-    if (!eId || oIdx === null || !session?.user || !profile || profile.wallet_balance < stake) return showToast('Check balance or selection.')
+    if (!eId || oIdx === null || !session?.user || !profile || profile.wallet_balance < stake) return showToast('Check balance.')
     const { error } = await supabase.from('bets').insert({ event_id: eId, outcome_index: oIdx, stake, status: 'open', user_id: session.user.id })
     if (!error) {
       await supabase.from('profiles').update({ wallet_balance: profile.wallet_balance - stake }).eq('id', session.user.id)
       setLastBet({ eventId: eId, outcomeIdx: oIdx, stake }); setDuelData(null); setShowBetModal(false); setShowSuccessModal(true); setSelectedEventId(''); setSelectedOutcomeIdx(null); setPoolStake(MIN_STAKE)
-    } else { showToast('Transaction failed.') }
+    } else { showToast('Fail.') }
   }
 
   const calculateEstPayout = (eventId: string, outcomeIdx: number, newStake: number = 0) => {
@@ -139,7 +137,7 @@ export default function App() {
   const copyChallengeLink = () => {
     if (!lastBet || !session?.user) return
     const url = `${window.location.origin}/?duel=${lastBet.eventId}&side=${lastBet.outcomeIdx}&stake=${lastBet.stake}&challenger=${session.user.id}`
-    navigator.clipboard.writeText(url); showToast('Link copied!', 'success')
+    navigator.clipboard.writeText(url); showToast('Copied!', 'success')
   }
 
   const sanitizeName = (n: string | undefined) => n?.includes('@') ? n.split('@')[0] : n || 'Anonymous'
@@ -147,13 +145,13 @@ export default function App() {
   const sortedLeaderboard = [...allProfiles].sort((a, b) => b.wallet_balance - a.wallet_balance)
 
   if (!session) return <Landing />
-  if (loading) return <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center"><div className="w-12 h-12 border-2 border-t-[#C5A880] rounded-full animate-spin"></div></div>
+  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center">Loading...</div>
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white select-none pb-20">
-      {toast && <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100]"><div className={`px-5 py-3 rounded-2xl border backdrop-blur-xl ${toast.type === 'error' ? 'bg-red-500/10 border-red-500/30 text-red-500' : 'bg-emerald-500/10 border-emerald-500/30 text-emerald-500'}`}>{toast.msg}</div></div>}
+      {toast && <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100]"><div className={`px-5 py-3 rounded-2xl border backdrop-blur-xl ${toast.type === 'error' ? 'bg-red-500/10 border-red-500/30' : 'bg-emerald-500/10 border-emerald-500/30'}`}>{toast.msg}</div></div>}
 
-      {showProfileSetup && <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/95 p-4"><div className="bg-[#111111] border border-[#C5A880]/30 rounded-3xl p-8 w-full max-w-md"><h3>Identity Check</h3><input value={newUsername} onChange={e => setNewUsername(e.target.value)} placeholder="Alias" className="w-full bg-black p-4 mt-4 rounded-xl border border-white/10"/><button onClick={handleUpdateProfile} className="w-full bg-[#C5A880] p-4 mt-4 rounded-xl font-bold text-black">Lock In</button></div></div>}
+      {showProfileSetup && <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/95 p-4"><div className="bg-[#111111] border border-[#C5A880]/30 rounded-3xl p-8 w-full max-w-md"><h3>Identity</h3><input value={newUsername} onChange={e => setNewUsername(e.target.value)} placeholder="Alias" className="w-full bg-black p-4 mt-4 rounded-xl border border-white/10"/><button onClick={handleUpdateProfile} className="w-full bg-[#C5A880] p-4 mt-4 rounded-xl font-bold text-black uppercase">Enter</button></div></div>}
 
       <header className="border-b border-white/5 bg-[#0a0a0a]/90 backdrop-blur-xl sticky top-0 z-30">
         <div className="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
@@ -177,8 +175,8 @@ export default function App() {
       <main className="max-w-6xl mx-auto px-4 py-8">
         {activeView === 'markets' && (
           <div className="animate-in fade-in">
-            <div className="flex gap-2 overflow-x-auto pb-4 scrollbar-hide">
-              {['All', 'Sports', 'Crypto', 'Politics'].map(c => <button key={c} onClick={() => setSelectedCategory(c)} className={`px-4 py-2 rounded-xl text-xs font-bold border transition ${selectedCategory === c ? 'bg-[#C5A880] text-black' : 'bg-[#111111] text-gray-400 border-white/10'}`}>{c}</button>)}
+            <div className="flex gap-2 overflow-x-auto pb-4">
+              {['All', 'Sports', 'Crypto', 'Politics'].map(c => <button key={c} onClick={() => setSelectedCategory(c)} className={`px-4 py-2 rounded-xl text-xs font-bold border ${selectedCategory === c ? 'bg-[#C5A880] text-black' : 'bg-[#111111] text-gray-400'}`}>{c}</button>)}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
               {activeEvents.map(event => {
@@ -202,7 +200,7 @@ export default function App() {
                         )
                       })}
                     </div>
-                    <button onClick={() => { setSelectedEventId(event.id); setShowBetModal(true) }} className="w-full bg-[#1a1a1a] p-3 rounded-xl font-bold hover:bg-[#C5A880] hover:text-black transition">Trade Pool 💸</button>
+                    <button onClick={() => { setSelectedEventId(event.id); setShowBetModal(true) }} className="w-full bg-[#1a1a1a] p-3 rounded-xl font-bold hover:bg-[#C5A880] hover:text-black transition uppercase">Trade Pool 💸</button>
                   </div>
                 )
               })}
@@ -244,15 +242,15 @@ export default function App() {
         {activeView === 'wallet' && (
            <div className="max-w-xl mx-auto space-y-6 text-center">
              <div className="bg-gradient-to-br from-[#C5A880]/20 to-black border border-[#C5A880]/30 p-10 rounded-3xl">
-               <p className="text-gray-500 text-xs font-bold uppercase">Balance</p>
+               <p className="text-gray-500 text-xs font-bold uppercase">Bankroll</p>
                <h2 className="text-5xl font-black mt-2">{profile?.wallet_balance.toLocaleString()} <span className="text-lg">KSh</span></h2>
              </div>
-             {!profile?.has_claimed_airdrop && <button onClick={handleAirdrop} className="w-full bg-[#C5A880] p-5 rounded-2xl text-black font-black">Claim 10,000 KSh</button>}
+             {!profile?.has_claimed_airdrop && <button onClick={handleAirdrop} className="w-full bg-[#C5A880] p-5 rounded-2xl text-black font-black uppercase shadow-xl transition-all hover:scale-[1.02]">Claim Airdrop</button>}
              <div className="bg-[#111111] p-6 rounded-3xl border border-white/5 text-left">
-                <h4 className="font-bold mb-4">Cash Out</h4>
-                <input type="number" placeholder="M-Pesa Phone" value={withdrawPhone} onChange={e => setWithdrawPhone(e.target.value)} className="w-full bg-black p-4 rounded-xl border border-white/10 mb-4"/>
+                <h4 className="font-bold mb-4 uppercase text-xs text-gray-400">Cash Out</h4>
+                <input type="number" placeholder="Phone" value={withdrawPhone} onChange={e => setWithdrawPhone(e.target.value)} className="w-full bg-black p-4 rounded-xl border border-white/10 mb-4"/>
                 <input type="number" placeholder="Amount" value={withdrawAmount || ''} onChange={e => setWithdrawAmount(Number(e.target.value))} className="w-full bg-black p-4 rounded-xl border border-white/10 mb-4"/>
-                <button onClick={handleWithdraw} className="w-full bg-white/5 p-4 rounded-xl font-bold hover:bg-[#C5A880] hover:text-black">Request Transfer</button>
+                <button onClick={handleWithdraw} className="w-full bg-white/5 p-4 rounded-xl font-bold hover:bg-[#C5A880] hover:text-black uppercase">Request Transfer</button>
              </div>
            </div>
         )}
@@ -263,14 +261,14 @@ export default function App() {
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/95 p-4">
           <div className="bg-[#111111] border-2 border-red-500/50 rounded-3xl p-8 w-full max-w-md text-center">
             <Swords className="w-16 h-16 text-red-500 mx-auto mb-4"/>
-            <h2 className="text-2xl font-black italic">Challenge Received</h2>
+            <h2 className="text-2xl font-black italic uppercase">Challenge</h2>
             <p className="text-gray-400 text-sm mt-2 mb-6">Opponent Stance: <span className="text-white font-bold">{events.find(e => e.id === duelData.eventId)?.outcomes[duelData.side]}</span></p>
             <div className="grid gap-2">
               {events.find(e => e.id === duelData.eventId)?.outcomes.map((o, i) => {
                 if (i === duelData.side) return null
-                return <button key={i} onClick={() => submitPoolBet(duelData.eventId, i, duelData.stake)} className="bg-white/10 p-4 rounded-xl font-bold hover:bg-emerald-500 hover:text-black">Bet on {o}</button>
+                return <button key={i} onClick={() => submitPoolBet(duelData.eventId, i, duelData.stake)} className="bg-white/10 p-4 rounded-xl font-bold hover:bg-emerald-500 hover:text-black uppercase">Bet on {o}</button>
               })}
-              <button onClick={() => setDuelData(null)} className="text-gray-500 text-xs mt-4">Decline</button>
+              <button onClick={() => setDuelData(null)} className="text-gray-500 text-xs mt-4 font-bold uppercase">Decline</button>
             </div>
           </div>
         </div>
@@ -280,28 +278,28 @@ export default function App() {
       {showBetModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4">
           <div className="bg-[#111111] border border-white/20 rounded-3xl p-8 w-full max-w-md">
-            <h3 className="text-xl font-bold mb-6">Lock Prediction</h3>
+            <h3 className="text-xl font-bold mb-6">Wager Prediction</h3>
             <div className="grid grid-cols-2 gap-2 mb-6">
               {events.find(e => e.id === selectedEventId)?.outcomes.map((o, i) => (
-                <button key={i} onClick={() => setSelectedOutcomeIdx(i)} className={`p-3 rounded-xl border font-bold ${selectedOutcomeIdx === i ? 'bg-[#C5A880] text-black' : 'bg-black border-white/10'}`}>{o}</button>
+                <button key={i} onClick={() => setSelectedOutcomeIdx(i)} className={`p-3 rounded-xl border font-bold transition ${selectedOutcomeIdx === i ? 'bg-[#C5A880] text-black border-[#C5A880]' : 'bg-black border-white/10 text-gray-500'}`}>{o}</button>
               ))}
             </div>
-            <input type="number" value={poolStake} onChange={e => setPoolStake(Number(e.target.value))} className="w-full bg-black p-4 rounded-xl border border-white/10 font-bold text-xl text-center"/>
+            <input type="number" value={poolStake} onChange={e => setPoolStake(Number(e.target.value))} className="w-full bg-black p-4 rounded-xl border border-white/10 font-black text-xl text-center"/>
             <div className="flex justify-between my-6 text-emerald-500 font-bold"><span>Est. Payout:</span><span>{selectedOutcomeIdx !== null ? calculateEstPayout(selectedEventId, selectedOutcomeIdx, poolStake) : 0} KSh</span></div>
-            <button onClick={() => submitPoolBet()} className="w-full bg-[#C5A880] p-4 rounded-xl text-black font-black uppercase">Confirm Wager</button>
-            <button onClick={() => setShowBetModal(false)} className="w-full text-gray-500 mt-4 text-xs font-bold uppercase">Cancel</button>
+            <button onClick={() => submitPoolBet()} className="w-full bg-[#C5A880] p-4 rounded-xl text-black font-black uppercase shadow-xl">Confirm Wager</button>
+            <button onClick={() => setShowBetModal(false)} className="w-full text-gray-500 mt-4 text-[10px] font-bold uppercase">Cancel</button>
           </div>
         </div>
       )}
 
       {/* Success Modal */}
       {showSuccessModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-4">
-          <div className="bg-[#111111] border border-emerald-500/30 rounded-3xl p-8 w-full max-w-sm text-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-4 text-center">
+          <div className="bg-[#111111] border border-emerald-500/30 rounded-3xl p-8 w-full max-w-sm">
             <CheckCircle2 className="w-16 h-16 text-emerald-500 mx-auto mb-4"/>
-            <h3 className="text-xl font-bold">Position Secured</h3>
-            <button onClick={copyChallengeLink} className="w-full bg-[#C5A880] p-4 rounded-xl text-black font-black mt-6 flex justify-center gap-2 uppercase tracking-widest text-xs"><Share2 className="w-4 h-4"/> Share Duel</button>
-            <button onClick={() => setShowSuccessModal(false)} className="w-full text-gray-500 mt-4 text-xs font-bold uppercase">Close</button>
+            <h3 className="text-xl font-bold uppercase">Locked In</h3>
+            <button onClick={copyChallengeLink} className="w-full bg-[#C5A880] p-4 rounded-xl text-black font-black mt-6 flex justify-center gap-2 uppercase text-xs"><Share2 className="w-4 h-4"/> Challenge Friend</button>
+            <button onClick={() => setShowSuccessModal(false)} className="w-full text-gray-500 mt-4 text-[10px] font-bold uppercase">Close</button>
           </div>
         </div>
       )}
@@ -311,7 +309,7 @@ export default function App() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-4" onClick={() => setSelectedPublicProfile(null)}>
            <div className="bg-[#111111] border border-white/10 p-10 rounded-3xl text-center relative" onClick={e => e.stopPropagation()}>
              <span className="text-6xl mb-4 block">{selectedPublicProfile.avatar}</span>
-             <h3 className="text-2xl font-black">{sanitizeName(selectedPublicProfile.username)}</h3>
+             <h3 className="text-2xl font-black uppercase">{sanitizeName(selectedPublicProfile.username)}</h3>
              <p className="text-emerald-500 font-mono font-bold mt-2">{selectedPublicProfile.wallet_balance.toLocaleString()} KSh</p>
              <button onClick={() => setSelectedPublicProfile(null)} className="absolute top-4 right-4"><X className="w-5 h-5"/></button>
            </div>
@@ -321,16 +319,16 @@ export default function App() {
       {showCashierModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4">
            <div className="bg-[#111111] border border-white/20 p-8 rounded-3xl text-center">
-             {showCashierModal.status === 'processing' ? <div className="w-10 h-10 border-2 border-t-[#C5A880] rounded-full animate-spin mx-auto"></div> : <div><CheckCircle2 className="text-emerald-500 mx-auto w-12 h-12 mb-4"/><h3>Finalized</h3><button onClick={() => setShowCashierModal(null)} className="bg-white/10 px-8 py-2 mt-6 rounded-lg font-bold">Close</button></div>}
+             {showCashierModal.status === 'processing' ? <div className="w-10 h-10 border-2 border-t-[#C5A880] rounded-full animate-spin mx-auto"></div> : <div><CheckCircle2 className="text-emerald-500 mx-auto w-12 h-12 mb-4"/><h3>Finalized</h3><button onClick={() => setShowCashierModal(null)} className="bg-white/10 px-8 py-2 mt-6 rounded-lg font-bold uppercase text-[10px]">Close</button></div>}
            </div>
         </div>
       )}
 
       {showLogoutModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4">
-          <div className="bg-[#111111] border border-white/20 p-8 rounded-3xl text-center">
-            <h3 className="font-bold">Logout?</h3>
-            <div className="flex gap-4 mt-6"><button onClick={() => setShowLogoutModal(false)} className="px-6 py-2 bg-white/5 rounded-lg">No</button><button onClick={() => supabase.auth.signOut()} className="px-6 py-2 bg-red-500 rounded-lg font-bold">Yes</button></div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 text-center">
+          <div className="bg-[#111111] border border-white/20 p-8 rounded-3xl">
+            <h3 className="font-bold uppercase text-sm">Disconnect?</h3>
+            <div className="flex gap-4 mt-6"><button onClick={() => setShowLogoutModal(false)} className="px-6 py-2 bg-white/5 rounded-lg uppercase text-[10px] font-bold">No</button><button onClick={() => supabase.auth.signOut()} className="px-6 py-2 bg-red-500 rounded-lg font-bold uppercase text-[10px]">Yes</button></div>
           </div>
         </div>
       )}
