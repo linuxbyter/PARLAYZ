@@ -537,7 +537,7 @@ export default function App() {
                       </div>
 
                       <button onClick={() => { setSelectedEventId(event.id); setSelectedOutcomeIdx(null); setShowBetModal(true) }} className="w-full mt-auto bg-[#1a1a1a] hover:bg-[#C5A880] hover:text-[#0a0a0a] border border-[#ffffff15] hover:border-[#C5A880] text-white font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2 group/btn relative z-10 shadow-sm hover:shadow-[0_0_20px_rgba(197,168,128,0.2)] uppercase tracking-widest text-xs">
-                         Place Stake 💸
+                         Place Stake 💰
                       </button>
                     </div>
                   )
