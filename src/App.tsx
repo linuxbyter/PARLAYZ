@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from './lib/supabase'
 import Landing from './Landing'
-import { LogOut, X, AlertTriangle, Bell, Wallet, ArrowDownToLine, ArrowUpFromLine, CheckCircle2, History, Trophy, Activity, Eye, EyeOff, PieChart, Share2, Swords } from 'lucide-react'
+import { LogOut, X, AlertTriangle, Bell, Wallet, ArrowDownToLine, ArrowUpFromLine, CheckCircle2, History, Trophy, Activity, Eye, EyeOff, PieChart, Share2, Swords, MessageSquare, Send } from 'lucide-react'
 
 // V2 Interfaces
 interface Event { id: string; title: string; description: string; category: string; outcomes: string[]; closes_at: string; created_at: string; resolved: boolean }
@@ -39,6 +39,12 @@ export default function App() {
   // --- DEEP LINK STATES ---
   const [lastBet, setLastBet] = useState<{eventId: string, outcomeIdx: number, stake: number} | null>(null)
   const [duelData, setDuelData] = useState<{eventId: string, side: number, stake: number, challengerId: string} | null>(null)
+
+  // --- WARZONE CHAT STATES ---
+  const [chatEventId, setChatEventId] = useState<string | null>(null)
+  const [chatMessages, setChatMessages] = useState<any[]>([])
+  const [chatInput, setChatInput] = useState('')
+  const chatEndRef = useRef<HTMLDivElement>(null)
 
   const [showSuccessModal, setShowSuccessModal] = useState(false)
   const [showLogoutModal, setShowLogoutModal] = useState(false)
@@ -81,6 +87,34 @@ export default function App() {
       }
     }
   }, [session, events])
+
+  // --- WARZONE CHAT LISTENER ---
+  useEffect(() => {
+    if (!chatEventId) return;
+    
+    const fetchChat = async () => {
+      const { data } = await supabase.from('arena_messages').select('*').eq('event_id', chatEventId).order('created_at', { ascending: true })
+      if (data) setChatMessages(data)
+    }
+    fetchChat()
+
+    const chatSub = supabase.channel('chat_channel').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'arena_messages', filter: `event_id=eq.${chatEventId}` }, (payload) => {
+        setChatMessages(prev => [...prev, payload.new])
+    }).subscribe()
+
+    return () => { chatSub.unsubscribe() }
+  }, [chatEventId])
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [chatMessages, chatEventId])
+
+  const sendChatMessage = async () => {
+    if (!chatInput.trim() || !chatEventId || !session?.user) return
+    const msg = chatInput.trim()
+    setChatInput('') 
+    await supabase.from('arena_messages').insert({ event_id: chatEventId, user_id: session.user.id, text: msg })
+  }
 
   const fetchData = async () => {
     await Promise.all([fetchProfile(), fetchAllProfiles(), fetchEvents(), fetchBets(), fetchNotifications()])
@@ -149,7 +183,7 @@ export default function App() {
     }, 2500)
   }
 
-  // --- MODIFIED SUBMIT TO HANDLE DEEP LINKS ---
+  // --- SUBMIT POOL BET WITH DEEPLINK LOGIC ---
   const submitPoolBet = async (overrideE?: string, overrideO?: number, overrideS?: number) => {
     const eId = overrideE || selectedEventId; const oIdx = overrideO !== undefined ? overrideO : selectedOutcomeIdx; const stake = overrideS || poolStake
 
@@ -186,23 +220,28 @@ export default function App() {
     setShowLogoutModal(false)
   }
 
-  // --- COPY CHALLENGE LINK LOGIC ---
   const copyChallengeLink = () => {
     if (!lastBet || !session?.user) return
     const url = `${window.location.origin}/?duel=${lastBet.eventId}&side=${lastBet.outcomeIdx}&stake=${lastBet.stake}&challenger=${session.user.id}`
     navigator.clipboard.writeText(url); showToast('Challenge link copied!', 'success')
   }
 
-  const calculateEstPayout = (eventId: string, outcomeIdx: number, newStake: number = 0) => {
+  // --- PERFECTED PARIMUTUEL MATH ---
+  const calculateEstPayout = (eventId: string, outcomeIdx: number, userStake: number = 0, isExisting: boolean = false) => {
     const eventBets = bets.filter(b => b.event_id === eventId && b.status === 'open')
-    const totalPoolVolume = eventBets.reduce((sum, b) => sum + b.stake, 0) + newStake
-    const winningPoolVolume = eventBets.filter(b => b.outcome_index === outcomeIdx).reduce((sum, b) => sum + b.stake, 0) + newStake
+    
+    // If viewing an existing bet, the stake is ALREADY in the pool math. 
+    // If placing a new bet, we add it to simulate the future pool state.
+    const addedStake = isExisting ? 0 : userStake
+    
+    const totalPoolVolume = eventBets.reduce((sum, b) => sum + b.stake, 0) + addedStake
+    const winningPoolVolume = eventBets.filter(b => b.outcome_index === outcomeIdx).reduce((sum, b) => sum + b.stake, 0) + addedStake
     
     if (winningPoolVolume === 0 || totalPoolVolume === winningPoolVolume) {
-      return newStake 
+      return userStake 
     }
 
-    const grossPayout = (newStake / winningPoolVolume) * totalPoolVolume
+    const grossPayout = (userStake / winningPoolVolume) * totalPoolVolume
     return Math.round(grossPayout * (1 - PLATFORM_FEE_PERCENT / 100))
   }
 
@@ -272,7 +311,7 @@ export default function App() {
         </div>
       )}
 
-      {/* ADDED SELECT-NONE TO HEADER SO CURSOR DOESNT STICK TO LOGO/TABS */}
+      {/* SELECT-NONE TO FIX CURSOR BUG */}
       <header className="border-b border-[#ffffff0a] bg-[#0a0a0a]/90 backdrop-blur-xl sticky top-0 z-30 select-none">
         <div className="max-w-6xl mx-auto px-4 pt-4 pb-3 flex items-center justify-between">
           <h1 className="text-2xl font-black tracking-tight cursor-pointer flex items-center gap-2" onClick={() => setActiveView('markets')}>
@@ -442,7 +481,9 @@ export default function App() {
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                   {myActiveWagers.reverse().map((bet, i) => {
                     const event = events.find(e => e.id === bet.event_id); if (!event) return null
-                    const estNetPayout = calculateEstPayout(event.id, bet.outcome_index, 0) // dynamic payout calculation
+                    
+                    // PERFECTED MATH FIX: pass 'true' for isExisting so it doesn't double-count the stake
+                    const estNetPayout = calculateEstPayout(event.id, bet.outcome_index, bet.stake, true) 
 
                     return (
                       <div key={i} className="bg-[#111111] border border-[#C5A880]/40 rounded-3xl p-6 transition relative overflow-hidden shadow-[0_0_30px_rgba(197,168,128,0.05)]">
@@ -470,7 +511,7 @@ export default function App() {
                   {mySettledWagers.reverse().map((bet, i) => {
                     const event = events.find(e => e.id === bet.event_id); if (!event) return null
                     const isWin = bet.status === 'won'; const isRefund = bet.status === 'refunded'
-                    const historicalPayout = isWin ? calculateEstPayout(event.id, bet.outcome_index, 0) : isRefund ? bet.stake : 0
+                    const historicalPayout = isWin ? calculateEstPayout(event.id, bet.outcome_index, bet.stake, true) : isRefund ? bet.stake : 0
 
                     return (
                       <div key={i} className={`bg-[#111111] border rounded-3xl p-6 relative overflow-hidden transition hover:scale-[1.02] ${isWin ? 'border-[#10b981]/50 shadow-[0_0_30px_rgba(16,185,129,0.1)]' : isRefund ? 'border-gray-600' : 'border-[#f43f5e]/20 opacity-70'}`}>
@@ -490,7 +531,7 @@ export default function App() {
        {/* --- THE KALSHI STYLE POOL MARKETS --- */}
         {activeView === 'markets' && (
           <div className="animate-in fade-in duration-300">
-            {/* ADDED SELECT-NONE HERE SO BUTTONS DONT HIGHLIGHT ON CLICK */}
+            {/* ADDED SELECT-NONE HERE TO FIX CURSOR HIGHLIGHTING */}
             <div className="flex gap-2 overflow-x-auto pb-6 no-scrollbar mb-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none'] select-none">
               {['All', 'Sports', 'Crypto', 'Culture', 'Politics', 'Finance'].map((cat) => (
                 <button
@@ -560,9 +601,15 @@ export default function App() {
                          <span className="text-white font-mono">{totalPoolVolume.toLocaleString()} KSh</span>
                       </div>
 
-                      <button onClick={() => { setSelectedEventId(event.id); setSelectedOutcomeIdx(null); setShowBetModal(true) }} className="w-full mt-auto bg-[#1a1a1a] hover:bg-[#C5A880] hover:text-[#0a0a0a] border border-[#ffffff15] hover:border-[#C5A880] text-white font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2 group/btn relative z-10 shadow-sm hover:shadow-[0_0_20px_rgba(197,168,128,0.2)] uppercase tracking-widest text-xs">
-                         Trade Pool ⚔️
-                      </button>
+                      {/* ADDED WARZONE CHAT BUTTON NEXT TO ENTER ARENA */}
+                      <div className="flex gap-2 mt-auto relative z-10">
+                        <button onClick={() => { setSelectedEventId(event.id); setSelectedOutcomeIdx(null); setShowBetModal(true) }} className="flex-grow bg-[#1a1a1a] hover:bg-[#C5A880] hover:text-[#0a0a0a] border border-[#ffffff15] hover:border-[#C5A880] text-white font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2 group/btn shadow-sm hover:shadow-[0_0_20px_rgba(197,168,128,0.2)] uppercase tracking-widest text-xs">
+                          Enter Arena
+                        </button>
+                        <button onClick={() => setChatEventId(event.id)} className="w-12 bg-[#1a1a1a] hover:bg-[#f43f5e] hover:text-white border border-[#ffffff15] hover:border-[#f43f5e] text-gray-400 rounded-xl transition flex items-center justify-center shadow-sm" title="Warzone Chat">
+                          <MessageSquare className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   )
                 })
@@ -571,6 +618,57 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {/* --- WARZONE CHAT MODAL --- */}
+      {chatEventId && (
+        <div className="fixed inset-0 z-[130] flex items-end sm:items-center justify-center bg-black/90 backdrop-blur-sm sm:p-4 animate-in slide-in-from-bottom-full duration-300">
+          <div className="bg-[#111111] sm:border border-[#ffffff15] sm:rounded-3xl w-full max-w-md h-[80vh] sm:h-[600px] flex flex-col relative rounded-t-3xl overflow-hidden shadow-2xl">
+            <div className="p-4 border-b border-[#ffffff10] flex justify-between items-center bg-[#0a0a0a]">
+               <div className="flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5 text-[#f43f5e]" />
+                  <h3 className="font-bold text-white text-sm uppercase tracking-widest">Warzone</h3>
+               </div>
+               <button onClick={() => setChatEventId(null)} className="text-gray-500 hover:text-white transition"><X className="w-5 h-5" /></button>
+            </div>
+            
+            <div className="flex-grow overflow-y-auto p-4 space-y-4 no-scrollbar">
+              {chatMessages.length === 0 ? (
+                <div className="text-center text-gray-500 text-xs uppercase tracking-widest mt-10">No trash talk yet. Be the first.</div>
+              ) : (
+                chatMessages.map(msg => {
+                  const isMe = msg.user_id === session?.user?.id
+                  const msgProfile = allProfiles.find(p => p.id === msg.user_id)
+                  return (
+                    <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                      <span className="text-[10px] text-gray-500 mb-1 flex items-center gap-1">
+                        {msgProfile?.avatar || '👤'} {sanitizeName(msgProfile?.username)}
+                      </span>
+                      <div className={`px-4 py-2 rounded-2xl max-w-[85%] text-sm ${isMe ? 'bg-[#f43f5e]/20 border border-[#f43f5e]/30 text-white rounded-tr-sm' : 'bg-[#1a1a1a] border border-[#ffffff10] text-gray-300 rounded-tl-sm'}`}>
+                        {msg.text}
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+              <div ref={chatEndRef} />
+            </div>
+
+            <div className="p-4 border-t border-[#ffffff10] bg-[#0a0a0a] flex gap-2">
+               <input 
+                 type="text" 
+                 placeholder="Talk your talk..." 
+                 value={chatInput} 
+                 onChange={e => setChatInput(e.target.value)} 
+                 onKeyDown={e => e.key === 'Enter' && sendChatMessage()}
+                 className="flex-grow bg-[#111111] border border-[#ffffff15] text-white rounded-xl px-4 py-3 focus:outline-none focus:border-[#f43f5e] text-sm"
+               />
+               <button onClick={sendChatMessage} className="w-12 flex items-center justify-center bg-[#f43f5e] hover:bg-[#e11d48] text-white rounded-xl transition shadow-lg">
+                 <Send className="w-4 h-4 ml-1" />
+               </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* --- DUEL / CHALLENGE MODAL --- */}
       {duelData && (
@@ -601,7 +699,6 @@ export default function App() {
 
             <div className="grid gap-2">
               {events.find(e => e.id === duelData.eventId)?.outcomes.map((outcome, idx) => {
-                // Hide challenger's outcome so they have to pick opposing side
                 if (idx === duelData.side) return null;
 
                 return (
@@ -674,7 +771,7 @@ export default function App() {
               
               <div className="bg-[#0a0a0a] rounded-xl p-4 text-sm space-y-2 border border-[#ffffff0a] mt-2 font-light">
                 <div className="flex justify-between items-center"><span className="text-[#10b981] font-bold uppercase tracking-wider text-xs">Current Est. Payout:</span><span className="text-[#10b981] font-black text-2xl drop-shadow-md">
-                   {selectedOutcomeIdx !== null ? calculateEstPayout(selectedEventId, selectedOutcomeIdx, poolStake).toLocaleString() : '0'} KSh
+                   {selectedOutcomeIdx !== null ? calculateEstPayout(selectedEventId, selectedOutcomeIdx, poolStake, false).toLocaleString() : '0'} KSh
                 </span></div>
               </div>
               
