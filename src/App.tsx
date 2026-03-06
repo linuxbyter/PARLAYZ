@@ -465,7 +465,7 @@ export default function App() {
           </div>
         )}
 
-        {/* --- THE KALSHI STYLE POOL MARKETS --- */}
+       {/* --- THE KALSHI STYLE POOL MARKETS --- */}
         {activeView === 'markets' && (
           <div className="animate-in fade-in duration-300">
             <div className="flex gap-2 overflow-x-auto pb-6 no-scrollbar mb-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
@@ -541,6 +541,11 @@ export default function App() {
                 })
               )}
             </div>
+          </div>
+        )}
+      </main>
+
+      
       {/* --- MODALS OVERLAYS --- */}
       
       {selectedPublicProfile && (
