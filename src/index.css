@@ -19,3 +19,15 @@ body {
 ::-webkit-scrollbar-thumb {
   @apply bg-gold-500 rounded-full;
 }
+
+/* Kills the text highlight cursor globally to make it feel like a native app */
+body {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Ensures users can still type their stakes and aliases */
+input, textarea {
+  user-select: auto;
+  -webkit-user-select: auto;
+}
