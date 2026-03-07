@@ -49,7 +49,7 @@ export default function Landing() {
           onClick={() => setShowAuth(true)}
           className="text-sm font-semibold text-gray-300 bg-[#ffffff05] hover:bg-[#ffffff0a] hover:text-white px-5 py-2.5 rounded-xl border border-[#ffffff15] transition-all duration-300 hover:shadow-[0_0_20px_rgba(197,168,128,0.05)]"
         >
-          Access Terminal
+         Enter Warzone
         </button>
       </header>
 
@@ -59,7 +59,7 @@ export default function Landing() {
         <div className="animate-fade-in-up">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#141414] border border-[#ffffff10] text-gray-400 text-xs font-semibold tracking-widest uppercase mb-8 shadow-2xl backdrop-blur-md">
             <span className="w-1.5 h-1.5 rounded-full bg-[#C5A880] animate-pulse shadow-[0_0_10px_rgba(197,168,128,0.8)]"></span>
-            Live on Mainnet
+             Jack the Pot
           </div>
         </div>
         
@@ -82,7 +82,7 @@ export default function Landing() {
             {/* The Glass Shard Shimmer Effect */}
             <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-[#ffffff50] to-transparent -translate-x-full animate-sweep-shimmer"></span>
             
-            <span className="relative z-10">Initialize Exchange</span> 
+            <span className="relative z-10">View Markets</span> 
             <ArrowRight className="w-4 h-4 relative z-10 group-hover:translate-x-1 transition-transform duration-300" />
           </button>
         </div>
