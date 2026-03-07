@@ -41,7 +41,9 @@ export default function Landing() {
           <div className="w-9 h-9 rounded-xl bg-[#C5A880]/5 border border-[#C5A880]/20 flex items-center justify-center group-hover:bg-[#C5A880]/10 transition-all duration-500">
             <TrendingUp className="w-4 h-4 text-[#C5A880]" />
           </div>
-          <h1 className="text-xl font-bold text-white tracking-tight">Parlayz<span className="text-[#A3885C]">Market</span></h1>
+          <h1 className="text-xl font-bold text-white tracking-tight">
+  Parlayz
+</h1>
         </div>
         <button 
           onClick={() => setShowAuth(true)}
@@ -127,7 +129,7 @@ export default function Landing() {
 
       {/* Footer */}
       <footer className="border-t border-[#ffffff0a] py-8 text-center text-gray-600 text-xs tracking-wider uppercase relative z-10 bg-[#0a0a0a]">
-        <p>© 2026 ParlayzMarket Protocol. All rights reserved.</p>
+        <p>© 2026 Parlayz Protocol. All rights reserved.</p>
       </footer>
 
       {/* --- ALL-OUT CUSTOM CSS INJECTIONS --- */}
