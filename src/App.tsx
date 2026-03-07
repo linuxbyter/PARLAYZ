@@ -220,6 +220,7 @@ export default function App() {
     setShowLogoutModal(false)
   }
 
+  // --- COPY CHALLENGE LINK LOGIC ---
   const copyChallengeLink = () => {
     if (!lastBet || !session?.user) return
     const url = `${window.location.origin}/?duel=${lastBet.eventId}&side=${lastBet.outcomeIdx}&stake=${lastBet.stake}&challenger=${session.user.id}`
@@ -266,8 +267,13 @@ export default function App() {
   const sortedLeaderboard = [...allProfiles].sort((a, b) => b.wallet_balance - a.wallet_balance)
   const ledgerTransactions = notifications.filter(n => ['deposit', 'withdrawal', 'payout', 'refund'].includes(n.type))
 
+  // Calculate totals for the Wagers view header
   let totalActiveStake = 0
-  myActiveWagers.forEach(bet => { totalActiveStake += bet.stake })
+  let totalEstPayout = 0
+  myActiveWagers.forEach(bet => { 
+    totalActiveStake += bet.stake 
+    totalEstPayout += calculateEstPayout(bet.event_id, bet.outcome_index, bet.stake, true)
+  })
 
   if (!session) return <Landing />
   if (loading) return (
@@ -467,11 +473,18 @@ export default function App() {
 
         {activeView === 'wagers' && (
           <div className="space-y-10 animate-in fade-in duration-300">
-            <div className="grid grid-cols-1 mb-8">
+            {/* SPLIT BANNER FOR STAKE AND PAYOUT */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
               <div className="bg-[#111111] border border-[#C5A880]/30 rounded-2xl p-5 sm:p-6 flex flex-col justify-center relative overflow-hidden shadow-[0_0_30px_rgba(197,168,128,0.05)]">
                  <div className="absolute top-0 right-0 w-32 h-32 bg-[#C5A880]/10 rounded-full blur-2xl"></div>
-                <div className="flex items-center gap-2 mb-2 relative z-10"><PieChart className="w-5 h-5 text-[#C5A880]" /><p className="text-[#C5A880] text-sm font-semibold uppercase tracking-widest">Total Active Stake in Pools</p></div>
+                <div className="flex items-center gap-2 mb-2 relative z-10"><PieChart className="w-5 h-5 text-[#C5A880]" /><p className="text-[#C5A880] text-sm font-semibold uppercase tracking-widest">Total Active Stake</p></div>
                 <p className="text-3xl sm:text-4xl font-black text-white tracking-tight relative z-10">{totalActiveStake.toLocaleString()} <span className="text-lg font-medium text-gray-500">KSh</span></p>
+              </div>
+
+              <div className="bg-[#111111] border border-[#10b981]/30 rounded-2xl p-5 sm:p-6 flex flex-col justify-center relative overflow-hidden shadow-[0_0_30px_rgba(16,185,129,0.05)]">
+                 <div className="absolute top-0 right-0 w-32 h-32 bg-[#10b981]/10 rounded-full blur-2xl"></div>
+                <div className="flex items-center gap-2 mb-2 relative z-10"><Trophy className="w-5 h-5 text-[#10b981]" /><p className="text-[#10b981] text-sm font-semibold uppercase tracking-widest">Total Est. Payout</p></div>
+                <p className="text-3xl sm:text-4xl font-black text-white tracking-tight relative z-10">{totalEstPayout.toLocaleString()} <span className="text-lg font-medium text-gray-500">KSh</span></p>
               </div>
             </div>
 
@@ -601,10 +614,10 @@ export default function App() {
                          <span className="text-white font-mono">{totalPoolVolume.toLocaleString()} KSh</span>
                       </div>
 
-                      {/* ADDED WARZONE CHAT BUTTON NEXT TO ENTER ARENA */}
+                      {/* WARZONE CHAT BUTTON ADDED HERE */}
                       <div className="flex gap-2 mt-auto relative z-10">
                         <button onClick={() => { setSelectedEventId(event.id); setSelectedOutcomeIdx(null); setShowBetModal(true) }} className="flex-grow bg-[#1a1a1a] hover:bg-[#C5A880] hover:text-[#0a0a0a] border border-[#ffffff15] hover:border-[#C5A880] text-white font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2 group/btn shadow-sm hover:shadow-[0_0_20px_rgba(197,168,128,0.2)] uppercase tracking-widest text-xs">
-                          Enter Arena
+                          Trade Pool ⚔️
                         </button>
                         <button onClick={() => setChatEventId(event.id)} className="w-12 bg-[#1a1a1a] hover:bg-[#f43f5e] hover:text-white border border-[#ffffff15] hover:border-[#f43f5e] text-gray-400 rounded-xl transition flex items-center justify-center shadow-sm" title="Warzone Chat">
                           <MessageSquare className="w-4 h-4" />
