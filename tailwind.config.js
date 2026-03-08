@@ -5,16 +5,16 @@ export default {
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
   theme: {
-    extend: {// Add this inside module.exports = { theme: { extend: { ... } } }
-keyframes: {
-  marquee: {
-    '0%': { transform: 'translateX(0%)' },
-    '100%': { transform: 'translateX(-100%)' },
-  }
-},
-animation: {
-  marquee: 'marquee 25s linear infinite',
-}
+    extend: {
+      keyframes: {
+        marquee: {
+          '0%': { transform: 'translateX(0%)' },
+          '100%': { transform: 'translateX(-100%)' },
+        }
+      },
+      animation: {
+        marquee: 'marquee 25s linear infinite',
+      }, // <--- (I added the missing comma here)
       colors: {
         gold: {
           400: '#fbbf24',
@@ -30,8 +30,4 @@ animation: {
     },
   },
   plugins: [],
-}
-
-animation: {
-  marquee: 'marquee 25s linear infinite',
 }
