@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Auth from './components/Auth'
 import { TrendingUp, Users, ShieldCheck, ArrowRight } from 'lucide-react'
 
@@ -17,8 +17,26 @@ const TICKER_ITEMS = [
   { id: 11, color: 'text-gray-300', text: '⚡ Kiptoo_BTC matched 10,000 KSh' },
 ]
 
+// --- FAKE LIVE CHAT DATA ---
+const LIVE_CHATS = [
+  { id: 1, user: '🐳 NairobiWhale', color: 'text-[#C5A880]', text: 'Arsenal takes this easily. 5K locked. Who wants it?', side: 'left' },
+  { id: 2, user: '🎯 Kevo_254', color: 'text-red-400', text: "You're getting cooked. Matched your 5K.", side: 'right' },
+  { id: 3, user: '🥷 Bazuu_99', color: 'text-blue-400', text: 'Anyone matching a draw? 2K here.', side: 'left' },
+  { id: 4, user: '⚡ Kiptoo_BTC', color: 'text-green-400', text: 'Arsenal 3-1. Free money tonight.', side: 'left' },
+  { id: 5, user: '🏛️ HouseOfOdds', color: 'text-purple-400', text: 'Liquidity injected. 10K on Brentford.', side: 'right' },
+]
+
 export default function Landing() {
   const [showAuth, setShowAuth] = useState(false)
+  const [chatIndex, setChatIndex] = useState(0)
+
+  // This effect rotates the chat messages every 3.5 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setChatIndex((prev) => (prev + 1) % (LIVE_CHATS.length - 1))
+    }, 3500)
+    return () => clearInterval(interval)
+  }, [])
 
   // --- AUTH SCREEN ---
   if (showAuth) {
@@ -72,14 +90,12 @@ export default function Landing() {
       {/* THE FOMO TICKER */}
       <div className="w-full bg-[#0d0d0d] border-b border-[#ffffff0a] py-2.5 flex overflow-hidden whitespace-nowrap relative z-20">
         <div className="animate-marquee flex gap-8 items-center text-sm font-medium">
-          {/* First loop */}
           {TICKER_ITEMS.map((item) => (
             <div key={`loop1-${item.id}`} className="flex items-center gap-8">
               <span className={item.color}>{item.text}</span>
               <span className="text-gray-700">•</span>
             </div>
           ))}
-          {/* Duplicate loop for infinite scroll illusion */}
           {TICKER_ITEMS.map((item) => (
             <div key={`loop2-${item.id}`} className="flex items-center gap-8">
               <span className={item.color}>{item.text}</span>
@@ -89,24 +105,24 @@ export default function Landing() {
         </div>
       </div>
 
-      {/* NEW ASYMMETRICAL HERO SECTION */}
-      <main className="max-w-7xl mx-auto px-6 lg:px-8 py-20 lg:py-28 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center relative z-10">
+      {/* ASYMMETRICAL HERO SECTION */}
+      <main className="max-w-7xl mx-auto px-6 lg:px-8 py-16 lg:py-28 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center relative z-10">
         
-        {/* LEFT SIDE: THE HOOK */}
-        <div className="flex flex-col items-start text-left animate-fade-in-up">
+        {/* LEFT SIDE: THE HOOK (Visible on all screens) */}
+        <div className="flex flex-col items-center lg:items-start text-center lg:text-left animate-fade-in-up">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#141414] border border-[#ffffff10] text-gray-400 text-xs font-semibold tracking-widest uppercase mb-8 shadow-2xl backdrop-blur-md">
             <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.8)]"></span>
             LIVE WARZONES ACTIVE
           </div>
           
-          <h2 className="text-6xl lg:text-7xl font-extrabold tracking-tight mb-6 leading-[1.05]">
-            Put your money <br />
+          <h2 className="text-5xl lg:text-7xl font-extrabold tracking-tight mb-6 leading-[1.05]">
+            Put your money <br className="hidden lg:block" />
             <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#C5A880] via-[#E8D4B0] to-[#A3885C] animate-shimmer-text bg-[length:200%_auto]">
               where your mouth is.
             </span>
           </h2>
           
-          <p className="text-gray-400/90 text-lg max-w-md mb-10 leading-relaxed font-light">
+          <p className="text-gray-400/90 text-base lg:text-lg max-w-md mx-auto lg:mx-0 mb-10 leading-relaxed font-light">
             Stop arguing in the group chat. Lock your stance, share the challenge link, and turn your debates into liquid cash in a live peer-to-peer exchange.
           </p>
           
@@ -128,8 +144,8 @@ export default function Landing() {
           </div>
         </div>
 
-        {/* RIGHT SIDE: THE LIVE MOCKUP */}
-        <div className="relative w-full flex justify-center lg:justify-end animate-fade-in-up animation-delay-200">
+        {/* RIGHT SIDE: THE LIVE MOCKUP (HIDDEN ON MOBILE: hidden lg:flex) */}
+        <div className="relative w-full hidden lg:flex justify-end animate-fade-in-up animation-delay-200">
           <div className="relative w-[320px] h-[600px] bg-[#0d0d0d]/80 backdrop-blur-xl border border-[#ffffff15] rounded-[2.5rem] shadow-[0_0_50px_rgba(0,0,0,0.5)] p-5 flex flex-col">
             
             {/* Phone Top Notch */}
@@ -151,20 +167,27 @@ export default function Landing() {
               <span>40% BRE</span>
             </div>
 
-            {/* Mock App UI - Chat Room */}
+            {/* Mock App UI - LIVE DYNAMIC CHAT ROOM */}
             <div className="flex-1 w-full mt-6 flex flex-col gap-4 overflow-hidden relative">
-              <div className="w-full bg-[#141414] border border-[#ffffff0a] rounded-xl p-3.5 text-sm shadow-lg">
-                <span className="font-bold text-[#C5A880] text-xs uppercase tracking-wider">🐳 NairobiWhale</span>
-                <p className="text-gray-300 mt-1.5 leading-snug">Arsenal takes this easily. 5K locked. Who wants it?</p>
-              </div>
               
-              <div className="w-full bg-[#1a1a1a] border border-[#ffffff0a] rounded-xl p-3.5 text-sm self-end shadow-lg ml-4">
-                <span className="font-bold text-red-400 text-xs uppercase tracking-wider">🎯 Kevo_254</span>
-                <p className="text-gray-300 mt-1.5 leading-snug">You're getting cooked. Matched your 5K.</p>
+              {/* Message 1 (Animated) */}
+              <div key={LIVE_CHATS[chatIndex].id} className={`w-full bg-[#141414] border border-[#ffffff0a] rounded-xl p-3.5 text-sm shadow-lg animate-chat-pop ${LIVE_CHATS[chatIndex].side === 'right' ? 'ml-4 bg-[#1a1a1a]' : 'mr-4'}`}>
+                <span className={`font-bold text-xs uppercase tracking-wider ${LIVE_CHATS[chatIndex].color}`}>
+                  {LIVE_CHATS[chatIndex].user}
+                </span>
+                <p className="text-gray-300 mt-1.5 leading-snug">{LIVE_CHATS[chatIndex].text}</p>
+              </div>
+
+              {/* Message 2 (Animated) */}
+              <div key={LIVE_CHATS[chatIndex + 1].id} className={`w-full bg-[#141414] border border-[#ffffff0a] rounded-xl p-3.5 text-sm shadow-lg animate-chat-pop animation-delay-300 ${LIVE_CHATS[chatIndex + 1].side === 'right' ? 'ml-4 bg-[#1a1a1a]' : 'mr-4'}`}>
+                <span className={`font-bold text-xs uppercase tracking-wider ${LIVE_CHATS[chatIndex + 1].color}`}>
+                  {LIVE_CHATS[chatIndex + 1].user}
+                </span>
+                <p className="text-gray-300 mt-1.5 leading-snug">{LIVE_CHATS[chatIndex + 1].text}</p>
               </div>
 
               {/* Gradient fade out at bottom of chat */}
-              <div className="absolute bottom-0 w-full h-24 bg-gradient-to-t from-[#0d0d0d] to-transparent"></div>
+              <div className="absolute bottom-0 w-full h-24 bg-gradient-to-t from-[#0d0d0d] to-transparent pointer-events-none"></div>
             </div>
 
             {/* Mock App UI - Fake Button */}
@@ -181,7 +204,7 @@ export default function Landing() {
       <section className="border-t border-[#ffffff0a] relative z-10">
         <div className="absolute inset-0 bg-gradient-to-b from-[#ffffff02] to-transparent pointer-events-none"></div>
         
-        <div className="max-w-6xl mx-auto px-4 py-20 sm:py-28 grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
+        <div className="max-w-6xl mx-auto px-4 py-16 sm:py-28 grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
           
           <div className="bg-[#111111]/80 backdrop-blur-xl border border-[#ffffff0a] p-8 rounded-2xl hover:border-[#C5A880]/30 transition-all duration-500 hover:-translate-y-2 group shadow-2xl animate-fade-in-up animation-delay-400">
             <div className="w-12 h-12 bg-[#0a0a0a] border border-[#ffffff10] rounded-xl flex items-center justify-center mb-6 group-hover:border-[#C5A880]/40 group-hover:bg-[#C5A880]/5 transition-all duration-500">
@@ -221,9 +244,8 @@ export default function Landing() {
         <p>© 2026 Parlayz Protocol. All rights reserved.</p>
       </footer>
 
-      {/* --- ALL-OUT CUSTOM CSS INJECTIONS --- */}
+      {/* --- CUSTOM CSS INJECTIONS --- */}
       <style dangerouslySetInnerHTML={{__html: `
-        /* The Moving Grid Background */
         .bg-trading-grid {
           background-size: 40px 40px;
           background-image: 
@@ -233,7 +255,6 @@ export default function Landing() {
           -webkit-mask-image: linear-gradient(to bottom, transparent, black 10%, black 90%, transparent);
         }
 
-        /* Keyframes */
         @keyframes pan-grid {
           0% { transform: translateY(0); }
           100% { transform: translateY(40px); }
@@ -264,18 +285,24 @@ export default function Landing() {
           50%, 100% { transform: translateX(200%) skewX(-15deg); }
         }
 
-        /* Utility Classes for Animations */
+        /* NEW: Chat Pop Animation */
+        @keyframes chat-pop {
+          0% { opacity: 0; transform: translateY(15px) scale(0.95); }
+          100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
         .animate-pan-grid { animation: pan-grid 3s linear infinite; }
         .animate-float-slow { animation: float-slow 8s ease-in-out infinite; }
         .animate-float-delayed { animation: float-delayed 10s ease-in-out infinite; }
-        .animate-fade-in-up { 
-          opacity: 0; 
-          animation: fade-in-up 1s cubic-bezier(0.16, 1, 0.3, 1) forwards; 
-        }
+        .animate-fade-in-up { opacity: 0; animation: fade-in-up 1s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         .animate-shimmer-text { animation: shimmer-text 4s linear infinite; }
         .animate-sweep-shimmer { animation: sweep-shimmer 3s ease-in-out infinite; }
+        
+        /* Apply Chat Animation */
+        .animate-chat-pop {
+          animation: chat-pop 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
 
-        /* Stagger Delays */
         .animation-delay-100 { animation-delay: 100ms; }
         .animation-delay-200 { animation-delay: 200ms; }
         .animation-delay-300 { animation-delay: 300ms; }
