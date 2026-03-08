@@ -2,22 +2,7 @@ import { useState, useEffect } from 'react'
 import Auth from './components/Auth'
 import { TrendingUp, Users, ShieldCheck, ArrowRight } from 'lucide-react'
 
-// --- REALISTIC DYNAMIC TICKER DATA ---
-const TICKER_ITEMS = [
-  { id: 1, color: 'text-[#C5A880]', text: '🔥 LIQUIDITY PUMP:' },
-  { id: 2, color: 'text-gray-300', text: '🐳 NairobiWhale dropped 5,000 KSh on Arsenal' },
-  { id: 3, color: 'text-gray-400', text: '💬 Kevo_254: "You guys are delusional if you think they win"' },
-  { id: 4, color: 'text-gray-300', text: '🎯 vvs_Amad took the other side for 3,500 KSh' },
-  { id: 5, color: 'text-green-500', text: '💰 TOTAL POOL: 8,500 KSh' },
-  { id: 6, color: 'text-[#C5A880]', text: '🔥 LIQUIDITY PUMP:' },
-  { id: 7, color: 'text-gray-300', text: '🥷 Bazuu_99 dropped 1,200 KSh on Draw' },
-  { id: 8, color: 'text-gray-400', text: '💬 Lexi_T: "Easy money tonight boys"' },
-  { id: 9, color: 'text-gray-300', text: '📈 CityBoy_NBO dropped 10,000 KSh on Man City' },
-  { id: 10, color: 'text-gray-400', text: '💬 Trader_Max: "Who is matching my 10K?"' },
-  { id: 11, color: 'text-gray-300', text: '⚡ Kiptoo_BTC matched 10,000 KSh' },
-]
-
-// --- FAKE LIVE CHAT DATA ---
+// --- FAKE LIVE CHAT DATA (For the Phone Mockup) ---
 const LIVE_CHATS = [
   { id: 1, user: '🐳 NairobiWhale', color: 'text-[#C5A880]', text: 'Arsenal takes this easily. 5K locked. Who wants it?', side: 'left' },
   { id: 2, user: '🎯 Kevo_254', color: 'text-red-400', text: "You're getting cooked. Matched your 5K.", side: 'right' },
@@ -86,24 +71,6 @@ export default function Landing() {
          Enter Warzone
         </button>
       </header>
-
-      {/* THE FOMO TICKER */}
-      <div className="w-full bg-[#0d0d0d] border-b border-[#ffffff0a] py-2.5 flex overflow-hidden whitespace-nowrap relative z-20">
-        <div className="animate-marquee flex gap-8 items-center text-sm font-medium">
-          {TICKER_ITEMS.map((item) => (
-            <div key={`loop1-${item.id}`} className="flex items-center gap-8">
-              <span className={item.color}>{item.text}</span>
-              <span className="text-gray-700">•</span>
-            </div>
-          ))}
-          {TICKER_ITEMS.map((item) => (
-            <div key={`loop2-${item.id}`} className="flex items-center gap-8">
-              <span className={item.color}>{item.text}</span>
-              <span className="text-gray-700">•</span>
-            </div>
-          ))}
-        </div>
-      </div>
 
       {/* ASYMMETRICAL HERO SECTION */}
       <main className="max-w-7xl mx-auto px-6 lg:px-8 py-16 lg:py-28 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center relative z-10">
@@ -285,7 +252,7 @@ export default function Landing() {
           50%, 100% { transform: translateX(200%) skewX(-15deg); }
         }
 
-        /* NEW: Chat Pop Animation */
+        /* Chat Pop Animation */
         @keyframes chat-pop {
           0% { opacity: 0; transform: translateY(15px) scale(0.95); }
           100% { opacity: 1; transform: translateY(0) scale(1); }
@@ -298,7 +265,6 @@ export default function Landing() {
         .animate-shimmer-text { animation: shimmer-text 4s linear infinite; }
         .animate-sweep-shimmer { animation: sweep-shimmer 3s ease-in-out infinite; }
         
-        /* Apply Chat Animation */
         .animate-chat-pop {
           animation: chat-pop 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
