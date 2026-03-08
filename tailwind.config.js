@@ -13,7 +13,7 @@ export default {
         }
       },
       animation: {
-        marquee: 'marquee 25s linear infinite',
+        marquee: 'marquee 55s linear infinite',
       }, // <--- (I added the missing comma here)
       colors: {
         gold: {
