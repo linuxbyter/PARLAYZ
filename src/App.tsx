@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from './lib/supabase'
 import Landing from './Landing'
-import { LogOut, X, AlertTriangle, Bell, Wallet, ArrowDownToLine, ArrowUpFromLine, CheckCircle2, History, Trophy, Activity, Eye, EyeOff, PieChart, Share2, Swords, MessageSquare, Send } from 'lucide-react'
+import { LogOut, X, AlertTriangle, Bell, Wallet, ArrowDownToLine, ArrowUpFromLine, CheckCircle2, History, Trophy, Activity, Eye, EyeOff, PieChart, Share2, Swords, MessageSquare, Send, ChevronLeft } from 'lucide-react'
 
-// V2 Interfaces
+// V2 Interfaces 
 interface Event { id: string; title: string; description: string; category: string; outcomes: string[]; locks_at: string; created_at: string; resolved: boolean }
 interface Bet { id: string; event_id: string; outcome_index: number; stake: number; status: string; user_id: string; }
 interface Profile { id: string; username: string; wallet_balance: number; avatar: string; has_claimed_airdrop: boolean; is_public: boolean }
@@ -12,6 +12,7 @@ interface AppNotification { id: string; user_id: string; message: string; type: 
 const MIN_STAKE = 200
 const PLATFORM_FEE_PERCENT = 3
 const AVATARS = ['🦊', '🐯', '🦅', '🦈', '🐍', '🦍', '🐉', '🦂', '🦉', '🐺']
+const ORB_COLORS = ['197, 168, 128', '16, 185, 129', '244, 63, 94', '59, 130, 246'] 
 
 // --- NEW LIVE TIMER COMPONENT ---
 const LiveTimer = ({ locksAt }: { locksAt: string }) => {
@@ -63,13 +64,13 @@ export default function App() {
   const [toast, setToast] = useState<{msg: string, type: 'error' | 'success'} | null>(null)
   const showToast = (msg: string, type: 'error' | 'success' = 'error') => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500) }
 
-  const [activeView, setActiveView] = useState<'markets' | 'wagers' | 'leaderboard' | 'wallet'>('markets')
+  // ADDED 'eventDetail' to active views
+  const [activeView, setActiveView] = useState<'markets' | 'wagers' | 'leaderboard' | 'wallet' | 'eventDetail'>('markets')
   const [selectedCategory, setSelectedCategory] = useState<string>('All')
   const [showProfileSetup, setShowProfileSetup] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
 
   // AMM Pool Betting States
-  const [showBetModal, setShowBetModal] = useState(false)
   const [selectedEventId, setSelectedEventId] = useState<string>('')
   const [selectedOutcomeIdx, setSelectedOutcomeIdx] = useState<number | null>(null)
   const [poolStake, setPoolStake] = useState<number>(MIN_STAKE)
@@ -239,7 +240,9 @@ export default function App() {
     if (!error) {
       await supabase.from('profiles').update({ wallet_balance: profile.wallet_balance - stake }).eq('id', session.user.id)
       setLastBet({ eventId: eId, outcomeIdx: oIdx, stake: stake })
-      setDuelData(null); setShowBetModal(false); setShowSuccessModal(true); setSelectedEventId(''); setSelectedOutcomeIdx(null); setPoolStake(MIN_STAKE);
+      setDuelData(null); setShowSuccessModal(true); setSelectedEventId(''); setSelectedOutcomeIdx(null); setPoolStake(MIN_STAKE);
+      // Auto-return to markets after bet
+      setActiveView('markets');
     } else { 
       showToast('Network error pushing wager to the pool.') 
     }
@@ -381,7 +384,7 @@ export default function App() {
         </div>
         <div className="max-w-6xl mx-auto px-4 mt-1">
           <div className="flex items-center gap-6 overflow-x-auto pb-3 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
-            <button onClick={() => setActiveView('markets')} className={`whitespace-nowrap text-sm font-semibold transition-colors pb-1 border-b-2 flex items-center gap-2 ${activeView === 'markets' ? 'text-[#C5A880] border-[#C5A880]' : 'text-gray-500 border-transparent hover:text-gray-300'}`}><Activity className="w-4 h-4" /> Markets</button>
+            <button onClick={() => setActiveView('markets')} className={`whitespace-nowrap text-sm font-semibold transition-colors pb-1 border-b-2 flex items-center gap-2 ${activeView === 'markets' || activeView === 'eventDetail' ? 'text-[#C5A880] border-[#C5A880]' : 'text-gray-500 border-transparent hover:text-gray-300'}`}><Activity className="w-4 h-4" /> Markets</button>
             <button onClick={() => setActiveView('wagers')} className={`whitespace-nowrap text-sm font-semibold transition-colors pb-1 border-b-2 flex items-center gap-2 ${activeView === 'wagers' ? 'text-[#C5A880] border-[#C5A880]' : 'text-gray-500 border-transparent hover:text-gray-300'}`}>My Bets</button>
             <button onClick={() => setActiveView('leaderboard')} className={`whitespace-nowrap text-sm font-semibold transition-colors pb-1 border-b-2 flex items-center gap-2 ${activeView === 'leaderboard' ? 'text-[#C5A880] border-[#C5A880]' : 'text-gray-500 border-transparent hover:text-gray-300'}`}><Trophy className="w-4 h-4 text-yellow-500" /> Leaderboard</button>
           </div>
@@ -390,6 +393,138 @@ export default function App() {
 
       <main className="max-w-6xl mx-auto px-4 py-8">
         
+        {/* --- 🌟 NEW FULL-PAGE EVENT DETAILS VIEW 🌟 --- */}
+        {activeView === 'eventDetail' && selectedEventId && (
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+            {(() => {
+              const event = events.find(e => e.id === selectedEventId);
+              if (!event) return null;
+              
+              const isLocked = new Date(event.locks_at).getTime() <= Date.now();
+              const eventBets = bets.filter(b => b.event_id === event.id && b.status === 'open');
+              const totalPoolVolume = eventBets.reduce((sum, b) => sum + b.stake, 0);
+
+              return (
+                <div className="max-w-5xl mx-auto">
+                  <button 
+                    onClick={() => setActiveView('markets')} 
+                    className="flex items-center gap-2 text-gray-500 hover:text-[#C5A880] transition mb-6 font-bold text-xs uppercase tracking-widest bg-[#111111] border border-[#ffffff10] hover:border-[#C5A880]/30 px-4 py-2 rounded-xl"
+                  >
+                    <ChevronLeft className="w-4 h-4" /> Return to Markets
+                  </button>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
+                    
+                    {/* LEFT COLUMN: The Description & Stats */}
+                    <div className="lg:col-span-2 space-y-6 sm:space-y-8">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-3 mb-4">
+                          <span className="text-xs font-bold text-[#C5A880] uppercase tracking-wider bg-[#C5A880]/10 border border-[#C5A880]/20 px-3 py-1.5 rounded-lg shadow-sm">{event.category}</span>
+                          <LiveTimer locksAt={event.locks_at} />
+                          <button onClick={() => setChatEventId(event.id)} className="flex items-center gap-2 text-xs font-bold text-[#f43f5e] uppercase tracking-wider bg-[#f43f5e]/10 border border-[#f43f5e]/20 px-3 py-1.5 rounded-lg shadow-sm hover:bg-[#f43f5e]/20 transition cursor-pointer">
+                            <MessageSquare className="w-3.5 h-3.5" /> Warzone Chat
+                          </button>
+                        </div>
+                        <h1 className="text-3xl sm:text-5xl font-black text-white leading-tight tracking-tight">{event.title}</h1>
+                      </div>
+                      
+                      <div className="bg-[#111111] border border-[#ffffff10] rounded-3xl p-6 sm:p-8 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-[#C5A880]/5 rounded-full blur-[80px] pointer-events-none"></div>
+                        <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2 relative z-10"><Activity className="w-4 h-4"/> Rules & Details</h3>
+                        <p className="text-gray-300 text-sm sm:text-base leading-relaxed whitespace-pre-wrap relative z-10 font-light">{event.description}</p>
+                      </div>
+
+                      <div className="bg-[#111111] border border-[#ffffff10] rounded-3xl p-6 sm:p-8 relative overflow-hidden">
+                        <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-6 flex items-center gap-2"><PieChart className="w-4 h-4"/> Market Sentiment</h3>
+                        <div className="grid grid-cols-2 gap-4">
+                          {event.outcomes.map((outcome, idx) => {
+                            const outcomeVolume = eventBets.filter(b => b.outcome_index === idx).reduce((sum, b) => sum + b.stake, 0)
+                            const percent = totalPoolVolume === 0 ? 0 : Math.round((outcomeVolume / totalPoolVolume) * 100)
+                            const rgb = ORB_COLORS[idx % ORB_COLORS.length]
+                            const isOddLast = event.outcomes.length % 2 !== 0 && idx === event.outcomes.length - 1
+
+                            return (
+                              <div key={idx} className={`flex flex-col p-5 rounded-2xl bg-[#0a0a0a] border border-[#ffffff0a] relative overflow-hidden ${isOddLast ? 'col-span-2' : ''}`}>
+                                <div className="absolute top-0 right-0 bottom-0 opacity-10" style={{ width: `${percent}%`, backgroundColor: `rgb(${rgb})` }}></div>
+                                <span className="text-sm font-bold text-white mb-2 relative z-10">{outcome}</span>
+                                <div className="flex justify-between items-end relative z-10">
+                                  <span className="text-3xl font-black tracking-tighter" style={{ color: `rgb(${rgb})` }}>{percent}%</span>
+                                  <span className="text-xs text-gray-500 uppercase tracking-widest font-mono">{outcomeVolume.toLocaleString()} KSh Vol</span>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* RIGHT COLUMN: The Trading Slip */}
+                    <div className="space-y-6">
+                      <div className="bg-[#111111] border-2 border-[#C5A880]/20 rounded-3xl p-6 sm:p-8 shadow-[0_0_50px_rgba(197,168,128,0.05)] sticky top-24">
+                        <div className="flex justify-between items-start mb-6 border-b border-[#ffffff10] pb-4">
+                           <div>
+                             <h3 className="text-2xl font-black text-white tracking-tight uppercase">Trade Slip</h3>
+                             <p className="text-gray-500 text-xs font-semibold uppercase tracking-widest mt-1">Parimutuel Pool</p>
+                           </div>
+                           <div className="text-right">
+                             <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">Total Liq</p>
+                             <p className="text-white font-mono font-bold text-lg">{totalPoolVolume.toLocaleString()}</p>
+                           </div>
+                        </div>
+
+                        {isLocked ? (
+                          <div className="py-12 text-center border border-dashed border-red-500/30 rounded-2xl bg-red-500/5">
+                            <span className="text-4xl mb-2 block">🔒</span>
+                            <h4 className="text-red-500 font-black uppercase tracking-widest mb-1">Market Locked</h4>
+                            <p className="text-gray-400 text-xs">No further liquidity accepted.</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-6">
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">1. Select Outcome</label>
+                              <div className="grid gap-2">
+                                {event.outcomes.map((outcome, idx) => (
+                                  <button key={idx} onClick={() => setSelectedOutcomeIdx(idx)} className={`p-4 rounded-xl border text-sm font-bold transition text-left ${selectedOutcomeIdx === idx ? 'bg-[#C5A880]/10 border-[#C5A880] text-[#C5A880] shadow-[0_0_15px_rgba(197,168,128,0.2)]' : 'bg-[#0a0a0a] border-[#ffffff10] text-gray-300 hover:border-gray-500 hover:bg-[#1a1a1a]'}`}>
+                                    <div className="flex justify-between items-center">
+                                      <span>{outcome}</span>
+                                      {selectedOutcomeIdx === idx && <CheckCircle2 className="w-4 h-4" />}
+                                    </div>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                            
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">2. Stake Amount (KSh)</label>
+                              <input type="number" min={MIN_STAKE} value={poolStake || ''} onChange={(e) => setPoolStake(Number(e.target.value))} className="w-full bg-[#0a0a0a] border border-[#ffffff15] text-white font-black rounded-xl p-4 focus:outline-none focus:border-[#C5A880] text-2xl text-center tracking-tight shadow-inner" placeholder="0" />
+                              <p className="text-[10px] text-center text-gray-500 mt-2 uppercase tracking-widest">Min. {MIN_STAKE} KSh</p>
+                            </div>
+                            
+                            <div className="bg-[#0a0a0a] rounded-xl p-5 border border-[#ffffff0a]">
+                              <div className="flex justify-between items-center mb-1">
+                                <span className="text-[#10b981] font-bold uppercase tracking-wider text-xs">Est. Gross Payout:</span>
+                              </div>
+                              <span className="text-[#10b981] font-black text-3xl tracking-tighter">
+                                {selectedOutcomeIdx !== null ? calculateEstPayout(selectedEventId, selectedOutcomeIdx, poolStake, false).toLocaleString() : '0'} <span className="text-lg">KSh</span>
+                              </span>
+                              <p className="text-[10px] text-gray-500 mt-2 leading-relaxed">Payouts adjust dynamically based on final pool volume. 3% exchange fee applied to gross payout.</p>
+                            </div>
+                            
+                            <button onClick={() => submitPoolBet()} disabled={selectedOutcomeIdx === null || poolStake < MIN_STAKE} className="w-full bg-[#C5A880] hover:bg-[#A3885C] disabled:bg-[#1a1a1a] disabled:text-gray-600 text-[#0a0a0a] font-black py-5 rounded-xl transition shadow-[0_0_30px_rgba(197,168,128,0.2)] uppercase tracking-widest text-sm hover:scale-[1.02] disabled:hover:scale-100">
+                              Confirm Liquidity
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )
+            })()}
+          </div>
+        )}
+
+        {/* --- ALL OTHER VIEWS --- */}
         {activeView === 'wallet' && (
           <div className="max-w-2xl mx-auto animate-in fade-in duration-300">
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
@@ -563,7 +698,7 @@ export default function App() {
           </div>
         )}
 
-        {/* --- THE KALSHI STYLE POOL MARKETS --- */}
+        {/* --- THE MARKETS FEED (NO MORE POPUPS, FULL CARD CLICK ROUTING) --- */}
         {activeView === 'markets' && (
           <div className="animate-in fade-in duration-300">
             <div className="flex gap-2 overflow-x-auto pb-6 no-scrollbar mb-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none'] select-none">
@@ -587,22 +722,19 @@ export default function App() {
                 activeEvents.map((event) => {
                   const eventBets = bets.filter(b => b.event_id === event.id && b.status === 'open')
                   const totalPoolVolume = eventBets.reduce((sum, b) => sum + b.stake, 0)
-                  const ORB_COLORS = ['197, 168, 128', '16, 185, 129', '244, 63, 94', '59, 130, 246'] 
                   const isLocked = new Date(event.locks_at).getTime() <= Date.now()
 
                   return (
                     <div 
                       key={event.id}
                       onClick={() => {
-                        if (!isLocked) {
-                          setSelectedEventId(event.id); 
-                          setSelectedOutcomeIdx(null); 
-                          setShowBetModal(true);
-                        }
-                      }} 
-                      className={`bg-[#111111] border border-[#ffffff10] rounded-3xl p-5 transition flex flex-col group relative overflow-hidden select-none ${isLocked ? '' : 'cursor-pointer hover:border-[#C5A880]/50 hover:-translate-y-1'}`}
+                        setSelectedEventId(event.id); 
+                        setSelectedOutcomeIdx(null); 
+                        setActiveView('eventDetail'); // ROUTE TO THE DETAIL PAGE
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      className="bg-[#111111] border border-[#ffffff10] rounded-3xl p-5 transition flex flex-col group relative overflow-hidden select-none cursor-pointer hover:border-[#C5A880]/50 hover:-translate-y-1 shadow-lg"
                     >
-
                       <div className="absolute top-0 right-0 w-32 h-32 bg-[#C5A880]/5 rounded-full blur-[50px] group-hover:bg-[#C5A880]/15 transition pointer-events-none"></div>
                       
                       <div className="flex items-start justify-between mb-3 relative z-10 pointer-events-none">
@@ -647,12 +779,11 @@ export default function App() {
                       </div>
 
                       <div className="flex gap-2 mt-auto relative z-20">
-                        {/* Fake button for visuals, acts as part of the card click */}
+                        {/* Fake button for visual cue, but parent card handles the click */}
                         <div className={`flex-grow font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2 shadow-sm uppercase tracking-widest text-xs pointer-events-none ${isLocked ? 'bg-[#0a0a0a] border border-red-500/20 text-red-500' : 'bg-[#1a1a1a] border border-[#ffffff15] text-white group-hover:bg-[#C5A880] group-hover:text-[#0a0a0a] group-hover:shadow-[0_0_20px_rgba(197,168,128,0.2)] group-hover:border-[#C5A880]'}`}>
                           {isLocked ? '🔒 Locked' : 'Trade Pool ⚔️'}
                         </div>
                         
-                        {/* Chat button catches its own click and stops it from opening the card */}
                         <button 
                           onClick={(e) => {
                             e.preventDefault();
@@ -797,41 +928,6 @@ export default function App() {
                 <div className="bg-[#0a0a0a] border border-[#ffffff10] rounded-2xl p-4 flex justify-between items-center"><p className="text-xs text-gray-500 uppercase tracking-widest font-semibold">Active Risk in Pools</p><p className="text-lg font-bold text-[#f43f5e]">{getUserStats(selectedPublicProfile.id).activeRisk.toLocaleString()} KSh</p></div>
               </div>
             )}
-          </div>
-        </div>
-      )}
-
-      {/* NEW POOL BETTING MODAL */}
-      {showBetModal && selectedEventId && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200">
-          <div className="bg-[#111111] border border-[#C5A880]/30 rounded-3xl p-6 sm:p-8 w-full max-w-md shadow-[0_0_50px_rgba(197,168,128,0.15)] relative">
-            <button onClick={() => setShowBetModal(false)} className="absolute top-5 right-5 w-8 h-8 flex items-center justify-center rounded-xl bg-[#1a1a1a] text-gray-400 hover:text-white border border-[#ffffff10]"><X className="w-4 h-4" /></button>
-            <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">Lock Prediction</h3>
-            <p className="text-gray-400 text-sm mb-6 font-light">Your bet enters the parimutuel pool. Payouts adjust dynamically based on total volume.</p>
-            <div className="space-y-5">
-              
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">1. Your Stance</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {events.find(e => e.id === selectedEventId)?.outcomes?.map((outcome, idx) => (
-                    <button key={idx} onClick={() => setSelectedOutcomeIdx(idx)} className={`p-3 rounded-xl border text-sm font-bold transition ${selectedOutcomeIdx === idx ? 'bg-[#C5A880]/10 border-[#C5A880] text-[#C5A880] shadow-[0_0_15px_rgba(197,168,128,0.2)]' : 'bg-[#0a0a0a] border-[#ffffff15] text-gray-400 hover:border-gray-500'}`}>{outcome}</button>
-                  ))}
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">2. Stake Amount (KSh)</label>
-                <input type="number" min={MIN_STAKE} value={poolStake || ''} onChange={(e) => setPoolStake(Number(e.target.value))} className="w-full bg-[#0a0a0a] border border-[#ffffff15] text-white font-bold rounded-xl p-4 focus:outline-none focus:border-[#C5A880] text-lg text-center" />
-              </div>
-              
-              <div className="bg-[#0a0a0a] rounded-xl p-4 text-sm space-y-2 border border-[#ffffff0a] mt-2 font-light">
-                <div className="flex justify-between items-center"><span className="text-[#10b981] font-bold uppercase tracking-wider text-xs">Current Est. Payout:</span><span className="text-[#10b981] font-black text-2xl drop-shadow-md">
-                   {selectedOutcomeIdx !== null ? calculateEstPayout(selectedEventId, selectedOutcomeIdx, poolStake, false).toLocaleString() : '0'} KSh
-                </span></div>
-              </div>
-              
-              <button onClick={() => submitPoolBet()} disabled={selectedOutcomeIdx === null || poolStake < MIN_STAKE} className="w-full bg-[#C5A880] hover:bg-[#A3885C] disabled:bg-[#1a1a1a] disabled:text-gray-600 text-[#0a0a0a] font-black py-4 rounded-xl transition shadow-[0_0_20px_rgba(197,168,128,0.2)] mt-2 uppercase tracking-wider text-sm">Confirm Wager</button>
-            </div>
           </div>
         </div>
       )}
