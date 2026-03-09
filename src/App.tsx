@@ -608,18 +608,82 @@ export default function App() {
                   const isLocked = new Date(event.locks_at).getTime() <= Date.now()
 
                   return (
-                    <div key={event.id} className="bg-[#111111] border border-[#ffffff10] rounded-3xl p-5 hover:border-[#C5A880]/50 transition flex flex-col group relative overflow-hidden select-none">
+                    <div key={ereturn (
+                    {/* 1. WE MOVED THE ONCLICK HERE TO MAKE THE WHOLE CARD CLICKABLE */}
+                    <div 
+                      key={event.id} 
+                      onClick={() => {
+                        if (!isLocked) {
+                          setSelectedEventId(event.id); 
+                          setSelectedOutcomeIdx(null); 
+                          setShowBetModal(true);
+                        }
+                      }}
+                      className={`bg-[#111111] border border-[#ffffff10] rounded-3xl p-5 transition flex flex-col group relative overflow-hidden select-none ${isLocked ? '' : 'cursor-pointer hover:border-[#C5A880]/50'}`}
+                    >
                       <div className="absolute top-0 right-0 w-32 h-32 bg-[#C5A880]/5 rounded-full blur-[50px] group-hover:bg-[#C5A880]/15 transition pointer-events-none"></div>
                       
                       <div className="flex items-start justify-between mb-3 relative z-10">
                         <span className="text-[10px] font-bold text-[#C5A880] uppercase tracking-wider bg-[#C5A880]/10 border border-[#C5A880]/20 px-2 py-1 rounded-lg shadow-sm">{event.category}</span>
-                        {/* --- INJECTED THE LIVE TIMER COMPONENT --- */}
                         <LiveTimer locksAt={event.locks_at} />
                       </div>
                       
                       <h3 className="text-lg font-bold text-white mb-1.5 relative z-10 leading-snug group-hover:text-[#C5A880] transition-colors line-clamp-2">{event.title}</h3>
                       <p className="text-gray-400 text-xs mb-4 font-light relative z-10 leading-relaxed line-clamp-1">{event.description}</p>
                       
+                      <div className="grid grid-cols-2 gap-2 mb-4 relative z-10 flex-grow">
+                        {event.outcomes.map((outcome, idx) => {
+                          const outcomeVolume = eventBets.filter(b => b.outcome_index === idx).reduce((sum, b) => sum + b.stake, 0)
+                          const percent = totalPoolVolume === 0 ? 0 : Math.round((outcomeVolume / totalPoolVolume) * 100)
+                          const rgb = ORB_COLORS[idx % ORB_COLORS.length]
+                          
+                          const glowIntensity = totalPoolVolume === 0 ? 0.02 : (percent / 100) * 0.5
+                          const borderOpacity = totalPoolVolume === 0 ? 0.1 : 0.2 + (percent / 100) * 0.8
+                          
+                          const isOddLast = event.outcomes.length % 2 !== 0 && idx === event.outcomes.length - 1
+
+                          return (
+                            <div key={idx} className={`flex ${isOddLast ? 'flex-row gap-4 items-center justify-between col-span-2 py-2 px-4' : 'flex-col items-center justify-center p-3'} rounded-xl bg-[#0a0a0a]/80 backdrop-blur-md transition-all duration-700 relative overflow-hidden`}
+                                 style={{
+                                   borderColor: `rgba(${rgb}, ${borderOpacity})`,
+                                   borderWidth: '1px',
+                                   boxShadow: `0 0 ${15 + (percent/2)}px rgba(${rgb}, ${glowIntensity}) inset, 0 0 ${10 + percent}px rgba(${rgb}, ${glowIntensity / 2})`
+                                 }}>
+                              <span className={`text-xs font-bold text-white text-center drop-shadow-md ${isOddLast ? '' : 'mb-1'} line-clamp-1`}>{outcome}</span>
+                              <div className={`flex ${isOddLast ? 'items-center gap-3' : 'flex-col items-center'}`}>
+                                <span className={`${isOddLast ? 'text-base' : 'text-lg'} font-black tracking-tight`} style={{ color: `rgba(${rgb}, 1)` }}>{percent}%</span>
+                                <span className="text-[9px] text-gray-500 uppercase tracking-widest">{outcomeVolume.toLocaleString()} KSh</span>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+
+                      <div className="flex justify-between items-center text-[11px] font-semibold text-gray-500 uppercase tracking-widest mb-3 pt-3 border-t border-[#ffffff0a] relative z-10">
+                         <span>Liquidity:</span>
+                         <span className="text-white font-mono">{totalPoolVolume.toLocaleString()} KSh</span>
+                      </div>
+
+                      <div className="flex gap-2 mt-auto relative z-10">
+                        {/* We don't need the onClick here anymore since the whole card handles it, but we keep the visual styles */}
+                        <button disabled={isLocked} className={`flex-grow font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2 shadow-sm uppercase tracking-widest text-xs ${isLocked ? 'bg-[#0a0a0a] border border-red-500/20 text-red-500 cursor-not-allowed' : 'bg-[#1a1a1a] hover:bg-[#C5A880] hover:text-[#0a0a0a] border border-[#ffffff15] hover:border-[#C5A880] text-white group/btn hover:shadow-[0_0_20px_rgba(197,168,128,0.2)]'}`}>
+                          {isLocked ? '🔒 Locked' : 'Trade Pool ⚔️'}
+                        </button>
+                        
+                        {/* 2. ADDED STOP PROPAGATION HERE SO CHAT DOESN'T OPEN THE BET MODAL */}
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation(); 
+                            setChatEventId(event.id);
+                          }} 
+                          className="w-12 bg-[#1a1a1a] hover:bg-[#f43f5e] hover:text-white border border-[#ffffff15] hover:border-[#f43f5e] text-gray-400 rounded-xl transition flex items-center justify-center shadow-sm pointer-events-auto" 
+                          title="Warzone Chat"
+                        >
+                          <MessageSquare className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  )
                       {/* --- COMPACT LIQUIDITY ORBS --- */}
                       <div className="grid grid-cols-2 gap-2 mb-4 relative z-10 flex-grow">
                         {event.outcomes.map((outcome, idx) => {
