@@ -3,8 +3,8 @@ import { supabase } from './lib/supabase'
 import Landing from './Landing'
 import { LogOut, X, AlertTriangle, Bell, Wallet, ArrowDownToLine, ArrowUpFromLine, CheckCircle2, History, Trophy, Activity, Eye, EyeOff, PieChart, Share2, Swords, MessageSquare, Send } from 'lucide-react'
 
-// V2 Interfaces
-interface Event { id: string; title: string; description: string; category: string; outcomes: string[]; closes_at: string; created_at: string; resolved: boolean }
+// V2 Interfaces - CHANGED closes_at to locks_at
+interface Event { id: string; title: string; description: string; category: string; outcomes: string[]; locks_at: string; created_at: string; resolved: boolean }
 interface Bet { id: string; event_id: string; outcome_index: number; stake: number; status: string; user_id: string; }
 interface Profile { id: string; username: string; wallet_balance: number; avatar: string; has_claimed_airdrop: boolean; is_public: boolean }
 interface AppNotification { id: string; user_id: string; message: string; type: string; is_read: boolean; created_at: string }
@@ -12,6 +12,44 @@ interface AppNotification { id: string; user_id: string; message: string; type: 
 const MIN_STAKE = 200
 const PLATFORM_FEE_PERCENT = 3
 const AVATARS = ['🦊', '🐯', '🦅', '🦈', '🐍', '🦍', '🐉', '🦂', '🦉', '🐺']
+
+// --- NEW LIVE TIMER COMPONENT ---
+const LiveTimer = ({ locksAt }: { locksAt: string }) => {
+  const [timeLeft, setTimeLeft] = useState('')
+  const [isLocked, setIsLocked] = useState(false)
+
+  useEffect(() => {
+    const calculateTime = () => {
+      const lockTime = new Date(locksAt).getTime()
+      const distance = lockTime - Date.now()
+
+      if (distance <= 0) {
+        setIsLocked(true)
+        setTimeLeft('LOCKED')
+      } else {
+        setIsLocked(false)
+        const days = Math.floor(distance / (1000 * 60 * 60 * 24))
+        const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
+        const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60))
+        const seconds = Math.floor((distance % (1000 * 60)) / 1000)
+
+        if (days > 0) {
+          setTimeLeft(`${days}d ${hours}h ${minutes}m`)
+        } else {
+          setTimeLeft(`${hours}h ${minutes}m ${seconds}s`)
+        }
+      }
+    }
+    calculateTime()
+    const timer = setInterval(calculateTime, 1000)
+    return () => clearInterval(timer)
+  }, [locksAt])
+
+  if (isLocked) {
+    return <span className="text-[10px] font-bold text-red-500 bg-red-500/10 border border-red-500/20 px-2 py-1 rounded-md">🔒 CLOSED</span>
+  }
+  return <span className="text-[10px] font-bold text-[#C5A880] bg-[#C5A880]/10 border border-[#C5A880]/20 px-2 py-1 rounded-md animate-pulse">⏳ {timeLeft}</span>
+}
 
 export default function App() {
   const [session, setSession] = useState<any>(null)
@@ -567,6 +605,7 @@ export default function App() {
                   const eventBets = bets.filter(b => b.event_id === event.id && b.status === 'open')
                   const totalPoolVolume = eventBets.reduce((sum, b) => sum + b.stake, 0)
                   const ORB_COLORS = ['197, 168, 128', '16, 185, 129', '244, 63, 94', '59, 130, 246'] 
+                  const isLocked = new Date(event.locks_at).getTime() <= Date.now()
 
                   return (
                     <div key={event.id} className="bg-[#111111] border border-[#ffffff10] rounded-3xl p-5 hover:border-[#C5A880]/50 transition flex flex-col group relative overflow-hidden select-none">
@@ -574,7 +613,8 @@ export default function App() {
                       
                       <div className="flex items-start justify-between mb-3 relative z-10">
                         <span className="text-[10px] font-bold text-[#C5A880] uppercase tracking-wider bg-[#C5A880]/10 border border-[#C5A880]/20 px-2 py-1 rounded-lg shadow-sm">{event.category}</span>
-                        <span className="text-[10px] font-semibold text-gray-500 bg-[#0a0a0a] border border-[#ffffff0a] px-2 py-1 rounded-md">Closes {new Date(event.closes_at).toLocaleDateString(undefined, {month: 'short', day: 'numeric'})}</span>
+                        {/* --- INJECTED THE LIVE TIMER COMPONENT --- */}
+                        <LiveTimer locksAt={event.locks_at} />
                       </div>
                       
                       <h3 className="text-lg font-bold text-white mb-1.5 relative z-10 leading-snug group-hover:text-[#C5A880] transition-colors line-clamp-2">{event.title}</h3>
@@ -616,8 +656,9 @@ export default function App() {
 
                       {/* WARZONE CHAT BUTTON ADDED HERE */}
                       <div className="flex gap-2 mt-auto relative z-10">
-                        <button onClick={() => { setSelectedEventId(event.id); setSelectedOutcomeIdx(null); setShowBetModal(true) }} className="flex-grow bg-[#1a1a1a] hover:bg-[#C5A880] hover:text-[#0a0a0a] border border-[#ffffff15] hover:border-[#C5A880] text-white font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2 group/btn shadow-sm hover:shadow-[0_0_20px_rgba(197,168,128,0.2)] uppercase tracking-widest text-xs">
-                          Trade Pool ⚔️
+                        {/* --- INJECTED THE BUTTON LOCK CHECK --- */}
+                        <button disabled={isLocked} onClick={() => { setSelectedEventId(event.id); setSelectedOutcomeIdx(null); setShowBetModal(true) }} className={`flex-grow font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2 shadow-sm uppercase tracking-widest text-xs ${isLocked ? 'bg-[#0a0a0a] border border-red-500/20 text-red-500 cursor-not-allowed' : 'bg-[#1a1a1a] hover:bg-[#C5A880] hover:text-[#0a0a0a] border border-[#ffffff15] hover:border-[#C5A880] text-white group/btn hover:shadow-[0_0_20px_rgba(197,168,128,0.2)]'}`}>
+                          {isLocked ? '🔒 Locked' : 'Trade Pool ⚔️'}
                         </button>
                         <button onClick={() => setChatEventId(event.id)} className="w-12 bg-[#1a1a1a] hover:bg-[#f43f5e] hover:text-white border border-[#ffffff15] hover:border-[#f43f5e] text-gray-400 rounded-xl transition flex items-center justify-center shadow-sm" title="Warzone Chat">
                           <MessageSquare className="w-4 h-4" />
