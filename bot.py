@@ -74,6 +74,13 @@ def pump_liquidity():
         
         print("-" * 50)
 
-if __name__ == "__main__":
-    pump_liquidity()
-    print("✅ Liquidity injected. The Orbs are glowing.")
+iif __name__ == "__main__":
+    while True:
+        try:
+            pump_liquidity()
+            print("✅ Liquidity injected. The Orbs are glowing.")
+            print("⏳ Sleeping for 30 minutes before next injection...")
+            time.sleep(1800) # 30 minutes
+        except Exception as e:
+            print(f"⚠️ Error: {e}. Retrying in 60 seconds...")
+            time.sleep(60)
