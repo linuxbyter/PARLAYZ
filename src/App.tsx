@@ -3,7 +3,7 @@ import { supabase } from './lib/supabase'
 import Landing from './Landing'
 import { LogOut, X, AlertTriangle, Bell, Wallet, ArrowDownToLine, ArrowUpFromLine, CheckCircle2, History, Trophy, Activity, Eye, EyeOff, PieChart, Share2, Swords, MessageSquare, Send } from 'lucide-react'
 
-// V2 Interfaces 
+// V2 Interfaces
 interface Event { id: string; title: string; description: string; category: string; outcomes: string[]; locks_at: string; created_at: string; resolved: boolean }
 interface Bet { id: string; event_id: string; outcome_index: number; stake: number; status: string; user_id: string; }
 interface Profile { id: string; username: string; wallet_balance: number; avatar: string; has_claimed_airdrop: boolean; is_public: boolean }
@@ -591,31 +591,29 @@ export default function App() {
                   const isLocked = new Date(event.locks_at).getTime() <= Date.now()
 
                   return (
-                    <div key={event.id} className={`bg-[#111111] border border-[#ffffff10] rounded-3xl p-5 transition flex flex-col group relative overflow-hidden select-none ${isLocked ? '' : 'hover:border-[#C5A880]/50 hover:-translate-y-1'}`}>
-                      
-                      {/* 🚀 THE INVISIBLE CLICK CATCHER 🚀 */}
-                      <div 
-                        className={`absolute inset-0 z-10 ${isLocked ? '' : 'cursor-pointer'}`}
-                        onClick={() => {
-                          if (!isLocked) {
-                            setSelectedEventId(event.id); 
-                            setSelectedOutcomeIdx(null); 
-                            setShowBetModal(true);
-                          }
-                        }}
-                      />
+                    <div 
+                      key={event.id}
+                      onClick={() => {
+                        if (!isLocked) {
+                          setSelectedEventId(event.id); 
+                          setSelectedOutcomeIdx(null); 
+                          setShowBetModal(true);
+                        }
+                      }} 
+                      className={`bg-[#111111] border border-[#ffffff10] rounded-3xl p-5 transition flex flex-col group relative overflow-hidden select-none ${isLocked ? '' : 'cursor-pointer hover:border-[#C5A880]/50 hover:-translate-y-1'}`}
+                    >
 
                       <div className="absolute top-0 right-0 w-32 h-32 bg-[#C5A880]/5 rounded-full blur-[50px] group-hover:bg-[#C5A880]/15 transition pointer-events-none"></div>
                       
-                      <div className="flex items-start justify-between mb-3 relative z-0 pointer-events-none">
+                      <div className="flex items-start justify-between mb-3 relative z-10 pointer-events-none">
                         <span className="text-[10px] font-bold text-[#C5A880] uppercase tracking-wider bg-[#C5A880]/10 border border-[#C5A880]/20 px-2 py-1 rounded-lg shadow-sm">{event.category}</span>
                         <LiveTimer locksAt={event.locks_at} />
                       </div>
                       
-                      <h3 className="text-lg font-bold text-white mb-1.5 relative z-0 leading-snug group-hover:text-[#C5A880] transition-colors line-clamp-2 pointer-events-none">{event.title}</h3>
-                      <p className="text-gray-400 text-xs mb-4 font-light relative z-0 leading-relaxed line-clamp-1 pointer-events-none">{event.description}</p>
+                      <h3 className="text-lg font-bold text-white mb-1.5 relative z-10 leading-snug group-hover:text-[#C5A880] transition-colors line-clamp-2 pointer-events-none">{event.title}</h3>
+                      <p className="text-gray-400 text-xs mb-4 font-light relative z-10 leading-relaxed line-clamp-1 pointer-events-none">{event.description}</p>
                       
-                      <div className="grid grid-cols-2 gap-2 mb-4 relative z-0 flex-grow pointer-events-none">
+                      <div className="grid grid-cols-2 gap-2 mb-4 relative z-10 flex-grow pointer-events-none">
                         {event.outcomes.map((outcome, idx) => {
                           const outcomeVolume = eventBets.filter(b => b.outcome_index === idx).reduce((sum, b) => sum + b.stake, 0)
                           const percent = totalPoolVolume === 0 ? 0 : Math.round((outcomeVolume / totalPoolVolume) * 100)
@@ -643,28 +641,21 @@ export default function App() {
                         })}
                       </div>
 
-                      <div className="flex justify-between items-center text-[11px] font-semibold text-gray-500 uppercase tracking-widest mb-3 pt-3 border-t border-[#ffffff0a] relative z-0 pointer-events-none">
+                      <div className="flex justify-between items-center text-[11px] font-semibold text-gray-500 uppercase tracking-widest mb-3 pt-3 border-t border-[#ffffff0a] relative z-10 pointer-events-none">
                          <span>Liquidity:</span>
                          <span className="text-white font-mono">{totalPoolVolume.toLocaleString()} KSh</span>
                       </div>
 
                       <div className="flex gap-2 mt-auto relative z-20">
-                        <button 
-                          disabled={isLocked} 
-                          onClick={() => {
-                            if (!isLocked) {
-                              setSelectedEventId(event.id); 
-                              setSelectedOutcomeIdx(null); 
-                              setShowBetModal(true);
-                            }
-                          }}
-                          className={`flex-grow font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2 shadow-sm uppercase tracking-widest text-xs pointer-events-none ${isLocked ? 'bg-[#0a0a0a] border border-red-500/20 text-red-500 cursor-not-allowed' : 'bg-[#1a1a1a] border border-[#ffffff15] text-white group-hover:bg-[#C5A880] group-hover:text-[#0a0a0a] group-hover:shadow-[0_0_20px_rgba(197,168,128,0.2)] group-hover:border-[#C5A880]'}`}
-                        >
+                        {/* Fake button for visuals, acts as part of the card click */}
+                        <div className={`flex-grow font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2 shadow-sm uppercase tracking-widest text-xs pointer-events-none ${isLocked ? 'bg-[#0a0a0a] border border-red-500/20 text-red-500' : 'bg-[#1a1a1a] border border-[#ffffff15] text-white group-hover:bg-[#C5A880] group-hover:text-[#0a0a0a] group-hover:shadow-[0_0_20px_rgba(197,168,128,0.2)] group-hover:border-[#C5A880]'}`}>
                           {isLocked ? '🔒 Locked' : 'Trade Pool ⚔️'}
-                        </button>
+                        </div>
                         
+                        {/* Chat button catches its own click and stops it from opening the card */}
                         <button 
                           onClick={(e) => {
+                            e.preventDefault();
                             e.stopPropagation(); 
                             setChatEventId(event.id);
                           }} 
