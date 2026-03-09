@@ -3,8 +3,8 @@ import { supabase } from './lib/supabase'
 import Landing from './Landing'
 import { LogOut, X, AlertTriangle, Bell, Wallet, ArrowDownToLine, ArrowUpFromLine, CheckCircle2, History, Trophy, Activity, Eye, EyeOff, PieChart, Share2, Swords, MessageSquare, Send, ChevronLeft } from 'lucide-react'
 
-// V2 Interfaces 
-interface Event { id: string; title: string; description: string; category: string; outcomes: string[]; locks_at: string; created_at: string; resolved: boolean }
+// V2 Interfaces - Bulletproofed for both closes_at and locks_at
+interface Event { id: string; title: string; description: string; category: string; outcomes: string[]; closes_at?: string; locks_at?: string; created_at: string; resolved: boolean }
 interface Bet { id: string; event_id: string; outcome_index: number; stake: number; status: string; user_id: string; }
 interface Profile { id: string; username: string; wallet_balance: number; avatar: string; has_claimed_airdrop: boolean; is_public: boolean }
 interface AppNotification { id: string; user_id: string; message: string; type: string; is_read: boolean; created_at: string }
@@ -14,14 +14,28 @@ const PLATFORM_FEE_PERCENT = 3
 const AVATARS = ['🦊', '🐯', '🦅', '🦈', '🐍', '🦍', '🐉', '🦂', '🦉', '🐺']
 const ORB_COLORS = ['197, 168, 128', '16, 185, 129', '244, 63, 94', '59, 130, 246'] 
 
-// --- NEW LIVE TIMER COMPONENT ---
-const LiveTimer = ({ locksAt }: { locksAt: string }) => {
+// --- BULLETPROOF LIVE TIMER COMPONENT ---
+const LiveTimer = ({ targetDate }: { targetDate: string }) => {
   const [timeLeft, setTimeLeft] = useState('')
   const [isLocked, setIsLocked] = useState(false)
 
   useEffect(() => {
     const calculateTime = () => {
-      const lockTime = new Date(locksAt).getTime()
+      // NaN Shield: Check if date is valid
+      if (!targetDate) {
+        setTimeLeft('TBA')
+        setIsLocked(false)
+        return
+      }
+
+      const lockTime = new Date(targetDate).getTime()
+      
+      if (isNaN(lockTime)) {
+        setTimeLeft('TBA')
+        setIsLocked(false)
+        return
+      }
+
       const distance = lockTime - Date.now()
 
       if (distance <= 0) {
@@ -41,10 +55,11 @@ const LiveTimer = ({ locksAt }: { locksAt: string }) => {
         }
       }
     }
+    
     calculateTime()
     const timer = setInterval(calculateTime, 1000)
     return () => clearInterval(timer)
-  }, [locksAt])
+  }, [targetDate])
 
   if (isLocked) {
     return <span className="text-[10px] font-bold text-red-500 bg-red-500/10 border border-red-500/20 px-2 py-1 rounded-md">🔒 CLOSED</span>
@@ -64,7 +79,6 @@ export default function App() {
   const [toast, setToast] = useState<{msg: string, type: 'error' | 'success'} | null>(null)
   const showToast = (msg: string, type: 'error' | 'success' = 'error') => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500) }
 
-  // ADDED 'eventDetail' to active views
   const [activeView, setActiveView] = useState<'markets' | 'wagers' | 'leaderboard' | 'wallet' | 'eventDetail'>('markets')
   const [selectedCategory, setSelectedCategory] = useState<string>('All')
   const [showProfileSetup, setShowProfileSetup] = useState(false)
@@ -400,7 +414,11 @@ export default function App() {
               const event = events.find(e => e.id === selectedEventId);
               if (!event) return null;
               
-              const isLocked = new Date(event.locks_at).getTime() <= Date.now();
+              // SAFELY calculate the lock time
+              const eventDateStr = event.closes_at || event.locks_at || '';
+              const lockTime = new Date(eventDateStr).getTime();
+              const isLocked = !isNaN(lockTime) && lockTime <= Date.now();
+              
               const eventBets = bets.filter(b => b.event_id === event.id && b.status === 'open');
               const totalPoolVolume = eventBets.reduce((sum, b) => sum + b.stake, 0);
 
@@ -420,7 +438,7 @@ export default function App() {
                       <div>
                         <div className="flex flex-wrap items-center gap-3 mb-4">
                           <span className="text-xs font-bold text-[#C5A880] uppercase tracking-wider bg-[#C5A880]/10 border border-[#C5A880]/20 px-3 py-1.5 rounded-lg shadow-sm">{event.category}</span>
-                          <LiveTimer locksAt={event.locks_at} />
+                          <LiveTimer targetDate={eventDateStr} />
                           <button onClick={() => setChatEventId(event.id)} className="flex items-center gap-2 text-xs font-bold text-[#f43f5e] uppercase tracking-wider bg-[#f43f5e]/10 border border-[#f43f5e]/20 px-3 py-1.5 rounded-lg shadow-sm hover:bg-[#f43f5e]/20 transition cursor-pointer">
                             <MessageSquare className="w-3.5 h-3.5" /> Warzone Chat
                           </button>
@@ -698,7 +716,7 @@ export default function App() {
           </div>
         )}
 
-        {/* --- THE MARKETS FEED (NO MORE POPUPS, FULL CARD CLICK ROUTING) --- */}
+        {/* --- THE MARKETS FEED --- */}
         {activeView === 'markets' && (
           <div className="animate-in fade-in duration-300">
             <div className="flex gap-2 overflow-x-auto pb-6 no-scrollbar mb-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none'] select-none">
@@ -722,7 +740,11 @@ export default function App() {
                 activeEvents.map((event) => {
                   const eventBets = bets.filter(b => b.event_id === event.id && b.status === 'open')
                   const totalPoolVolume = eventBets.reduce((sum, b) => sum + b.stake, 0)
-                  const isLocked = new Date(event.locks_at).getTime() <= Date.now()
+                  
+                  // Safely calculate lock state
+                  const eventDateStr = event.closes_at || event.locks_at || '';
+                  const lockTime = new Date(eventDateStr).getTime();
+                  const isLocked = !isNaN(lockTime) && lockTime <= Date.now();
 
                   return (
                     <div 
@@ -730,7 +752,7 @@ export default function App() {
                       onClick={() => {
                         setSelectedEventId(event.id); 
                         setSelectedOutcomeIdx(null); 
-                        setActiveView('eventDetail'); // ROUTE TO THE DETAIL PAGE
+                        setActiveView('eventDetail'); 
                         window.scrollTo({ top: 0, behavior: 'smooth' });
                       }}
                       className="bg-[#111111] border border-[#ffffff10] rounded-3xl p-5 transition flex flex-col group relative overflow-hidden select-none cursor-pointer hover:border-[#C5A880]/50 hover:-translate-y-1 shadow-lg"
@@ -739,7 +761,7 @@ export default function App() {
                       
                       <div className="flex items-start justify-between mb-3 relative z-10 pointer-events-none">
                         <span className="text-[10px] font-bold text-[#C5A880] uppercase tracking-wider bg-[#C5A880]/10 border border-[#C5A880]/20 px-2 py-1 rounded-lg shadow-sm">{event.category}</span>
-                        <LiveTimer locksAt={event.locks_at} />
+                        <LiveTimer targetDate={eventDateStr} />
                       </div>
                       
                       <h3 className="text-lg font-bold text-white mb-1.5 relative z-10 leading-snug group-hover:text-[#C5A880] transition-colors line-clamp-2 pointer-events-none">{event.title}</h3>
