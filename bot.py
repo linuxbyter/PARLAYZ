@@ -80,7 +80,7 @@ iif __name__ == "__main__":
             pump_liquidity()
             print("✅ Liquidity injected. The Orbs are glowing.")
             print("⏳ Sleeping for 30 minutes before next injection...")
-            time.sleep(1800) # 30 minutes
+            time.sleep(10) # 10 seconds
         except Exception as e:
             print(f"⚠️ Error: {e}. Retrying in 60 seconds...")
             time.sleep(60)
