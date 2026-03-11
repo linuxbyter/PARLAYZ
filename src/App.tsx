@@ -119,10 +119,20 @@ export default function App() {
   useEffect(() => {
     if (session?.user) {
       fetchData()
+      
       const betsChannel = supabase.channel('bets_channel').on('postgres_changes', { event: '*', schema: 'public', table: 'bets' }, () => { fetchBets(); fetchProfile(); fetchAllProfiles() }).subscribe()
       const profilesChannel = supabase.channel('profiles_channel').on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => { fetchAllProfiles() }).subscribe()
       const notifsChannel = supabase.channel('notifs_channel').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${session.user.id}` }, () => fetchNotifications()).subscribe()
-      return () => { betsChannel.unsubscribe(); notifsChannel.unsubscribe(); profilesChannel.unsubscribe() }
+      
+      // 🌟 NEW: Listen for Event changes (Settlements/Deletions) so zombie markets vanish instantly
+      const eventsChannel = supabase.channel('events_channel').on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, () => { fetchEvents() }).subscribe()
+      
+      return () => { 
+        betsChannel.unsubscribe(); 
+        notifsChannel.unsubscribe(); 
+        profilesChannel.unsubscribe();
+        eventsChannel.unsubscribe(); 
+      }
     }
   }, [session])
 
@@ -305,6 +315,7 @@ export default function App() {
     return name.includes('@') ? name.split('@')[0] : name
   }
 
+  // 🌟 Filter out resolved events from the feed
   const activeEvents = events.filter(e => !e.resolved && (selectedCategory === 'All' || e.category.toLowerCase() === selectedCategory.toLowerCase()))
   const myActiveWagers = bets.filter(b => b.user_id === session?.user?.id && b.status === 'open')
   const mySettledWagers = bets.filter(b => b.user_id === session?.user?.id && ['won', 'lost', 'refunded'].includes(b.status))
