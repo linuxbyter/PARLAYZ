@@ -19,7 +19,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const response = await fetch("https://payment.intasend.com/api/v1/payment/mpesa-stk-push/", {
+    const response = await fetch("https://sandbox.intasend.com/api/v1/payment/mpesa-stk-push/", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
