@@ -5,8 +5,6 @@ import { ShieldAlert, CheckCircle2, Plus, Trash2, X, Calendar, Tag, Type, FileTe
 // --- IMPORTANT: Put your Supabase UUID here so ONLY YOU can use this page ---
 const ADMIN_UUIDS = ['e801546a-d868-47fd-a5a6-69cdae8ecb80'] 
 
-const PLATFORM_FEE_PERCENT = 3
-
 interface Event {
   id: string
   title: string
