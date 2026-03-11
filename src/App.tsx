@@ -6,7 +6,7 @@ import { LogOut, X, AlertTriangle, Bell, Wallet, ArrowDownToLine, ArrowUpFromLin
 // V2 Interfaces - Bulletproofed for both closes_at and locks_at
 interface Event { id: string; title: string; description: string; category: string; outcomes: string[]; closes_at?: string; locks_at?: string; created_at: string; resolved: boolean }
 interface Bet { id: string; event_id: string; outcome_index: number; stake: number; status: string; user_id: string; }
-interface Profile { id: string; username: string; wallet_balance: number; avatar: string; has_claimed_airdrop: boolean; is_public: boolean }
+interface Profile { id: string; username: string; wallet_balance: number; avatar: string; has_claimed_airdrop: boolean; is_public: boolean; phone_number?: string }
 interface AppNotification { id: string; user_id: string; message: string; type: string; is_read: boolean; created_at: string }
 
 const MIN_STAKE = 200
@@ -21,7 +21,6 @@ const LiveTimer = ({ targetDate }: { targetDate: string }) => {
 
   useEffect(() => {
     const calculateTime = () => {
-      // NaN Shield: Check if date is valid
       if (!targetDate) {
         setTimeLeft('TBA')
         setIsLocked(false)
@@ -104,8 +103,13 @@ export default function App() {
   const [showCashierModal, setShowCashierModal] = useState<{type: 'deposit' | 'withdraw', status: 'processing' | 'success' | 'error'} | null>(null)
 
   const [selectedPublicProfile, setSelectedPublicProfile] = useState<Profile | null>(null)
+  
+  // Cashier States
   const [withdrawAmount, setWithdrawAmount] = useState<number>(0)
   const [withdrawPhone, setWithdrawPhone] = useState<string>('')
+  const [depositAmount, setDepositAmount] = useState<number>(0)
+  const [depositPhone, setDepositPhone] = useState<string>('')
+  const [isDepositing, setIsDepositing] = useState(false)
 
   const [newUsername, setNewUsername] = useState('')
   const [newAvatar, setNewAvatar] = useState('🦊')
@@ -123,8 +127,6 @@ export default function App() {
       const betsChannel = supabase.channel('bets_channel').on('postgres_changes', { event: '*', schema: 'public', table: 'bets' }, () => { fetchBets(); fetchProfile(); fetchAllProfiles() }).subscribe()
       const profilesChannel = supabase.channel('profiles_channel').on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => { fetchAllProfiles() }).subscribe()
       const notifsChannel = supabase.channel('notifs_channel').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${session.user.id}` }, () => fetchNotifications()).subscribe()
-      
-      // 🌟 NEW: Listen for Event changes (Settlements/Deletions) so zombie markets vanish instantly
       const eventsChannel = supabase.channel('events_channel').on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, () => { fetchEvents() }).subscribe()
       
       return () => { 
@@ -214,6 +216,40 @@ export default function App() {
     showToast(newStatus ? 'Profile is now Public' : 'Profile is now Private', 'success')
   }
 
+  const handleDeposit = async () => {
+    if (depositAmount < 10) return showToast("Minimum deposit is 10 KSh.")
+    const phoneRegex = /^(07|01)\d{8}$/
+    if (!phoneRegex.test(depositPhone)) return showToast("Invalid format. Use 07... or 01...")
+
+    setIsDepositing(true)
+    try {
+      const response = await fetch('/api/stkpush', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: depositAmount,
+          phone: depositPhone,
+          email: session.user.email
+        }),
+      })
+
+      const data = await response.json()
+      if (response.ok) {
+        showToast("STK Push Sent! Enter PIN on your phone.", "success")
+        // Optionally update profile with phone number if it's the first time
+        if (!profile?.phone_number) {
+          await supabase.from('profiles').update({ phone_number: depositPhone }).eq('id', session.user.id)
+        }
+      } else {
+        showToast(data.message || "M-Pesa trigger failed.")
+      }
+    } catch (err) {
+      showToast("Network error. Try again.")
+    } finally {
+      setIsDepositing(false)
+    }
+  }
+
   const handleAirdrop = async () => {
     if (!profile) return
     if (profile.has_claimed_airdrop) return showToast("You have already claimed your one-time 10,000 KSh airdrop. Manage your bankroll wisely.")
@@ -265,7 +301,6 @@ export default function App() {
       await supabase.from('profiles').update({ wallet_balance: profile.wallet_balance - stake }).eq('id', session.user.id)
       setLastBet({ eventId: eId, outcomeIdx: oIdx, stake: stake })
       setDuelData(null); setShowSuccessModal(true); setSelectedEventId(''); setSelectedOutcomeIdx(null); setPoolStake(MIN_STAKE);
-      // Auto-return to markets after bet
       setActiveView('markets');
     } else { 
       showToast('Network error pushing wager to the pool.') 
@@ -315,7 +350,6 @@ export default function App() {
     return name.includes('@') ? name.split('@')[0] : name
   }
 
-  // 🌟 Filter out resolved events from the feed
   const activeEvents = events.filter(e => !e.resolved && (selectedCategory === 'All' || e.category.toLowerCase() === selectedCategory.toLowerCase()))
   const myActiveWagers = bets.filter(b => b.user_id === session?.user?.id && b.status === 'open')
   const mySettledWagers = bets.filter(b => b.user_id === session?.user?.id && ['won', 'lost', 'refunded'].includes(b.status))
@@ -418,14 +452,13 @@ export default function App() {
 
       <main className="max-w-6xl mx-auto px-4 py-8">
         
-        {/* --- 🌟 NEW FULL-PAGE EVENT DETAILS VIEW 🌟 --- */}
+        {/* --- EVENT DETAILS VIEW --- */}
         {activeView === 'eventDetail' && selectedEventId && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
             {(() => {
               const event = events.find(e => e.id === selectedEventId);
               if (!event) return null;
               
-              // SAFELY calculate the lock time
               const eventDateStr = event.closes_at || event.locks_at || '';
               const lockTime = new Date(eventDateStr).getTime();
               const isLocked = !isNaN(lockTime) && lockTime <= Date.now();
@@ -443,8 +476,6 @@ export default function App() {
                   </button>
 
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
-                    
-                    {/* LEFT COLUMN: The Description & Stats */}
                     <div className="lg:col-span-2 space-y-6 sm:space-y-8">
                       <div>
                         <div className="flex flex-wrap items-center gap-3 mb-4">
@@ -487,7 +518,6 @@ export default function App() {
                       </div>
                     </div>
 
-                    {/* RIGHT COLUMN: The Trading Slip */}
                     <div className="space-y-6">
                       <div className="bg-[#111111] border-2 border-[#C5A880]/20 rounded-3xl p-6 sm:p-8 shadow-[0_0_50px_rgba(197,168,128,0.05)] sticky top-24">
                         <div className="flex justify-between items-start mb-6 border-b border-[#ffffff10] pb-4">
@@ -553,7 +583,7 @@ export default function App() {
           </div>
         )}
 
-        {/* --- ALL OTHER VIEWS --- */}
+        {/* --- WALLET / CASHIER VIEW --- */}
         {activeView === 'wallet' && (
           <div className="max-w-2xl mx-auto animate-in fade-in duration-300">
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
@@ -574,22 +604,65 @@ export default function App() {
               <h1 className="text-5xl font-extrabold text-white mb-1 relative z-10 tracking-tight">{profile?.wallet_balance.toLocaleString()} <span className="text-2xl text-[#C5A880]">KSh</span></h1>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-10">
-              <div className={`bg-[#111111] border border-[#ffffff10] rounded-2xl p-6 relative overflow-hidden transition ${profile?.has_claimed_airdrop ? 'opacity-60 grayscale' : 'hover:border-[#C5A880]/30'}`}>
-                <div className="flex items-center gap-3 mb-4 relative z-10"><div className="w-10 h-10 rounded-lg bg-[#C5A880]/10 flex items-center justify-center border border-[#C5A880]/20"><ArrowDownToLine className="w-5 h-5 text-[#C5A880]" /></div><h3 className="text-lg font-bold">Initial Airdrop</h3></div>
+            {/* Cashier Grid - Now 1 Column Mobile, 3 Columns Tablet/Desktop */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-10">
+              
+              {/* DEPOSIT CARD */}
+              <div className="bg-[#111111] border border-[#ffffff10] rounded-2xl p-6 relative overflow-hidden group hover:border-[#C5A880]/30 transition">
+                <div className="flex items-center gap-3 mb-6 relative z-10">
+                  <div className="w-10 h-10 rounded-lg bg-[#C5A880]/10 flex items-center justify-center border border-[#C5A880]/20">
+                    <ArrowDownToLine className="w-5 h-5 text-[#C5A880]" />
+                  </div>
+                  <h3 className="text-lg font-bold">Deposit</h3>
+                </div>
                 <div className="space-y-4 relative z-10">
-                  <p className="text-sm text-gray-400 font-light mb-4">Claim your starting capital of 10,000 KSh. <span className="text-white font-semibold">This can only be claimed once.</span></p>
-                  <button onClick={handleAirdrop} disabled={profile?.has_claimed_airdrop} className={`w-full font-bold py-3.5 rounded-xl transition ${profile?.has_claimed_airdrop ? 'bg-[#0a0a0a] border border-[#ffffff10] text-gray-600' : 'bg-[#C5A880]/10 border border-[#C5A880]/30 text-[#C5A880] hover:bg-[#C5A880] hover:text-[#0a0a0a] shadow-[0_0_15px_rgba(197,168,128,0.1)]'}`}>
-                    {profile?.has_claimed_airdrop ? 'Airdrop Claimed' : 'Claim 10,000 KSh'}
+                  <div>
+                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1">M-Pesa Number</label>
+                    <input 
+                      type="tel" 
+                      placeholder="07XXXXXXXX" 
+                      value={depositPhone} 
+                      onChange={e => setDepositPhone(e.target.value.replace(/\D/g, '').substring(0,10))} 
+                      className="w-full bg-[#0a0a0a] border border-[#ffffff15] text-white rounded-xl p-3 focus:outline-none focus:border-[#C5A880] font-mono tracking-wider" 
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1">Amount (KSh)</label>
+                    <input 
+                      type="number" 
+                      value={depositAmount || ''} 
+                      onChange={e => setDepositAmount(Number(e.target.value))} 
+                      className="w-full bg-[#0a0a0a] border border-[#ffffff15] rounded-xl p-3 focus:outline-none focus:border-[#C5A880] font-bold text-white" 
+                    />
+                  </div>
+                  <button 
+                    onClick={handleDeposit} 
+                    disabled={isDepositing}
+                    className="w-full bg-[#C5A880]/10 border border-[#C5A880]/30 hover:bg-[#C5A880] text-[#C5A880] hover:text-[#0a0a0a] font-bold py-3.5 rounded-xl transition"
+                  >
+                    {isDepositing ? 'Requesting...' : 'Send STK Push'}
                   </button>
                 </div>
               </div>
+
+              {/* WITHDRAW CARD */}
               <div className="bg-[#111111] border border-[#ffffff10] rounded-2xl p-6 relative overflow-hidden group hover:border-[#10b981]/30 transition">
                 <div className="flex items-center gap-3 mb-6 relative z-10"><div className="w-10 h-10 rounded-lg bg-[#10b981]/10 flex items-center justify-center border border-[#10b981]/20"><ArrowUpFromLine className="w-5 h-5 text-[#10b981]" /></div><h3 className="text-lg font-bold">Withdraw</h3></div>
                 <div className="space-y-4 relative z-10">
                   <div><label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block mb-1">M-Pesa Number</label><input type="tel" placeholder="07XXXXXXXX" value={withdrawPhone} onChange={e => setWithdrawPhone(e.target.value.replace(/\D/g, '').substring(0,10))} className="w-full bg-[#0a0a0a] border border-[#ffffff15] text-white rounded-xl p-3 focus:outline-none focus:border-[#10b981] font-mono tracking-wider" /></div>
                   <div><div className="flex justify-between items-center mb-1"><label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount (KSh)</label></div><input type="number" value={withdrawAmount || ''} onChange={e => setWithdrawAmount(Number(e.target.value))} className="w-full bg-[#0a0a0a] border border-[#ffffff15] rounded-xl p-3 focus:outline-none focus:border-[#10b981] font-bold text-white" /></div>
                   <button onClick={handleWithdraw} className="w-full bg-[#10b981]/10 border border-[#10b981]/30 hover:bg-[#10b981] text-[#10b981] hover:text-[#0a0a0a] font-bold py-3.5 rounded-xl transition">Request Payout</button>
+                </div>
+              </div>
+
+              {/* AIRDROP CARD */}
+              <div className={`bg-[#111111] border border-[#ffffff10] rounded-2xl p-6 relative overflow-hidden transition md:col-span-2 lg:col-span-1 ${profile?.has_claimed_airdrop ? 'opacity-60 grayscale' : 'hover:border-[#C5A880]/30'}`}>
+                <div className="flex items-center gap-3 mb-4 relative z-10"><div className="w-10 h-10 rounded-lg bg-[#C5A880]/10 flex items-center justify-center border border-[#C5A880]/20"><ArrowDownToLine className="w-5 h-5 text-[#C5A880]" /></div><h3 className="text-lg font-bold">Initial Airdrop</h3></div>
+                <div className="space-y-4 relative z-10">
+                  <p className="text-sm text-gray-400 font-light mb-4">Claim your starting capital of 10,000 KSh. <span className="text-white font-semibold">This can only be claimed once.</span></p>
+                  <button onClick={handleAirdrop} disabled={profile?.has_claimed_airdrop} className={`w-full font-bold py-3.5 rounded-xl transition ${profile?.has_claimed_airdrop ? 'bg-[#0a0a0a] border border-[#ffffff10] text-gray-600' : 'bg-[#C5A880]/10 border border-[#C5A880]/30 text-[#C5A880] hover:bg-[#C5A880] hover:text-[#0a0a0a] shadow-[0_0_15px_rgba(197,168,128,0.1)]'}`}>
+                    {profile?.has_claimed_airdrop ? 'Airdrop Claimed' : 'Claim 10,000 KSh'}
+                  </button>
                 </div>
               </div>
             </div>
@@ -727,7 +800,7 @@ export default function App() {
           </div>
         )}
 
-        {/* --- THE MARKETS FEED --- */}
+        {/* --- MARKETS FEED --- */}
         {activeView === 'markets' && (
           <div className="animate-in fade-in duration-300">
             <div className="flex gap-2 overflow-x-auto pb-6 no-scrollbar mb-2 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none'] select-none">
@@ -752,7 +825,6 @@ export default function App() {
                   const eventBets = bets.filter(b => b.event_id === event.id && b.status === 'open')
                   const totalPoolVolume = eventBets.reduce((sum, b) => sum + b.stake, 0)
                   
-                  // Safely calculate lock state
                   const eventDateStr = event.closes_at || event.locks_at || '';
                   const lockTime = new Date(eventDateStr).getTime();
                   const isLocked = !isNaN(lockTime) && lockTime <= Date.now();
@@ -786,7 +858,6 @@ export default function App() {
                           
                           const glowIntensity = totalPoolVolume === 0 ? 0.02 : (percent / 100) * 0.5
                           const borderOpacity = totalPoolVolume === 0 ? 0.1 : 0.2 + (percent / 100) * 0.8
-                          
                           const isOddLast = event.outcomes.length % 2 !== 0 && idx === event.outcomes.length - 1
 
                           return (
@@ -812,7 +883,6 @@ export default function App() {
                       </div>
 
                       <div className="flex gap-2 mt-auto relative z-20">
-                        {/* Fake button for visual cue, but parent card handles the click */}
                         <div className={`flex-grow font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2 shadow-sm uppercase tracking-widest text-xs pointer-events-none ${isLocked ? 'bg-[#0a0a0a] border border-red-500/20 text-red-500' : 'bg-[#1a1a1a] border border-[#ffffff15] text-white group-hover:bg-[#C5A880] group-hover:text-[#0a0a0a] group-hover:shadow-[0_0_20px_rgba(197,168,128,0.2)] group-hover:border-[#C5A880]'}`}>
                           {isLocked ? '🔒 Locked' : 'Trade Pool ⚔️'}
                         </div>
@@ -843,11 +913,11 @@ export default function App() {
         <div className="fixed inset-0 z-[130] flex items-end sm:items-center justify-center bg-black/90 backdrop-blur-sm sm:p-4 animate-in slide-in-from-bottom-full duration-300">
           <div className="bg-[#111111] sm:border border-[#ffffff15] sm:rounded-3xl w-full max-w-md h-[80vh] sm:h-[600px] flex flex-col relative rounded-t-3xl overflow-hidden shadow-2xl">
             <div className="p-4 border-b border-[#ffffff10] flex justify-between items-center bg-[#0a0a0a]">
-               <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2">
                   <MessageSquare className="w-5 h-5 text-[#f43f5e]" />
                   <h3 className="font-bold text-white text-sm uppercase tracking-widest">Warzone</h3>
-               </div>
-               <button onClick={() => setChatEventId(null)} className="text-gray-500 hover:text-white transition"><X className="w-5 h-5" /></button>
+                </div>
+                <button onClick={() => setChatEventId(null)} className="text-gray-500 hover:text-white transition"><X className="w-5 h-5" /></button>
             </div>
             
             <div className="flex-grow overflow-y-auto p-4 space-y-4 no-scrollbar">
@@ -942,7 +1012,7 @@ export default function App() {
         </div>
       )}
 
-      {/* --- MODALS OVERLAYS --- */}
+      {/* --- OVERLAY MODALS --- */}
       
       {selectedPublicProfile && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-md p-4 animate-in fade-in duration-200" onClick={() => setSelectedPublicProfile(null)}>
