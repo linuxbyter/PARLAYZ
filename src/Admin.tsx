@@ -11,7 +11,8 @@ interface Event {
   id: string
   title: string
   outcomes: string[]
-  closes_at: string
+  closes_at?: string
+  locks_at?: string
   category: string
 }
 
@@ -26,7 +27,7 @@ export default function Admin() {
   const [newTitle, setNewTitle] = useState('')
   const [newDescription, setNewDescription] = useState('')
   const [newCategory, setNewCategory] = useState('')
-  const [newClosesAt, setNewClosesAt] = useState('')
+  const [newLocksAt, setNewLocksAt] = useState('')
   const [newOutcomes, setNewOutcomes] = useState<string[]>(['', ''])
 
   useEffect(() => {
@@ -62,8 +63,9 @@ export default function Admin() {
     const updatedOutcomes = newOutcomes.filter((_, i) => i !== index)
     setNewOutcomes(updatedOutcomes)
   }
+
   const handleCreateMarket = async () => {
-    if (!newTitle || !newCategory || !newClosesAt) {
+    if (!newTitle || !newCategory || !newLocksAt) {
       alert("Please fill in all required fields.")
       return
     }
@@ -76,11 +78,12 @@ export default function Admin() {
 
     setIsCreating(true)
 
+    // Using locks_at to match the new App.tsx architecture
     const { error } = await supabase.from('events').insert({
       title: newTitle,
       description: newDescription,
       category: newCategory,
-      closes_at: new Date(newClosesAt).toISOString(),
+      locks_at: new Date(newLocksAt).toISOString(),
       outcomes: validOutcomes,
       resolved: false
     })
@@ -93,7 +96,7 @@ export default function Admin() {
       setNewTitle('')
       setNewDescription('')
       setNewCategory('')
-      setNewClosesAt('')
+      setNewLocksAt('')
       setNewOutcomes(['', ''])
       fetchUnresolvedEvents()
     }
@@ -114,7 +117,7 @@ export default function Admin() {
           await supabase.from('profiles').update({ wallet_balance: profile.wallet_balance + bet.stake }).eq('id', bet.user_id)
           await supabase.from('notifications').insert({ 
             user_id: bet.user_id, 
-            message: `A market was cancelled. Your ${bet.stake} PTZ stake has been fully refunded.`, 
+            message: `A market was cancelled. Your ${bet.stake} KSh stake has been fully refunded.`, 
             type: 'payout', 
             is_read: false 
           })
@@ -138,7 +141,8 @@ export default function Admin() {
 
     const rightNow = new Date(Date.now() - 1000).toISOString()
     
-    const { error } = await supabase.from('events').update({ closes_at: rightNow }).eq('id', eventId)
+    // Updates locks_at to instantly freeze the market
+    const { error } = await supabase.from('events').update({ locks_at: rightNow }).eq('id', eventId)
 
     if (error) {
       alert(`Lock failed: ${error.message}`)
@@ -148,74 +152,29 @@ export default function Admin() {
     }
   }
 
+  // --- THE NEW "GOD MODE" SETTLEMENT ENGINE ---
   const resolveEvent = async (eventId: string, winningOutcomeIdx: number, winningOutcomeName: string) => {
     if (!window.confirm(`Are you 100% sure "${winningOutcomeName}" won? This will distribute real money and cannot be undone.`)) return
 
     setResolvingId(eventId)
 
-    const { data: bets } = await supabase.from('bets').select('*').eq('event_id', eventId)
-    if (!bets) {
-      alert("Error fetching bets.")
-      setResolvingId(null)
-      return
+    // Instead of doing the math in React, we trigger the Supabase SQL function.
+    // This is instant, immune to browser crashes, and guarantees 'resolved' flips to true.
+    const { error } = await supabase.rpc('resolve_market_payout', { 
+      target_event_id: eventId, 
+      winning_index: winningOutcomeIdx 
+    })
+
+    if (error) {
+      alert(`Settle failed! Did you add the SQL function in Supabase? Error: ${error.message}`)
+    } else {
+      alert('Event resolved and all payouts distributed successfully!')
+      fetchUnresolvedEvents()
     }
-
-    const poolBets = bets.filter(b => b.status === 'open')
-    const totalPoolVolume = poolBets.reduce((sum, b) => sum + b.stake, 0)
-    const winningPoolVolume = poolBets.filter(b => b.outcome_index === winningOutcomeIdx).reduce((sum, b) => sum + b.stake, 0)
-
-    for (const bet of bets) {
-      let netPayout = 0
-      let winnerId = null
-      let statusUpdate = 'lost'
-
-      if (bet.status === 'open') {
-        if (bet.outcome_index === winningOutcomeIdx) {
-          const grossPayout = winningPoolVolume === 0 ? bet.stake : (bet.stake / winningPoolVolume) * totalPoolVolume
-          netPayout = Math.round(grossPayout * (1 - PLATFORM_FEE_PERCENT / 100))
-          winnerId = bet.user_id
-          statusUpdate = 'won'
-        } else if (winningPoolVolume === 0) {
-          netPayout = bet.stake
-          winnerId = bet.user_id
-          statusUpdate = 'refunded'
-        }
-      } else if (bet.status === 'p2p_matched') {
-        const grossPot = bet.stake * (bet.odds || 2)
-        netPayout = Math.round(grossPot * (1 - PLATFORM_FEE_PERCENT / 100))
-
-        if (bet.outcome_index === winningOutcomeIdx) {
-          winnerId = bet.user_id
-          statusUpdate = 'won'
-        } else {
-          winnerId = bet.matcher_id
-          statusUpdate = 'won'
-        }
-      } else if (bet.status === 'p2p_open') {
-        netPayout = bet.stake
-        winnerId = bet.user_id
-        statusUpdate = 'refunded'
-      }
-
-      if (winnerId && netPayout > 0) {
-        const { data: profile } = await supabase.from('profiles').select('wallet_balance').eq('id', winnerId).single()
-        if (profile) {
-          await supabase.from('profiles').update({ wallet_balance: profile.wallet_balance + netPayout }).eq('id', winnerId)
-        }
-        const notifMessage = statusUpdate === 'refunded' 
-          ? `Your ${bet.stake} PTZ stake for an unresolved/unmatched wager was refunded.`
-          : `You WON ${netPayout.toLocaleString()} PTZ on ${winningOutcomeName}!`
-
-        await supabase.from('notifications').insert({ user_id: winnerId, message: notifMessage, type: 'payout', is_read: false })
-      }
-      await supabase.from('bets').update({ status: statusUpdate }).eq('id', bet.id)
-    }
-
-    await supabase.from('events').update({ resolved: true }).eq('id', eventId)
-    alert('Event resolved and all payouts distributed successfully!')
+    
     setResolvingId(null)
-    fetchUnresolvedEvents()
   }
+
   if (!session) return <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center p-10 text-white text-center font-sans">Please log in to access the Admin Panel.</div>
 
   if (!ADMIN_UUIDS.includes(session.user.id)) return <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center p-10 text-white text-center font-bold text-xl font-sans">Unauthorized Access.</div>
@@ -258,14 +217,18 @@ export default function Admin() {
               <button onClick={() => setShowCreateModal(true)} className="mt-4 text-[#C5A880] font-semibold hover:text-[#A3885C]">Create one now →</button>
             </div>
           ) : (
-            events.map((event) => (
+            events.map((event) => {
+              const lockDate = event.locks_at || event.closes_at || '';
+              return (
               <div key={event.id} className="bg-[#111111] border border-[#ffffff10] rounded-2xl p-6 shadow-lg relative overflow-hidden hover:border-[#C5A880]/30 transition group">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-[#C5A880]/5 rounded-full blur-3xl"></div>
                 
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 relative z-10 gap-3">
                   <div className="flex items-center gap-3">
                     <span className="text-xs font-semibold text-[#C5A880] uppercase tracking-wider bg-[#C5A880]/10 border border-[#C5A880]/20 px-3 py-1 rounded-full">{event.category}</span>
-                    <span className="text-xs text-gray-400 font-semibold border border-[#ffffff10] px-2 py-1 rounded">Closes: {new Date(event.closes_at).toLocaleDateString()} {new Date(event.closes_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                    <span className="text-xs text-gray-400 font-semibold border border-[#ffffff10] px-2 py-1 rounded">
+                      Locks: {lockDate ? `${new Date(lockDate).toLocaleDateString()} ${new Date(lockDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}` : 'TBA'}
+                    </span>
                   </div>
                   
                   <div className="flex gap-2">
@@ -304,7 +267,7 @@ export default function Admin() {
                   ))}
                 </div>
               </div>
-            ))
+            )})
           )}
         </div>
       </div>
@@ -361,8 +324,8 @@ export default function Admin() {
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-2"><Calendar className="w-3 h-3"/> Closes At</label>
                   <input 
                     type="datetime-local"
-                    value={newClosesAt}
-                    onChange={(e) => setNewClosesAt(e.target.value)}
+                    value={newLocksAt}
+                    onChange={(e) => setNewLocksAt(e.target.value)}
                     className="w-full bg-[#0a0a0a] border border-[#ffffff15] text-white rounded-xl p-3.5 focus:outline-none focus:border-[#C5A880] transition [color-scheme:dark]"
                   />
                 </div>
