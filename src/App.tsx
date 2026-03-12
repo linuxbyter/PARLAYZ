@@ -3,8 +3,8 @@ import { supabase } from './lib/supabase'
 import Landing from './Landing'
 import { LogOut, X, AlertTriangle, Bell, Wallet, ArrowDownToLine, ArrowUpFromLine, CheckCircle2, History, Trophy, Activity, Eye, EyeOff, PieChart, Share2, Swords, MessageSquare, Send, ChevronLeft, HelpCircle, Search, Globe } from 'lucide-react'
 
-// V2 Interfaces - Bulletproofed
-interface Event { id: string; title: string; description: string; category: string; outcomes: string[]; closes_at?: string; locks_at?: string; created_at: string; resolved: boolean; settlement_source?: string }
+// V2 Interfaces - Bulletproofed for both closes_at and locks_at
+interface Event { id: string; title: string; description: string; category: string; outcomes: string[]; closes_at?: string; locks_at?: string; event_time?: string; created_at: string; resolved: boolean; settlement_source?: string }
 interface Bet { id: string; event_id: string; outcome_index: number; stake: number; status: string; user_id: string; }
 interface Profile { id: string; username: string; wallet_balance: number; avatar: string; has_claimed_airdrop: boolean; is_public: boolean; phone_number?: string }
 interface AppNotification { id: string; user_id: string; message: string; type: string; is_read: boolean; created_at: string }
@@ -114,10 +114,10 @@ export default function App() {
 
   const [activeView, setActiveView] = useState<'markets' | 'wagers' | 'leaderboard' | 'wallet' | 'eventDetail'>('markets')
   
-  // NEW NAV STATES
+  // CATEGORY & SEARCH STATES
+  const [searchQuery, setSearchQuery] = useState<string>('')
   const [selectedMainCategory, setSelectedMainCategory] = useState<string>('All')
   const [selectedSubCategory, setSelectedSubCategory] = useState<string | null>(null)
-  const [searchQuery, setSearchQuery] = useState<string>('')
   
   const [showProfileSetup, setShowProfileSetup] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
@@ -127,7 +127,7 @@ export default function App() {
   const [selectedOutcomeIdx, setSelectedOutcomeIdx] = useState<number | null>(null)
   const [poolStake, setPoolStake] = useState<number>(MIN_STAKE)
   
-  // P2P Duel States
+  // NEW: P2P Duel States
   const [betMode, setBetMode] = useState<'pool' | 'p2p'>('pool')
   const [friendStake, setFriendStake] = useState<number>(MIN_STAKE)
   
@@ -324,7 +324,7 @@ export default function App() {
     }, 2500)
   }
 
-  // --- P2P DUEL SUBMISSION (TROJAN HORSE) ---
+  // --- NEW: P2P DUEL SUBMISSION (TROJAN HORSE) ---
   const submitDuel = async () => {
     if (!selectedEventId || selectedOutcomeIdx === null || !session?.user || !profile) return
     if (profile.wallet_balance < poolStake) return showToast('Insufficient balance for your stake.')
@@ -341,7 +341,10 @@ export default function App() {
 
     if (!error) {
       await supabase.from('profiles').update({ wallet_balance: profile.wallet_balance - poolStake }).eq('id', session.user.id)
+      
+      // Set the link generator to use the FRIEND'S required stake
       setLastBet({ eventId: selectedEventId, outcomeIdx: selectedOutcomeIdx, stake: friendStake })
+      
       setDuelData(null); setShowSuccessModal(true); setSelectedEventId(''); setSelectedOutcomeIdx(null); setPoolStake(MIN_STAKE); setFriendStake(MIN_STAKE);
       setActiveView('markets');
     } else {
@@ -417,22 +420,23 @@ export default function App() {
     return name.includes('@') ? name.split('@')[0] : name
   }
 
-  // --- NEW: ADVANCED FILTERING & SEARCH LOGIC ---
+  // --- SMART FILTERING & SEARCH LOGIC ---
   const activeEvents = events.filter(e => {
     if (e.resolved) return false;
     
-    // Search Check
+    // 1. Search Query
     const searchLower = searchQuery.toLowerCase();
     const matchesSearch = e.title.toLowerCase().includes(searchLower) || e.description.toLowerCase().includes(searchLower);
 
-    // Category Check
+    // 2. Category Check
     let matchesCategory = true;
     if (selectedMainCategory !== 'All') {
       if (selectedSubCategory) {
+        // Exact match for subcategory (e.g., 'Sports_Football')
         matchesCategory = e.category === selectedSubCategory;
       } else {
-        // e.g. "Current Affairs" -> "CurrentAffairs"
-        const prefix = selectedMainCategory.replace(/\s+/g, '');
+        // Prefix match for main category (e.g., 'CurrentAffairs_')
+        const prefix = selectedMainCategory.replace(/\s+/g, ''); 
         matchesCategory = e.category.startsWith(`${prefix}_`);
       }
     }
@@ -727,8 +731,10 @@ export default function App() {
               <h1 className="text-5xl font-extrabold text-white mb-1 relative z-10 tracking-tight">{profile?.wallet_balance.toLocaleString()} <span className="text-2xl text-[#C5A880]">KSh</span></h1>
             </div>
 
+            {/* Cashier Grid - Now 1 Column Mobile, 3 Columns Tablet/Desktop */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-10">
               
+              {/* DEPOSIT CARD */}
               <div className="bg-[#111111] border border-[#ffffff10] rounded-2xl p-6 relative overflow-hidden group hover:border-[#C5A880]/30 transition">
                 <div className="flex items-center gap-3 mb-6 relative z-10">
                   <div className="w-10 h-10 rounded-lg bg-[#C5A880]/10 flex items-center justify-center border border-[#C5A880]/20">
@@ -766,6 +772,7 @@ export default function App() {
                 </div>
               </div>
 
+              {/* WITHDRAW CARD */}
               <div className="bg-[#111111] border border-[#ffffff10] rounded-2xl p-6 relative overflow-hidden group hover:border-[#10b981]/30 transition">
                 <div className="flex items-center gap-3 mb-6 relative z-10"><div className="w-10 h-10 rounded-lg bg-[#10b981]/10 flex items-center justify-center border border-[#10b981]/20"><ArrowUpFromLine className="w-5 h-5 text-[#10b981]" /></div><h3 className="text-lg font-bold">Withdraw</h3></div>
                 <div className="space-y-4 relative z-10">
@@ -775,6 +782,7 @@ export default function App() {
                 </div>
               </div>
 
+              {/* AIRDROP CARD */}
               <div className={`bg-[#111111] border border-[#ffffff10] rounded-2xl p-6 relative overflow-hidden transition md:col-span-2 lg:col-span-1 ${profile?.has_claimed_airdrop ? 'opacity-60 grayscale' : 'hover:border-[#C5A880]/30'}`}>
                 <div className="flex items-center gap-3 mb-4 relative z-10"><div className="w-10 h-10 rounded-lg bg-[#C5A880]/10 flex items-center justify-center border border-[#C5A880]/20"><ArrowDownToLine className="w-5 h-5 text-[#C5A880]" /></div><h3 className="text-lg font-bold">Initial Airdrop</h3></div>
                 <div className="space-y-4 relative z-10">
@@ -919,10 +927,11 @@ export default function App() {
           </div>
         )}
 
-        {/* --- MARKETS FEED --- */}
+        {/* --- MARKETS FEED WITH NEW CATEGORIES AND SEARCH --- */}
         {activeView === 'markets' && (
           <div className="animate-in fade-in duration-300">
             
+            {/* NEW SEARCH BAR */}
             <div className="mb-6 relative max-w-md">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
               <input 
@@ -955,7 +964,7 @@ export default function App() {
             </div>
 
             {selectedMainCategory !== 'All' && CATEGORIES[selectedMainCategory as keyof typeof CATEGORIES].length > 0 && (
-              <div className="flex gap-2 overflow-x-auto pb-6 no-scrollbar mb-2 animate-in slide-in-from-top-2 duration-200">
+              <div className="flex gap-2 overflow-x-auto pb-6 no-scrollbar mb-2 animate-in slide-in-from-top-2 duration-200 select-none">
                 <button
                   onClick={() => setSelectedSubCategory(null)}
                   className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase transition border whitespace-nowrap ${
@@ -986,86 +995,32 @@ export default function App() {
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-              {activeEvents.length === 0 ? <div className="col-span-full py-16 text-center text-gray-500 border border-dashed border-[#ffffff10] rounded-3xl bg-[#111111]/30">No active markets found for this search or category.</div> : (
-                activeEvents.map((event) => {
-                  const eventBets = bets.filter(b => b.event_id === event.id && b.status === 'open')
-                  const totalPoolVolume = eventBets.reduce((sum, b) => sum + b.stake, 0)
-                  
-                  const eventDateStr = event.closes_at || event.locks_at || '';
-                  const lockTime = new Date(eventDateStr).getTime();
-                  const isLocked = !isNaN(lockTime) && lockTime <= Date.now();
-
+              {activeEvents.length === 0 ? (
+                <div className="col-span-full py-16 text-center text-gray-500 border border-dashed border-[#ffffff10] rounded-3xl bg-[#111111]/30">No markets found for this search/category.</div>
+              ) : (
+                activeEvents.map(e => {
+                  const eb = bets.filter(b => b.event_id === e.id && b.status === 'open')
+                  const tV = eb.reduce((s, b) => s + b.stake, 0)
                   return (
-                    <div 
-                      key={event.id}
-                      onClick={() => {
-                        setSelectedEventId(event.id); 
-                        setSelectedOutcomeIdx(null); 
-                        setActiveView('eventDetail'); 
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                      }}
-                      className="bg-[#111111] border border-[#ffffff10] rounded-3xl p-5 transition flex flex-col group relative overflow-hidden select-none cursor-pointer hover:border-[#C5A880]/50 hover:-translate-y-1 shadow-lg"
-                    >
-                      <div className="absolute top-0 right-0 w-32 h-32 bg-[#C5A880]/5 rounded-full blur-[50px] group-hover:bg-[#C5A880]/15 transition pointer-events-none"></div>
-                      
-                      <div className="flex items-start justify-between mb-3 relative z-10 pointer-events-none">
-                        <span className="text-[10px] font-bold text-[#C5A880] uppercase tracking-wider bg-[#C5A880]/10 border border-[#C5A880]/20 px-2 py-1 rounded-lg shadow-sm">
-                          {event.category.split('_').join(' • ').replace('PlayerBets', 'Player Bets').replace('TVFilm', 'TV & Film').replace('CurrentAffairs', 'Current Affairs')}
+                    <div key={e.id} onClick={() => { setSelectedEventId(e.id); setActiveView('eventDetail'); window.scrollTo(0,0) }} className="bg-[#111111] border border-[#ffffff10] rounded-3xl p-5 cursor-pointer hover:border-[#C5A880]/50 transition relative overflow-hidden group">
+                      <div className="flex justify-between items-start mb-3">
+                        <span className="text-[10px] font-bold text-[#C5A880] uppercase bg-[#C5A880]/10 border border-[#C5A880]/20 px-2 py-1 rounded-lg shadow-sm">
+                           {e.category.split('_').join(' • ').replace('PlayerBets', 'Player Bets').replace('TVFilm', 'TV & Film').replace('CurrentAffairs', 'Current Affairs')}
                         </span>
-                        <LiveTimer targetDate={eventDateStr} />
+                        <LiveTimer targetDate={e.closes_at || e.locks_at || ''} />
                       </div>
-                      
-                      <h3 className="text-lg font-bold text-white mb-1.5 relative z-10 leading-snug group-hover:text-[#C5A880] transition-colors line-clamp-2 pointer-events-none">{event.title}</h3>
-                      <p className="text-gray-400 text-xs mb-4 font-light relative z-10 leading-relaxed line-clamp-1 pointer-events-none">{event.description}</p>
-                      
-                      <div className="grid grid-cols-2 gap-2 mb-4 relative z-10 flex-grow pointer-events-none">
-                        {event.outcomes.map((outcome, idx) => {
-                          const outcomeVolume = eventBets.filter(b => b.outcome_index === idx).reduce((sum, b) => sum + b.stake, 0)
-                          const percent = totalPoolVolume === 0 ? 0 : Math.round((outcomeVolume / totalPoolVolume) * 100)
-                          const rgb = ORB_COLORS[idx % ORB_COLORS.length]
-                          
-                          const glowIntensity = totalPoolVolume === 0 ? 0.02 : (percent / 100) * 0.5
-                          const borderOpacity = totalPoolVolume === 0 ? 0.1 : 0.2 + (percent / 100) * 0.8
-                          const isOddLast = event.outcomes.length % 2 !== 0 && idx === event.outcomes.length - 1
-
-                          return (
-                            <div key={idx} className={`flex ${isOddLast ? 'flex-row gap-4 items-center justify-between col-span-2 py-2 px-4' : 'flex-col items-center justify-center p-3'} rounded-xl bg-[#0a0a0a]/80 backdrop-blur-md transition-all duration-700 relative overflow-hidden`}
-                                 style={{
-                                   borderColor: `rgba(${rgb}, ${borderOpacity})`,
-                                   borderWidth: '1px',
-                                   boxShadow: `0 0 ${15 + (percent/2)}px rgba(${rgb}, ${glowIntensity}) inset, 0 0 ${10 + percent}px rgba(${rgb}, ${glowIntensity / 2})`
-                                 }}>
-                              <span className={`text-xs font-bold text-white text-center drop-shadow-md ${isOddLast ? '' : 'mb-1'} line-clamp-1`}>{outcome}</span>
-                              <div className={`flex ${isOddLast ? 'items-center gap-3' : 'flex-col items-center'}`}>
-                                <span className={`${isOddLast ? 'text-base' : 'text-lg'} font-black tracking-tight`} style={{ color: `rgba(${rgb}, 1)` }}>{percent}%</span>
-                                <span className="text-[9px] text-gray-500 uppercase tracking-widest">{outcomeVolume.toLocaleString()} KSh</span>
-                              </div>
-                            </div>
-                          )
-                        })}
+                      <h3 className="text-lg font-bold mb-4 line-clamp-2 group-hover:text-[#C5A880]">{e.title}</h3>
+                      <div className="grid grid-cols-2 gap-2">
+                        {e.outcomes.slice(0, 2).map((o, i) => (
+                          <div key={i} className="bg-[#0a0a0a] p-3 rounded-xl border border-[#ffffff0a] text-center">
+                            <p className="text-[10px] text-gray-500 font-bold uppercase line-clamp-1">{o}</p>
+                            <p className="text-lg font-black">{tV === 0 ? 0 : Math.round((eb.filter(b => b.outcome_index === i).reduce((s, b) => s + b.stake, 0) / tV) * 100)}%</p>
+                          </div>
+                        ))}
                       </div>
-
-                      <div className="flex justify-between items-center text-[11px] font-semibold text-gray-500 uppercase tracking-widest mb-3 pt-3 border-t border-[#ffffff0a] relative z-10 pointer-events-none">
-                         <span>Liquidity:</span>
-                         <span className="text-white font-mono">{totalPoolVolume.toLocaleString()} KSh</span>
-                      </div>
-
-                      <div className="flex gap-2 mt-auto relative z-20">
-                        <div className={`flex-grow font-bold py-2.5 rounded-xl transition flex items-center justify-center gap-2 shadow-sm uppercase tracking-widest text-xs pointer-events-none ${isLocked ? 'bg-[#0a0a0a] border border-red-500/20 text-red-500' : 'bg-[#1a1a1a] border border-[#ffffff15] text-white group-hover:bg-[#C5A880] group-hover:text-[#0a0a0a] group-hover:shadow-[0_0_20px_rgba(197,168,128,0.2)] group-hover:border-[#C5A880]'}`}>
-                          {isLocked ? '🔒 Locked' : 'Trade Pool ⚔️'}
-                        </div>
-                        
-                        <button 
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation(); 
-                            setChatEventId(event.id);
-                          }} 
-                          className="w-12 bg-[#1a1a1a] hover:bg-[#f43f5e] hover:text-white border border-[#ffffff15] hover:border-[#f43f5e] text-gray-400 rounded-xl transition flex items-center justify-center shadow-sm" 
-                          title="Warzone Chat"
-                        >
-                          <MessageSquare className="w-4 h-4" />
-                        </button>
+                      <div className="mt-4 pt-3 border-t border-[#ffffff0a] flex justify-between items-center text-[10px] text-gray-500 font-bold uppercase">
+                        <span>Vol: {tV.toLocaleString()} KSh</span>
+                        <div className="flex items-center gap-1 text-white bg-[#1a1a1a] px-2 py-1 rounded-md border border-[#ffffff10]">Trade ⚔️</div>
                       </div>
                     </div>
                   )
@@ -1076,187 +1031,72 @@ export default function App() {
         )}
       </main>
 
-      {/* --- WARZONE CHAT MODAL --- */}
-      {chatEventId && (
-        <div className="fixed inset-0 z-[130] flex items-end sm:items-center justify-center bg-black/90 backdrop-blur-sm sm:p-4 animate-in slide-in-from-bottom-full duration-300">
-          <div className="bg-[#111111] sm:border border-[#ffffff15] sm:rounded-3xl w-full max-w-md h-[80vh] sm:h-[600px] flex flex-col relative rounded-t-3xl overflow-hidden shadow-2xl">
-            <div className="p-4 border-b border-[#ffffff10] flex justify-between items-center bg-[#0a0a0a]">
-                <div className="flex items-center gap-2">
-                  <MessageSquare className="w-5 h-5 text-[#f43f5e]" />
-                  <h3 className="font-bold text-white text-sm uppercase tracking-widest">Warzone</h3>
-                </div>
-                <button onClick={() => setChatEventId(null)} className="text-gray-500 hover:text-white transition"><X className="w-5 h-5" /></button>
+      {/* --- DUEL RECEIVED MODAL --- */}
+      {duelData && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/95 backdrop-blur-xl p-4">
+          <div className="bg-[#111111] border-2 border-[#f43f5e]/50 rounded-3xl p-8 w-full max-w-md text-center shadow-2xl relative">
+            <Swords className="w-12 h-12 text-[#f43f5e] mx-auto mb-4" />
+            <h2 className="text-2xl font-black mb-1 uppercase tracking-tighter italic">Challenge Received</h2>
+            <p className="text-gray-400 text-xs mb-6 font-light">Stake: <span className="text-white font-bold">{duelData.stake.toLocaleString()} KSh</span></p>
+            <div className="grid gap-2">
+              {events.find(e => e.id === duelData.eventId)?.outcomes.map((o, i) => {
+                if (i === duelData.side) return null
+                return <button key={i} onClick={() => submitPoolBet(duelData.eventId, i, duelData.stake)} className="w-full bg-[#f43f5e] text-white font-bold py-3 rounded-xl">Accept & Bet on {o}</button>
+              })}
+              <button onClick={() => setDuelData(null)} className="w-full text-gray-600 font-bold py-2 text-xs mt-2">Decline</button>
             </div>
-            
+          </div>
+        </div>
+      )}
+
+      {/* --- CHAT MODAL --- */}
+      {chatEventId && (
+        <div className="fixed inset-0 z-[130] flex items-end sm:items-center justify-center bg-black/90 p-4">
+          <div className="bg-[#111111] border border-[#ffffff15] rounded-3xl w-full max-w-md h-[80vh] flex flex-col relative overflow-hidden">
+            <div className="p-4 border-b border-[#ffffff10] flex justify-between items-center bg-[#0a0a0a]">
+              <h3 className="font-bold text-sm uppercase tracking-widest text-[#f43f5e]">Warzone</h3>
+              <button onClick={() => setChatEventId(null)}><X className="w-5 h-5" /></button>
+            </div>
             <div className="flex-grow overflow-y-auto p-4 space-y-4 no-scrollbar">
-              {chatMessages.length === 0 ? (
-                <div className="text-center text-gray-500 text-xs uppercase tracking-widest mt-10">No trash talk yet. Be the first.</div>
-              ) : (
-                chatMessages.map(msg => {
-                  const isMe = msg.user_id === session?.user?.id
-                  const msgProfile = allProfiles.find(p => p.id === msg.user_id)
-                  return (
-                    <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-                      <span className="text-[10px] text-gray-500 mb-1 flex items-center gap-1">
-                        {msgProfile?.avatar || '👤'} {sanitizeName(msgProfile?.username)}
-                      </span>
-                      <div className={`px-4 py-2 rounded-2xl max-w-[85%] text-sm ${isMe ? 'bg-[#f43f5e]/20 border border-[#f43f5e]/30 text-white rounded-tr-sm' : 'bg-[#1a1a1a] border border-[#ffffff10] text-gray-300 rounded-tl-sm'}`}>
-                        {msg.text}
-                      </div>
-                    </div>
-                  )
-                })
-              )}
+              {chatMessages.map(m => {
+                const isMe = m.user_id === session?.user?.id; const p = allProfiles.find(pr => pr.id === m.user_id)
+                return (
+                  <div key={m.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                    <span className="text-[10px] text-gray-500 mb-1">{p?.avatar} {sanitizeName(p?.username)}</span>
+                    <div className={`px-4 py-2 rounded-2xl max-w-[85%] text-sm ${isMe ? 'bg-[#f43f5e]/20 border border-[#f43f5e]/30' : 'bg-[#1a1a1a] border border-[#ffffff10]'}`}>{m.text}</div>
+                  </div>
+                )
+              })}
               <div ref={chatEndRef} />
             </div>
-
-            <div className="p-4 border-t border-[#ffffff10] bg-[#0a0a0a] flex gap-2">
-               <input 
-                 type="text" 
-                 placeholder="Talk your talk..." 
-                 value={chatInput} 
-                 onChange={e => setChatInput(e.target.value)} 
-                 onKeyDown={e => e.key === 'Enter' && sendChatMessage()}
-                 className="flex-grow bg-[#111111] border border-[#ffffff15] text-white rounded-xl px-4 py-3 focus:outline-none focus:border-[#f43f5e] text-sm"
-               />
-               <button onClick={sendChatMessage} className="w-12 flex items-center justify-center bg-[#f43f5e] hover:bg-[#e11d48] text-white rounded-xl transition shadow-lg">
-                 <Send className="w-4 h-4 ml-1" />
-               </button>
+            <div className="p-4 bg-[#0a0a0a] flex gap-2">
+               <input type="text" placeholder="Talk your talk..." value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendChatMessage()} className="flex-grow bg-[#111111] border border-[#ffffff15] text-white rounded-xl px-4 py-3 outline-none" />
+               <button onClick={sendChatMessage} className="w-12 flex items-center justify-center bg-[#f43f5e] rounded-xl"><Send className="w-4 h-4 ml-1" /></button>
             </div>
           </div>
         </div>
       )}
 
-      {/* --- DUEL / CHALLENGE MODAL --- */}
-      {duelData && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/95 backdrop-blur-xl p-4 animate-in fade-in zoom-in-95 duration-300">
-          <div className="bg-[#111111] border-2 border-[#f43f5e]/50 rounded-3xl p-8 w-full max-w-md shadow-[0_0_50px_rgba(244,63,94,0.2)] relative overflow-hidden text-center">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#f43f5e] to-transparent"></div>
-            <Swords className="w-12 h-12 text-[#f43f5e] mx-auto mb-4 drop-shadow-[0_0_15px_rgba(244,63,94,0.5)]" />
-            
-            <h2 className="text-2xl font-black text-white mb-1 uppercase tracking-tighter italic">Challenge Received</h2>
-            <p className="text-gray-400 text-xs mb-6 font-light">
-              You've been called out on <span className="text-white font-bold">{events.find(e => e.id === duelData.eventId)?.title}</span>
-            </p>
-            
-            <div className="bg-[#0a0a0a] border border-[#ffffff10] rounded-2xl p-4 mb-6 text-left">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Their Side:</span>
-                <span className="bg-[#f43f5e]/10 text-[#f43f5e] text-[10px] font-black px-2 py-0.5 rounded-full border border-[#f43f5e]/20 uppercase">
-                  {events.find(e => e.id === duelData.eventId)?.outcomes[duelData.side]}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Their Stake:</span>
-                <span className="text-white font-mono font-bold text-lg">{duelData.stake.toLocaleString()} KSh</span>
-              </div>
-            </div>
-
-            <p className="text-white text-[10px] font-bold uppercase tracking-[0.2em] mb-4 opacity-50">Pick Your Response</p>
-
-            <div className="grid gap-2">
-              {events.find(e => e.id === duelData.eventId)?.outcomes.map((outcome, idx) => {
-                if (idx === duelData.side) return null;
-
-                return (
-                  <button 
-                    key={idx}
-                    onClick={() => submitPoolBet(duelData.eventId, idx, duelData.stake)}
-                    className="w-full bg-[#1a1a1a] hover:bg-[#10b981] border border-[#ffffff10] hover:border-[#10b981] text-white hover:text-[#0a0a0a] font-bold py-3 rounded-xl transition flex items-center justify-center gap-2 group text-sm"
-                  >
-                    Bet on {outcome}
-                  </button>
-                );
-              })}
-              
-              <button 
-                onClick={() => setDuelData(null)} 
-                className="w-full bg-transparent text-gray-600 font-bold py-2 hover:text-white transition text-xs mt-2"
-              >
-                Decline & Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* --- OVERLAY MODALS --- */}
-      
-      {selectedPublicProfile && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-md p-4 animate-in fade-in duration-200" onClick={() => setSelectedPublicProfile(null)}>
-          <div className="bg-[#111111] border border-[#ffffff15] rounded-3xl p-8 w-full max-w-sm text-center shadow-[0_0_50px_rgba(0,0,0,0.8)] relative" onClick={e => e.stopPropagation()}>
-            <button onClick={() => setSelectedPublicProfile(null)} className="absolute top-5 right-5 w-8 h-8 rounded-xl bg-[#1a1a1a] flex items-center justify-center text-gray-400 hover:text-white"><X className="w-4 h-4" /></button>
-            <div className="w-24 h-24 rounded-full bg-[#0a0a0a] border-2 border-[#C5A880]/30 flex items-center justify-center text-5xl mx-auto mb-4 shadow-inner">{selectedPublicProfile.avatar}</div>
-            <h3 className="text-2xl font-black text-white mb-1">{sanitizeName(selectedPublicProfile.username)}</h3>
-            {!selectedPublicProfile.is_public && selectedPublicProfile.id !== session?.user?.id ? (
-              <div className="mt-8 py-8 bg-[#0a0a0a] rounded-2xl border border-[#ffffff05]"><EyeOff className="w-8 h-8 text-gray-600 mx-auto mb-3" /><p className="text-gray-500 font-semibold text-sm">This trader's stats are private.</p></div>
-            ) : (
-              <div className="mt-8 space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-[#0a0a0a] border border-[#ffffff10] rounded-2xl p-4"><p className="text-xs text-gray-500 uppercase tracking-widest font-semibold mb-1">Win Rate</p><p className="text-2xl font-black text-white">{getUserStats(selectedPublicProfile.id).winRate}%</p></div>
-                  <div className="bg-[#0a0a0a] border border-[#ffffff10] rounded-2xl p-4"><p className="text-xs text-gray-500 uppercase tracking-widest font-semibold mb-1">Trades</p><p className="text-2xl font-black text-white">{getUserStats(selectedPublicProfile.id).trades}</p></div>
-                </div>
-                <div className="bg-[#0a0a0a] border border-[#ffffff10] rounded-2xl p-4 flex justify-between items-center"><p className="text-xs text-gray-500 uppercase tracking-widest font-semibold">Active Risk in Pools</p><p className="text-lg font-bold text-[#f43f5e]">{getUserStats(selectedPublicProfile.id).activeRisk.toLocaleString()} KSh</p></div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {showCashierModal && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200">
-          <div className={`bg-[#111111] border rounded-3xl p-6 sm:p-8 w-full max-w-sm text-center relative overflow-hidden shadow-2xl ${showCashierModal.type === 'deposit' ? 'border-[#10b981]/30' : 'border-[#C5A880]/30'}`}>
-            <div className={`absolute top-0 left-1/2 -translate-x-1/2 w-40 h-40 rounded-full blur-3xl pointer-events-none ${showCashierModal.type === 'deposit' ? 'bg-[#10b981]/10' : 'bg-[#C5A880]/10'}`}></div>
-            <div className="relative z-10">
-              {showCashierModal.status === 'processing' ? (
-                <>
-                  <div className="w-16 h-16 bg-[#1a1a1a] border border-[#ffffff15] rounded-2xl flex items-center justify-center mx-auto mb-5"><div className={`w-8 h-8 border-4 border-t-transparent rounded-full animate-spin ${showCashierModal.type === 'deposit' ? 'border-[#10b981]' : 'border-[#C5A880]'}`}></div></div>
-                  <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">Processing Transfer</h3>
-                  <p className="text-gray-400 text-sm mb-2 font-light">Securing protocol confirmation...</p>
-                </>
-              ) : (
-                <>
-                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5 border ${showCashierModal.type === 'deposit' ? 'bg-[#10b981]/10 border-[#10b981]/40 text-[#10b981]' : 'bg-[#C5A880]/10 border-[#C5A880]/40 text-[#C5A880]'}`}><CheckCircle2 className="w-8 h-8" /></div>
-                  <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">Success</h3>
-                  <p className="text-gray-400 text-sm mb-6 font-light">Transaction finalized.</p>
-                  <button onClick={() => setShowCashierModal(null)} className="w-full bg-[#1a1a1a] hover:bg-[#222222] border border-[#ffffff10] text-white font-bold py-3.5 rounded-xl transition">Return</button>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
+      {/* --- LOGOUT & SUCCESS MODALS --- */}
       {showSuccessModal && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200">
-          <div className="bg-[#111111] border border-[#10b981]/30 rounded-3xl p-6 sm:p-8 w-full max-w-sm text-center shadow-[0_0_50px_rgba(16,185,129,0.1)] relative overflow-hidden">
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-40 h-40 bg-[#10b981]/10 rounded-full blur-3xl pointer-events-none"></div>
-            <div className="relative z-10">
-              <div className="w-16 h-16 bg-[#10b981]/10 border border-[#10b981]/40 text-[#10b981] rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-[0_0_15px_rgba(16,185,129,0.2)]"><CheckCircle2 className="w-8 h-8" /></div>
-              <h3 className="text-2xl font-bold text-white mb-2 tracking-tight uppercase">Position Secured</h3>
-              <p className="text-gray-400 text-sm mb-6 font-light">Your capital is locked in the pool.</p>
-              
-              <div className="space-y-2">
-                <button onClick={copyChallengeLink} className="w-full bg-[#C5A880] text-black font-black py-4 rounded-xl flex items-center justify-center gap-2 hover:scale-105 transition-all uppercase text-xs tracking-widest shadow-xl">
-                  <Share2 className="w-4 h-4"/> Share Challenge Link
-                </button>
-                <button onClick={() => setShowSuccessModal(false)} className="w-full bg-[#1a1a1a] hover:bg-[#222222] border border-[#ffffff10] text-white font-bold py-3.5 rounded-xl transition uppercase text-[10px] tracking-widest">Return to Exchange</button>
-              </div>
-            </div>
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 p-4 animate-in fade-in duration-200">
+          <div className="bg-[#111111] border border-[#10b981]/30 rounded-3xl p-8 w-full max-w-sm text-center">
+            <div className="w-16 h-16 bg-[#10b981]/10 text-[#10b981] rounded-2xl flex items-center justify-center mx-auto mb-5"><CheckCircle2 className="w-8 h-8" /></div>
+            <h3 className="text-2xl font-bold mb-6 uppercase">Position Secured</h3>
+            <button onClick={copyChallengeLink} className="w-full bg-[#C5A880] text-black font-black py-4 rounded-xl flex items-center justify-center gap-2 mb-2 uppercase text-xs">Share Challenge</button>
+            <button onClick={() => setShowSuccessModal(false)} className="w-full text-gray-500 text-[10px] uppercase font-bold py-2 mt-2">Return</button>
           </div>
         </div>
       )}
 
       {showLogoutModal && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200">
-          <div className="bg-[#111111] border border-[#ffffff15] rounded-3xl p-8 w-full max-w-sm text-center shadow-[0_0_50px_rgba(0,0,0,0.8)] relative overflow-hidden">
-            <div className="relative z-10">
-              <div className="w-16 h-16 bg-[#f43f5e]/10 border border-[#f43f5e]/30 text-[#f43f5e] rounded-2xl flex items-center justify-center mx-auto mb-5"><LogOut className="w-7 h-7 ml-1" /></div>
-              <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">Disconnect?</h3>
-              <div className="flex gap-3 justify-center mt-6">
-                <button onClick={() => setShowLogoutModal(false)} className="w-1/2 bg-[#1a1a1a] hover:bg-[#222222] border border-[#ffffff10] text-white font-semibold py-3.5 rounded-xl transition">Cancel</button>
-                <button onClick={handleLogout} className="w-1/2 bg-[#f43f5e]/10 border border-[#f43f5e]/30 hover:bg-[#f43f5e] text-[#f43f5e] hover:text-white font-bold py-3.5 rounded-xl transition">Disconnect</button>
-              </div>
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 p-4 animate-in fade-in duration-200">
+          <div className="bg-[#111111] border border-[#ffffff15] rounded-3xl p-8 w-full max-w-sm text-center">
+            <LogOut className="w-12 h-12 text-[#f43f5e] mx-auto mb-4" />
+            <h3 className="text-2xl font-bold mb-6">Disconnect?</h3>
+            <div className="flex gap-4">
+              <button onClick={() => setShowLogoutModal(false)} className="flex-1 bg-gray-800 py-3 rounded-xl font-bold">Cancel</button>
+              <button onClick={handleLogout} className="flex-1 bg-[#f43f5e] py-3 rounded-xl font-bold">Log Out</button>
             </div>
           </div>
         </div>
