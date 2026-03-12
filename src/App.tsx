@@ -286,25 +286,28 @@ export default function App() {
     }, 2500)
   }
 
-  // --- NEW: P2P DUEL SUBMISSION ---
+  // --- NEW: P2P DUEL SUBMISSION (TROJAN HORSE) ---
   const submitDuel = async () => {
     if (!selectedEventId || selectedOutcomeIdx === null || !session?.user || !profile) return
     if (profile.wallet_balance < poolStake) return showToast('Insufficient balance for your stake.')
     if (poolStake < MIN_STAKE || friendStake < MIN_STAKE) return showToast(`Min stake is ${MIN_STAKE} KSh.`)
 
-    const { error } = await supabase.from('duels').insert({
+    // Secretly drop the money directly into the MAIN pool
+    const { error } = await supabase.from('bets').insert({
       event_id: selectedEventId,
-      creator_id: session.user.id,
-      creator_outcome_index: selectedOutcomeIdx,
-      creator_stake: poolStake,
-      required_challenger_stake: friendStake,
-      status: 'open'
+      outcome_index: selectedOutcomeIdx,
+      stake: poolStake,
+      status: 'open',
+      user_id: session.user.id
     })
 
     if (!error) {
       await supabase.from('profiles').update({ wallet_balance: profile.wallet_balance - poolStake }).eq('id', session.user.id)
-      setLastBet({ eventId: selectedEventId, outcomeIdx: selectedOutcomeIdx, stake: poolStake })
-      setDuelData(null); setShowSuccessModal(true); setSelectedEventId(''); setSelectedOutcomeIdx(null); setPoolStake(MIN_STAKE);
+      
+      // Set the link generator to use the FRIEND'S required stake
+      setLastBet({ eventId: selectedEventId, outcomeIdx: selectedOutcomeIdx, stake: friendStake })
+      
+      setDuelData(null); setShowSuccessModal(true); setSelectedEventId(''); setSelectedOutcomeIdx(null); setPoolStake(MIN_STAKE); setFriendStake(MIN_STAKE);
       setActiveView('markets');
     } else {
       showToast('Error creating 1v1 duel.')
@@ -548,12 +551,11 @@ export default function App() {
                     </div>
 
                     <div className="space-y-6">
-                      {/* --- THE INTEGRATED TRADE SLIP --- */}
                       <div className="bg-[#111111] border-2 border-[#C5A880]/20 rounded-3xl p-6 sm:p-8 shadow-[0_0_50px_rgba(197,168,128,0.05)] sticky top-24">
                         <div className="flex justify-between items-start mb-6 border-b border-[#ffffff10] pb-4">
                            <div>
-                             <h3 className="text-2xl font-black text-white tracking-tight uppercase mb-2">Trade Slip</h3>
-                             <div className="flex gap-2">
+                             <h3 className="text-2xl font-black text-white tracking-tight uppercase">Trade Slip</h3>
+                             <div className="flex gap-2 mt-2">
                                <button onClick={() => setBetMode('pool')} className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase transition ${betMode === 'pool' ? 'bg-[#C5A880] text-black' : 'bg-[#1a1a1a] text-gray-500 hover:text-white border border-[#ffffff10]'}`}>Pool</button>
                                <button onClick={() => setBetMode('p2p')} className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase transition flex items-center gap-1 ${betMode === 'p2p' ? 'bg-[#f43f5e] text-white' : 'bg-[#1a1a1a] text-gray-500 hover:text-white border border-[#ffffff10]'}`}><Swords className="w-3 h-3" /> Duel</button>
                              </div>
@@ -659,8 +661,10 @@ export default function App() {
               <h1 className="text-5xl font-extrabold text-white mb-1 relative z-10 tracking-tight">{profile?.wallet_balance.toLocaleString()} <span className="text-2xl text-[#C5A880]">KSh</span></h1>
             </div>
 
+            {/* Cashier Grid - Now 1 Column Mobile, 3 Columns Tablet/Desktop */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-10">
               
+              {/* DEPOSIT CARD */}
               <div className="bg-[#111111] border border-[#ffffff10] rounded-2xl p-6 relative overflow-hidden group hover:border-[#C5A880]/30 transition">
                 <div className="flex items-center gap-3 mb-6 relative z-10">
                   <div className="w-10 h-10 rounded-lg bg-[#C5A880]/10 flex items-center justify-center border border-[#C5A880]/20">
@@ -698,6 +702,7 @@ export default function App() {
                 </div>
               </div>
 
+              {/* WITHDRAW CARD */}
               <div className="bg-[#111111] border border-[#ffffff10] rounded-2xl p-6 relative overflow-hidden group hover:border-[#10b981]/30 transition">
                 <div className="flex items-center gap-3 mb-6 relative z-10"><div className="w-10 h-10 rounded-lg bg-[#10b981]/10 flex items-center justify-center border border-[#10b981]/20"><ArrowUpFromLine className="w-5 h-5 text-[#10b981]" /></div><h3 className="text-lg font-bold">Withdraw</h3></div>
                 <div className="space-y-4 relative z-10">
@@ -707,6 +712,7 @@ export default function App() {
                 </div>
               </div>
 
+              {/* AIRDROP CARD */}
               <div className={`bg-[#111111] border border-[#ffffff10] rounded-2xl p-6 relative overflow-hidden transition md:col-span-2 lg:col-span-1 ${profile?.has_claimed_airdrop ? 'opacity-60 grayscale' : 'hover:border-[#C5A880]/30'}`}>
                 <div className="flex items-center gap-3 mb-4 relative z-10"><div className="w-10 h-10 rounded-lg bg-[#C5A880]/10 flex items-center justify-center border border-[#C5A880]/20"><ArrowDownToLine className="w-5 h-5 text-[#C5A880]" /></div><h3 className="text-lg font-bold">Initial Airdrop</h3></div>
                 <div className="space-y-4 relative z-10">
