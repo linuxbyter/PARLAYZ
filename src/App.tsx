@@ -6,7 +6,7 @@ import { LogOut, X, AlertTriangle, Bell, Wallet, ArrowDownToLine, ArrowUpFromLin
 // V2 Interfaces - Bulletproofed for both closes_at and locks_at
 interface Event { id: string; title: string; description: string; category: string; outcomes: string[]; closes_at?: string; locks_at?: string; created_at: string; resolved: boolean; settlement_source?: string }
 interface Bet { id: string; event_id: string; outcome_index: number; stake: number; status: string; user_id: string; }
-interface Profile { id: string; username: string; wallet_balance: number; avatar: string; has_claimed_airdrop: boolean; is_public: boolean; phone_number?: string }
+interface Profile { id: string; username: string; wallet_balance: number; avatar: string; has_claimed_airdrop: boolean; is_public: boolean; phone_number?: string; is_bot?: boolean }
 interface AppNotification { id: string; user_id: string; message: string; type: string; is_read: boolean; created_at: string }
 
 const MIN_STAKE = 200
@@ -441,7 +441,7 @@ export default function App() {
 
   const myActiveWagers = bets.filter(b => b.user_id === session?.user?.id && b.status === 'open')
   const mySettledWagers = bets.filter(b => b.user_id === session?.user?.id && ['won', 'lost', 'refunded'].includes(b.status))
-  const sortedLeaderboard = [...allProfiles].sort((a, b) => b.wallet_balance - a.wallet_balance)
+ const sortedLeaderboard = [...allProfiles].filter(p => !p.is_bot).sort((a, b) => b.wallet_balance - a.wallet_balance)
   const ledgerTransactions = notifications.filter(n => ['deposit', 'withdrawal', 'payout', 'refund'].includes(n.type))
 
   let totalActiveStake = 0
