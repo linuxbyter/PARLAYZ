@@ -185,7 +185,7 @@ export default function Admin() {
       const fileExt = proofFile.name.split('.').pop()
       const fileName = `${resolveConfig.event?.id}-${Date.now()}.${fileExt}`
       
-      const { data: uploadData, error: uploadError } = await supabase.storage
+     const { error: uploadError } = await supabase.storage
         .from('proofs')
         .upload(fileName, proofFile)
 
