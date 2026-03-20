@@ -541,7 +541,7 @@ export default function App() {
 
       <main className="max-w-6xl mx-auto px-4 py-8">
         
-        {/* --- SURGICALLY REPLACED: EVENT DETAILS VIEW --- */}
+        {/* --- EVENT DETAILS VIEW --- */}
         {activeView === 'eventDetail' && selectedEventId && (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
             {(() => {
@@ -564,12 +564,10 @@ export default function App() {
                     <ChevronLeft className="w-4 h-4" /> Return to Markets
                   </button>
 
-                  {/* MASSIVE HERO TEXT */}
                   <h1 className="text-4xl sm:text-6xl font-black text-white leading-tight tracking-tight mb-6">
                     {event.title}
                   </h1>
 
-                  {/* HIGH FIDELITY CARD IMAGE */}
                   <div 
                     className="w-full h-64 sm:h-96 rounded-3xl bg-cover bg-center border border-[#1F1F1F] mb-6 relative shadow-[0_0_50px_rgba(0,0,0,0.5)] flex items-end overflow-hidden"
                     style={{ backgroundImage: `url(${event.resolution_image_url || 'https://images.unsplash.com/photo-1541133569762-f150ee2d4400'})` }}
@@ -578,14 +576,12 @@ export default function App() {
                     <div className="absolute top-4 right-4"><LiveTimer targetDate={eventDateStr} /></div>
                   </div>
 
-                  {/* MARKET SENTIMENT BAR */}
                   <div className="mb-12">
                      <h3 className="text-xl font-medium text-white mb-2">Market Sentiment</h3>
                      <div className="w-full h-12 bg-[#1F1F1F] rounded-lg overflow-hidden flex shadow-inner border border-[#1F1F1F]">
                         {event.outcomes.map((outcome, idx) => {
                           const outcomeVolume = eventBets.filter(b => b.outcome_index === idx).reduce((sum, b) => sum + b.stake, 0)
                           const percent = totalPoolVolume === 0 ? (100 / event.outcomes.length) : ((outcomeVolume / totalPoolVolume) * 100)
-                          // If it's the first outcome, make it gold, else gray/dark
                           const bgColor = idx === 0 ? '#D9C5A0' : idx === 1 ? '#333333' : '#1a1a1a';
                           const textColor = idx === 0 ? '#000000' : '#ffffff';
                           return (
@@ -605,10 +601,8 @@ export default function App() {
                      </div>
                   </div>
 
-                  {/* THE TRADING FLOOR: Pool Size & Betting Stack */}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                      
-                     {/* LEFT: BETTING */}
                      <div>
                         <h3 className="text-3xl text-white font-light">Current Pool Size:</h3>
                         <h2 className="text-5xl font-black text-[#D9C5A0] tracking-tighter mb-8">
@@ -622,7 +616,6 @@ export default function App() {
                           </div>
                         ) : (
                           <div className="space-y-4">
-                            {/* Stake Input Area */}
                             <div className="bg-[#151515] p-4 rounded-xl border border-[#1F1F1F] mb-6">
                                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Stake Amount (KSh)</label>
                                <input 
@@ -636,7 +629,6 @@ export default function App() {
                                <p className="text-[10px] text-gray-500 mt-2 uppercase tracking-widest">Min. {MIN_STAKE} KSh</p>
                             </div>
 
-                            {/* Buy Buttons */}
                             {event.outcomes.map((outcome, idx) => (
                               <button 
                                 key={idx} 
@@ -653,7 +645,6 @@ export default function App() {
                         )}
                      </div>
                      
-                     {/* RIGHT: LIVE ACTIVITY / CHAT FEED */}
                      <div className="bg-[#151515] border border-[#1F1F1F] rounded-2xl p-6 flex flex-col shadow-inner h-96">
                         <div className="flex justify-between items-center border-b border-[#1F1F1F] pb-4 mb-4">
                            <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2">
@@ -693,7 +684,6 @@ export default function App() {
 
         {/* --- WALLET / CASHIER VIEW --- */}
         {activeView === 'wallet' && (
-          {/* Unchanged Wallet JSX omitted for brevity to focus strictly on the prompt changes, but fully preserved in structure. I will output the existing code block to ensure no bugs. */}
           <div className="max-w-2xl mx-auto animate-in fade-in duration-300">
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
               <h2 className="text-2xl font-bold text-white">Cashier & Profile</h2>
@@ -780,10 +770,9 @@ export default function App() {
           </div>
         )}
 
-        {/* --- LEADERBOARD AND WAGERS KEPT IDENTICAL (unmodified UI) --- */}
+        {/* --- LEADERBOARD VIEW --- */}
         {activeView === 'leaderboard' && (
           <div className="max-w-3xl mx-auto animate-in fade-in duration-300">
-             {/* Preserved leaderboard code to prevent bugs */}
             <div className="bg-[#151515] border border-[#1F1F1F] rounded-3xl overflow-hidden shadow-2xl">
               <div className="grid grid-cols-12 gap-4 p-5 border-b border-[#1F1F1F] bg-[#0D0D0D] text-xs font-bold text-gray-500 uppercase tracking-widest">
                 <div className="col-span-2 text-center">Rank</div>
@@ -810,9 +799,9 @@ export default function App() {
           </div>
         )}
 
+        {/* --- MY WAGERS VIEW --- */}
         {activeView === 'wagers' && (
            <div className="space-y-10 animate-in fade-in duration-300">
-             {/* Unmodified active wagers UI logic */}
              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
               <div className="bg-[#151515] border border-[#1F1F1F] rounded-2xl p-5 flex flex-col justify-center">
                 <p className="text-[#D9C5A0] text-sm font-semibold uppercase tracking-widest mb-2">Total Active Stake</p>
@@ -823,11 +812,57 @@ export default function App() {
                 <p className="text-3xl font-black text-white">{totalEstPayout.toLocaleString()} KSh</p>
               </div>
             </div>
-             {/* Add map loops logic back identically */}
+
+            <div>
+              <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-4">Open Predictions</h3>
+              {myActiveWagers.length === 0 ? <div className="py-16 text-center text-gray-500 border border-dashed border-[#1F1F1F] rounded-2xl">No active predictions in the market.</div> : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                  {myActiveWagers.reverse().map((bet, i) => {
+                    const event = events.find(e => e.id === bet.event_id); if (!event) return null
+                    const estNetPayout = calculateEstPayout(event.id, bet.outcome_index, bet.stake, true) 
+
+                    return (
+                      <div key={i} className="bg-[#151515] border border-[#D9C5A0]/40 rounded-3xl p-6 transition relative overflow-hidden shadow-lg">
+                        <div className="flex items-center justify-between mb-4 pb-4 border-b border-[#1F1F1F] relative z-10">
+                          <div><p className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Status</p><p className="font-bold text-[#10b981] text-sm flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#10b981] animate-pulse"></span> Live in Pool</p></div>
+                        </div>
+                        <h3 className="text-lg font-bold text-white mb-4 relative z-10 leading-tight">{event.title}</h3>
+                        <div className="bg-[#0D0D0D] rounded-xl p-4 border border-[#1F1F1F] mb-4 relative z-10 text-center"><div className="text-xs text-gray-500 uppercase tracking-wider font-semibold mb-1">Your Prediction</div><div className="text-[#D9C5A0] font-bold text-lg">{event.outcomes[bet.outcome_index]}</div></div>
+                        <div className="space-y-2 text-sm relative z-10">
+                          <div className="flex justify-between text-gray-400"><span>Your Stake:</span><span className="text-white">{bet.stake.toLocaleString()} KSh</span></div>
+                          <div className="flex justify-between font-bold pt-3 border-t border-[#1F1F1F] mt-3"><span className="text-[#10b981] uppercase tracking-wider text-xs flex items-center">Est. Payout:</span><span className="text-[#10b981] text-xl">{estNetPayout.toLocaleString()} KSh</span></div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2"><History className="w-4 h-4" /> Settled History</h3>
+              {mySettledWagers.length === 0 ? <div className="py-10 text-center text-gray-500 border border-dashed border-[#1F1F1F] rounded-2xl">No settled history yet.</div> : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                  {mySettledWagers.reverse().map((bet, i) => {
+                    const event = events.find(e => e.id === bet.event_id); if (!event) return null
+                    const isWin = bet.status === 'won'; const isRefund = bet.status === 'refunded'
+                    const historicalPayout = isWin ? calculateEstPayout(event.id, bet.outcome_index, bet.stake, true) : isRefund ? bet.stake : 0
+
+                    return (
+                      <div key={i} className={`bg-[#151515] border rounded-3xl p-6 relative overflow-hidden transition hover:scale-[1.02] ${isWin ? 'border-[#10b981]/50 shadow-lg' : isRefund ? 'border-gray-600' : 'border-[#f43f5e]/20 opacity-70'}`}>
+                        <div className="flex items-start justify-between mb-4 relative z-10"><span className={`text-xs font-bold uppercase tracking-wider px-2 py-1 rounded-md border ${isWin ? 'bg-[#10b981]/10 border-[#10b981]/30 text-[#10b981]' : isRefund ? 'bg-[#1F1F1F] border-gray-600 text-gray-400' : 'bg-[#f43f5e]/10 border-[#f43f5e]/30 text-[#f43f5e]'}`}>{isWin ? 'WINNER 🏆' : isRefund ? 'REFUNDED' : 'LOST ❌'}</span></div>
+                        <h3 className={`text-lg font-bold mb-4 relative z-10 ${isWin ? 'text-white' : 'text-gray-400'}`}>{event.title}</h3>
+                        <div className="flex justify-between font-bold pt-3 border-t border-[#1F1F1F] mt-3 relative z-10"><span className="text-gray-500">Payout:</span><span className={`text-lg ${isWin ? 'text-[#10b981]' : isRefund ? 'text-gray-400' : 'text-[#f43f5e]'}`}>{isWin ? `+ ${historicalPayout.toLocaleString()} KSh` : isRefund ? `${historicalPayout.toLocaleString()} KSh` : '0 KSh'}</span></div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
            </div>
         )}
 
-        {/* --- SURGICALLY REPLACED: MARKETS FEED --- */}
+        {/* --- MARKETS FEED --- */}
         {activeView === 'markets' && (
           <div className="animate-in fade-in duration-300">
             
@@ -929,10 +964,112 @@ export default function App() {
         )}
       </main>
 
-      {/* --- WARZONE CHAT AND OVERLAY MODALS KEPT IDENTICAL --- */}
+      {/* --- WARZONE CHAT AND OVERLAY MODALS --- */}
       {chatEventId && (
         <div className="fixed inset-0 z-[130] flex items-end sm:items-center justify-center bg-black/90 backdrop-blur-sm sm:p-4 animate-in slide-in-from-bottom-full duration-300">
-           {/* Exact identical chat logic preserved here to avoid bugs */}
+          <div className="bg-[#151515] sm:border border-[#1F1F1F] sm:rounded-3xl w-full max-w-md h-[80vh] sm:h-[600px] flex flex-col relative rounded-t-3xl overflow-hidden shadow-2xl">
+            <div className="p-4 border-b border-[#1F1F1F] flex justify-between items-center bg-[#0D0D0D]">
+                <div className="flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5 text-[#f43f5e]" />
+                  <h3 className="font-bold text-white text-sm uppercase tracking-widest">Warzone</h3>
+                </div>
+                <button onClick={() => setChatEventId(null)} className="text-gray-500 hover:text-white transition"><X className="w-5 h-5" /></button>
+            </div>
+            
+            <div className="flex-grow overflow-y-auto p-4 space-y-4 no-scrollbar">
+              {chatMessages.length === 0 ? (
+                <div className="text-center text-gray-500 text-xs uppercase tracking-widest mt-10">No trash talk yet. Be the first.</div>
+              ) : (
+                chatMessages.map(msg => {
+                  const isMe = msg.user_id === session?.user?.id
+                  const msgProfile = allProfiles.find(p => p.id === msg.user_id)
+                  return (
+                    <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                      <span className="text-[10px] text-gray-500 mb-1 flex items-center gap-1">
+                        {msgProfile?.avatar || '👤'} {sanitizeName(msgProfile?.username)}
+                      </span>
+                      <div className={`px-4 py-2 rounded-2xl max-w-[85%] text-sm ${isMe ? 'bg-[#f43f5e]/20 border border-[#f43f5e]/30 text-white rounded-tr-sm' : 'bg-[#1F1F1F] border border-[#1F1F1F] text-gray-300 rounded-tl-sm'}`}>
+                        {msg.text}
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+              <div ref={chatEndRef} />
+            </div>
+
+            <div className="p-4 border-t border-[#1F1F1F] bg-[#0D0D0D] flex gap-2">
+               <input 
+                 type="text" 
+                 placeholder="Talk your talk..." 
+                 value={chatInput} 
+                 onChange={e => setChatInput(e.target.value)} 
+                 onKeyDown={e => e.key === 'Enter' && sendChatMessage()}
+                 className="flex-grow bg-[#151515] border border-[#1F1F1F] text-white rounded-xl px-4 py-3 focus:outline-none focus:border-[#f43f5e] text-sm"
+               />
+               <button onClick={sendChatMessage} className="w-12 flex items-center justify-center bg-[#f43f5e] hover:bg-[#e11d48] text-white rounded-xl transition shadow-lg">
+                 <Send className="w-4 h-4 ml-1" />
+               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- PUBLIC PROFILE MODAL --- */}
+      {selectedPublicProfile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-md p-4 animate-in fade-in duration-200" onClick={() => setSelectedPublicProfile(null)}>
+          <div className="bg-[#151515] border border-[#1F1F1F] rounded-3xl p-8 w-full max-w-sm text-center shadow-[0_0_50px_rgba(0,0,0,0.8)] relative" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setSelectedPublicProfile(null)} className="absolute top-5 right-5 w-8 h-8 rounded-xl bg-[#1F1F1F] flex items-center justify-center text-gray-400 hover:text-white"><X className="w-4 h-4" /></button>
+            <div className="w-24 h-24 rounded-full bg-[#0D0D0D] border-2 border-[#D9C5A0]/30 flex items-center justify-center text-5xl mx-auto mb-4 shadow-inner">{selectedPublicProfile.avatar}</div>
+            <h3 className="text-2xl font-black text-white mb-1">{sanitizeName(selectedPublicProfile.username)}</h3>
+            {!selectedPublicProfile.is_public && selectedPublicProfile.id !== session?.user?.id ? (
+              <div className="mt-8 py-8 bg-[#0D0D0D] rounded-2xl border border-[#1F1F1F]"><EyeOff className="w-8 h-8 text-gray-600 mx-auto mb-3" /><p className="text-gray-500 font-semibold text-sm">This trader's stats are private.</p></div>
+            ) : (
+              <div className="mt-8 space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-[#0D0D0D] border border-[#1F1F1F] rounded-2xl p-4"><p className="text-xs text-gray-500 uppercase tracking-widest font-semibold mb-1">Win Rate</p><p className="text-2xl font-black text-white">{getUserStats(selectedPublicProfile.id).winRate}%</p></div>
+                  <div className="bg-[#0D0D0D] border border-[#1F1F1F] rounded-2xl p-4"><p className="text-xs text-gray-500 uppercase tracking-widest font-semibold mb-1">Trades</p><p className="text-2xl font-black text-white">{getUserStats(selectedPublicProfile.id).trades}</p></div>
+                </div>
+                <div className="bg-[#0D0D0D] border border-[#1F1F1F] rounded-2xl p-4 flex justify-between items-center"><p className="text-xs text-gray-500 uppercase tracking-widest font-semibold">Active Risk</p><p className="text-lg font-bold text-[#f43f5e]">{getUserStats(selectedPublicProfile.id).activeRisk.toLocaleString()} KSh</p></div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* --- SUCCESS MODAL --- */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200">
+          <div className="bg-[#151515] border border-[#10b981]/30 rounded-3xl p-6 sm:p-8 w-full max-w-sm text-center shadow-[0_0_50px_rgba(16,185,129,0.1)] relative overflow-hidden">
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-40 h-40 bg-[#10b981]/10 rounded-full blur-3xl pointer-events-none"></div>
+            <div className="relative z-10">
+              <div className="w-16 h-16 bg-[#10b981]/10 border border-[#10b981]/40 text-[#10b981] rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-[0_0_15px_rgba(16,185,129,0.2)]"><CheckCircle2 className="w-8 h-8" /></div>
+              <h3 className="text-2xl font-bold text-white mb-2 tracking-tight uppercase">Position Secured</h3>
+              <p className="text-gray-400 text-sm mb-6 font-light">Your capital is locked in the pool.</p>
+              <div className="space-y-2">
+                <button onClick={copyChallengeLink} className="w-full bg-[#D9C5A0] text-black font-black py-4 rounded-xl flex items-center justify-center gap-2 hover:scale-105 transition-all uppercase text-xs tracking-widest shadow-xl">
+                  <Share2 className="w-4 h-4"/> Share Challenge Link
+                </button>
+                <button onClick={() => setShowSuccessModal(false)} className="w-full bg-[#1F1F1F] hover:bg-[#333] border border-[#1F1F1F] text-white font-bold py-3.5 rounded-xl transition uppercase text-[10px] tracking-widest">Return to Exchange</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- LOGOUT MODAL --- */}
+      {showLogoutModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200">
+          <div className="bg-[#151515] border border-[#1F1F1F] rounded-3xl p-8 w-full max-w-sm text-center shadow-[0_0_50px_rgba(0,0,0,0.8)] relative overflow-hidden">
+            <div className="relative z-10">
+              <div className="w-16 h-16 bg-[#f43f5e]/10 border border-[#f43f5e]/30 text-[#f43f5e] rounded-2xl flex items-center justify-center mx-auto mb-5"><LogOut className="w-7 h-7 ml-1" /></div>
+              <h3 className="text-2xl font-bold text-white mb-2 tracking-tight">Disconnect?</h3>
+              <div className="flex gap-3 justify-center mt-6">
+                <button onClick={() => setShowLogoutModal(false)} className="w-1/2 bg-[#1F1F1F] hover:bg-[#333] border border-[#1F1F1F] text-white font-semibold py-3.5 rounded-xl transition">Cancel</button>
+                <button onClick={handleLogout} className="w-1/2 bg-[#f43f5e]/10 border border-[#f43f5e]/30 hover:bg-[#f43f5e] text-[#f43f5e] hover:text-white font-bold py-3.5 rounded-xl transition">Disconnect</button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
