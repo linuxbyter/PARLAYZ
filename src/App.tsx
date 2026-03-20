@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from './lib/supabase'
 import Landing from './Landing'
-import { LogOut, X, AlertTriangle, Bell, Wallet, ArrowDownToLine, ArrowUpFromLine, CheckCircle2, History, Trophy, Activity, Eye, EyeOff, PieChart, Share2, Swords, MessageSquare, Send, ChevronLeft, HelpCircle, Search, Globe } from 'lucide-react'
+import { LogOut, X, AlertTriangle, Bell, Wallet, ArrowDownToLine, ArrowUpFromLine, CheckCircle2, History, Trophy, Activity, Eye, EyeOff, Share2, Swords, MessageSquare, Send, ChevronLeft, Search, Globe } from 'lucide-react'
 
 // V2 Interfaces - Bulletproofed for both closes_at and locks_at
 interface Event { id: string; title: string; description: string; category: string; outcomes: string[]; closes_at?: string; locks_at?: string; created_at: string; resolved: boolean; settlement_source?: string; resolution_image_url?: string }
@@ -13,7 +13,6 @@ interface AppNotification { id: string; user_id: string; message: string; type: 
 const MIN_STAKE = 200
 const PLATFORM_FEE_PERCENT = 3
 const AVATARS = ['🦊', '🐯', '🦅', '🦈', '🐍', '🦍', '🐉', '🦂', '🦉', '🐺']
-const ORB_COLORS = ['197, 168, 128', '16, 185, 129', '244, 63, 94', '59, 130, 246'] 
 
 // --- CATEGORY HIERARCHY MAPPING ---
 const CATEGORIES = {
@@ -115,7 +114,6 @@ export default function App() {
 
   const [activeView, setActiveView] = useState<'markets' | 'wagers' | 'leaderboard' | 'wallet' | 'eventDetail'>('markets')
   
-  // NEW NAV STATES
   const [selectedMainCategory, setSelectedMainCategory] = useState<string>('All')
   const [selectedSubCategory, setSelectedSubCategory] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState<string>('')
@@ -132,11 +130,9 @@ export default function App() {
   const [betMode, setBetMode] = useState<'pool' | 'p2p'>('pool')
   const [friendStake, setFriendStake] = useState<number>(MIN_STAKE)
   
-  // --- DEEP LINK STATES ---
   const [lastBet, setLastBet] = useState<{eventId: string, outcomeIdx: number, stake: number} | null>(null)
   const [duelData, setDuelData] = useState<{eventId: string, side: number, stake: number, challengerId: string} | null>(null)
 
-  // --- WARZONE CHAT STATES ---
   const [chatEventId, setChatEventId] = useState<string | null>(null)
   const [chatMessages, setChatMessages] = useState<any[]>([])
   const [chatInput, setChatInput] = useState('')
@@ -145,10 +141,8 @@ export default function App() {
   const [showSuccessModal, setShowSuccessModal] = useState(false)
   const [showLogoutModal, setShowLogoutModal] = useState(false)
   const [showCashierModal, setShowCashierModal] = useState<{type: 'deposit' | 'withdraw', status: 'processing' | 'success' | 'error'} | null>(null)
-
   const [selectedPublicProfile, setSelectedPublicProfile] = useState<Profile | null>(null)
   
-  // Cashier States
   const [withdrawAmount, setWithdrawAmount] = useState<number>(0)
   const [withdrawPhone, setWithdrawPhone] = useState<string>('')
   const [depositAmount, setDepositAmount] = useState<number>(0)
@@ -182,7 +176,6 @@ export default function App() {
     }
   }, [session])
 
-  // --- DEEP LINK LISTENER ---
   useEffect(() => {
     if (session?.user && events.length > 0) {
       const urlParams = new URLSearchParams(window.location.search)
@@ -197,7 +190,6 @@ export default function App() {
     }
   }, [session, events])
 
-  // --- WARZONE CHAT LISTENER ---
   useEffect(() => {
     if (!chatEventId) return;
     
@@ -270,13 +262,8 @@ export default function App() {
       const response = await fetch('/api/stkpush', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          amount: depositAmount,
-          phone: depositPhone,
-          email: session.user.email
-        }),
+        body: JSON.stringify({ amount: depositAmount, phone: depositPhone, email: session.user.email }),
       })
-
       const data = await response.json()
       if (response.ok) {
         showToast("STK Push Sent! Enter PIN on your phone.", "success")
@@ -296,7 +283,6 @@ export default function App() {
   const handleAirdrop = async () => {
     if (!profile) return
     if (profile.has_claimed_airdrop) return showToast("You have already claimed your one-time 10,000 KSh airdrop. Manage your bankroll wisely.")
-    
     setShowCashierModal({ type: 'deposit', status: 'processing' })
     setTimeout(async () => {
       await supabase.from('profiles').update({ wallet_balance: profile.wallet_balance + 10000, has_claimed_airdrop: true }).eq('id', session.user.id)
@@ -309,7 +295,6 @@ export default function App() {
   const handleWithdraw = async () => {
     if (withdrawAmount < 100) return showToast("Minimum withdrawal is 100 KSh.")
     if (profile && withdrawAmount > profile.wallet_balance) return showToast("Insufficient available funds.")
-    
     const phoneRegex = /^(07|01)\d{8}$/
     if (!phoneRegex.test(withdrawPhone)) return showToast("Invalid format. Number must start with 07 or 01 and be exactly 10 digits long.")
 
@@ -325,19 +310,13 @@ export default function App() {
     }, 2500)
   }
 
-  // --- P2P DUEL SUBMISSION (TROJAN HORSE) ---
   const submitDuel = async () => {
     if (!selectedEventId || selectedOutcomeIdx === null || !session?.user || !profile) return
     if (profile.wallet_balance < poolStake) return showToast('Insufficient balance for your stake.')
     if (poolStake < MIN_STAKE || friendStake < MIN_STAKE) return showToast(`Min stake is ${MIN_STAKE} KSh.`)
 
-    // Secretly drop the money directly into the MAIN pool
     const { error } = await supabase.from('bets').insert({
-      event_id: selectedEventId,
-      outcome_index: selectedOutcomeIdx,
-      stake: poolStake,
-      status: 'open',
-      user_id: session.user.id
+      event_id: selectedEventId, outcome_index: selectedOutcomeIdx, stake: poolStake, status: 'open', user_id: session.user.id
     })
 
     if (!error) {
@@ -357,13 +336,7 @@ export default function App() {
     if (profile.wallet_balance < stake) return showToast('Insufficient KSh balance for this wager.')
     if (stake < MIN_STAKE) return showToast(`Minimum accepted stake is ${MIN_STAKE} KSh.`)
 
-    const { error } = await supabase.from('bets').insert({ 
-      event_id: eId, 
-      outcome_index: oIdx, 
-      stake: stake, 
-      status: 'open', 
-      user_id: session.user.id 
-    })
+    const { error } = await supabase.from('bets').insert({ event_id: eId, outcome_index: oIdx, stake: stake, status: 'open', user_id: session.user.id })
 
     if (!error) {
       await supabase.from('profiles').update({ wallet_balance: profile.wallet_balance - stake }).eq('id', session.user.id)
@@ -418,15 +391,10 @@ export default function App() {
     return name.includes('@') ? name.split('@')[0] : name
   }
 
-  // --- SMART FILTERING & SEARCH LOGIC ---
   const activeEvents = events.filter(e => {
     if (e.resolved) return false;
-    
-    // Search Check
     const searchLower = searchQuery.toLowerCase();
     const matchesSearch = e.title.toLowerCase().includes(searchLower) || e.description.toLowerCase().includes(searchLower);
-
-    // Category Check
     let matchesCategory = true;
     if (selectedMainCategory !== 'All') {
       if (selectedSubCategory) {
@@ -436,7 +404,6 @@ export default function App() {
         matchesCategory = e.category.startsWith(`${prefix}_`);
       }
     }
-
     return matchesCategory && matchesSearch;
   });
 
@@ -469,7 +436,6 @@ export default function App() {
         </div>
       )}
 
-      {/* Profile Setup Modal */}
       {showProfileSetup && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#0D0D0D]/95 backdrop-blur-xl p-4">
           <div className="bg-[#151515] border border-[#D9C5A0]/30 rounded-3xl p-8 w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-300 relative overflow-hidden">
@@ -540,144 +506,307 @@ export default function App() {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 py-8">
+      <main className="max-w-md md:max-w-4xl lg:max-w-6xl mx-auto px-4 py-6">
         
-        {/* --- EVENT DETAILS VIEW --- */}
+        {/* --- VIEW 1: THE MARKET FEED (From image_9bac02.jpg) --- */}
+        {activeView === 'markets' && (
+          <div className="animate-in fade-in duration-300 max-w-md mx-auto md:max-w-none">
+            
+            <div className="mb-6 relative max-w-md">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+              <input 
+                type="text" 
+                placeholder="Search events, players, teams..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-[#151515] border border-[#1F1F1F] text-white rounded-2xl pl-11 pr-4 py-3 focus:outline-none focus:border-[#D9C5A0] text-sm"
+              />
+            </div>
+
+            <div className="flex gap-2 overflow-x-auto pb-4 no-scrollbar mb-2 select-none">
+              {Object.keys(CATEGORIES).map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => { setSelectedMainCategory(cat); setSelectedSubCategory(null); }}
+                  className={`px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition border whitespace-nowrap flex items-center gap-2 ${
+                    selectedMainCategory === cat 
+                      ? 'bg-[#D9C5A0] text-[#0D0D0D] border-[#D9C5A0]' 
+                      : 'bg-[#151515] text-gray-400 border-[#1F1F1F] hover:border-[#D9C5A0]/50 hover:text-white'
+                  }`}
+                >
+                  {cat === 'Current Affairs' && <Globe className="w-3.5 h-3.5" />}
+                  {cat}
+                </button>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {activeEvents.length === 0 ? <div className="col-span-full py-10 text-gray-500 text-center">No active markets.</div> : (
+                activeEvents.map((event) => {
+                  const eventBets = bets.filter(b => b.event_id === event.id && b.status === 'open');
+                  const totalPoolVolume = eventBets.reduce((sum, b) => sum + b.stake, 0);
+                  const outcomeVolume0 = eventBets.filter(b => b.outcome_index === 0).reduce((sum, b) => sum + b.stake, 0);
+                  const percent0 = totalPoolVolume === 0 ? 50 : Math.round((outcomeVolume0 / totalPoolVolume) * 100);
+
+                  return (
+                    <div 
+                      key={event.id}
+                      onClick={() => {
+                        setSelectedEventId(event.id); 
+                        setSelectedOutcomeIdx(0); // Default to YES
+                        setActiveView('eventDetail'); 
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      className="rounded-2xl overflow-hidden cursor-pointer group flex flex-col h-[220px] relative border border-[#1F1F1F] shadow-lg"
+                    >
+                      {/* Background Image & Gradient */}
+                      <div 
+                        className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
+                        style={{ backgroundImage: `url(${event.resolution_image_url || 'https://images.unsplash.com/photo-1518546305927-5a555bb7020d?q=80&w=800'})` }}
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-[#0D0D0D] via-[#0D0D0D]/70 to-black/30"></div>
+
+                      {/* Card Content */}
+                      <div className="relative z-10 p-5 flex flex-col h-full">
+                        <div className="flex items-center gap-2 mb-3">
+                          <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.8)]"></span>
+                          <span className="text-xs font-bold text-white tracking-widest uppercase">LIVE</span>
+                        </div>
+                        
+                        <h3 className="text-2xl font-bold text-white leading-tight line-clamp-3 pr-4 shadow-black drop-shadow-md">
+                          {event.title}
+                        </h3>
+                      </div>
+
+                      {/* Bottom Split Bar (Yes/No) */}
+                      <div className="absolute bottom-0 w-full flex h-12 text-sm font-bold relative z-20">
+                        <div 
+                          className="bg-[#D9C5A0] text-[#0D0D0D] flex items-center pl-5 transition-all duration-500 border-t border-r border-[#D9C5A0]/50" 
+                          style={{ width: `${percent0}%` }}
+                        >
+                          Yes {percent0}%
+                        </div>
+                        <div 
+                          className="bg-[#2A2A2A] text-gray-300 flex items-center justify-end pr-5 transition-all duration-500 border-t border-[#1F1F1F]" 
+                          style={{ width: `${100 - percent0}%` }}
+                        >
+                          No {100 - percent0}%
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* --- VIEW 2: MARKET DETAIL (Graph & Trade Slip) --- */}
         {activeView === 'eventDetail' && selectedEventId && (
-          <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <div className="animate-in slide-in-from-bottom-4 duration-300 max-w-lg mx-auto md:max-w-none md:grid md:grid-cols-2 gap-8 items-start">
             {(() => {
               const event = events.find(e => e.id === selectedEventId);
               if (!event) return null;
               
-              const eventDateStr = event.closes_at || event.locks_at || '';
-              const lockTime = new Date(eventDateStr).getTime();
-              const isLocked = !isNaN(lockTime) && lockTime <= Date.now();
-              
               const eventBets = bets.filter(b => b.event_id === event.id && b.status === 'open');
               const totalPoolVolume = eventBets.reduce((sum, b) => sum + b.stake, 0);
 
+              // Duel Math
+              const impliedOdds = friendStake > 0 ? ((poolStake + friendStake) / friendStake).toFixed(1) : '1.0';
+
               return (
-                <div className="max-w-5xl mx-auto">
-                  <button 
-                    onClick={() => setActiveView('markets')} 
-                    className="flex items-center gap-2 text-gray-500 hover:text-[#D9C5A0] transition mb-6 font-bold text-xs uppercase tracking-widest bg-[#151515] border border-[#1F1F1F] hover:border-[#D9C5A0]/30 px-4 py-2 rounded-xl"
-                  >
-                    <ChevronLeft className="w-4 h-4" /> Return to Markets
-                  </button>
+                <>
+                  {/* LEFT COLUMN: HEADER & GRAPH */}
+                  <div className="mb-8 md:mb-0">
+                    <button onClick={() => setActiveView('markets')} className="text-gray-500 hover:text-white text-xs uppercase tracking-widest font-bold mb-6 flex items-center gap-2">
+                      <ChevronLeft className="w-4 h-4" /> Back
+                    </button>
+                    
+                    <h1 className="text-3xl md:text-4xl font-bold text-white leading-tight mb-8">
+                      {event.title}
+                    </h1>
 
-                  <h1 className="text-4xl sm:text-6xl font-black text-white leading-tight tracking-tight mb-6">
-                    {event.title}
-                  </h1>
-
-                  <div 
-                    className="w-full h-64 sm:h-96 rounded-3xl bg-cover bg-center border border-[#1F1F1F] mb-6 relative shadow-[0_0_50px_rgba(0,0,0,0.5)] flex items-end overflow-hidden"
-                    style={{ backgroundImage: `url(${event.resolution_image_url || 'https://images.unsplash.com/photo-1541133569762-f150ee2d4400'})` }}
-                  >
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#0D0D0D] via-transparent to-transparent"></div>
-                    <div className="absolute top-4 right-4"><LiveTimer targetDate={eventDateStr} /></div>
-                  </div>
-
-                  <div className="mb-12">
-                     <h3 className="text-xl font-medium text-white mb-2">Market Sentiment</h3>
-                     <div className="w-full h-12 bg-[#1F1F1F] rounded-lg overflow-hidden flex shadow-inner border border-[#1F1F1F]">
-                        {event.outcomes.map((outcome, idx) => {
-                          const outcomeVolume = eventBets.filter(b => b.outcome_index === idx).reduce((sum, b) => sum + b.stake, 0)
-                          const percent = totalPoolVolume === 0 ? (100 / event.outcomes.length) : ((outcomeVolume / totalPoolVolume) * 100)
-                          const bgColor = idx === 0 ? '#D9C5A0' : idx === 1 ? '#333333' : '#1a1a1a';
-                          const textColor = idx === 0 ? '#000000' : '#ffffff';
-                          return (
-                            <div 
-                              key={idx} 
-                              className="h-full flex items-center px-4 font-bold overflow-hidden transition-all duration-500" 
-                              style={{ width: `${percent}%`, backgroundColor: bgColor, color: textColor }}
-                            >
-                              {percent > 10 && `${Math.round(percent)}%`}
-                            </div>
-                          )
-                        })}
-                     </div>
-                     <div className="flex justify-between mt-2 text-sm font-bold text-gray-400">
-                        <span>{event.outcomes[0]}</span>
-                        <span>{event.outcomes[1] || 'Other'}</span>
-                     </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-                     
-                     <div>
-                        <h3 className="text-3xl text-white font-light">Current Pool Size:</h3>
-                        <h2 className="text-5xl font-black text-[#D9C5A0] tracking-tighter mb-8">
-                          {totalPoolVolume.toLocaleString()} <span className="text-xl">KSh</span>
-                        </h2>
+                    {/* THE KALSHI-STYLE GRAPH */}
+                    <div className="relative w-full h-64 md:h-80 mb-6 bg-[#0D0D0D] border-b border-[#1F1F1F]">
+                      {/* Fake Axis Labels */}
+                      <div className="absolute right-0 top-0 bottom-0 flex flex-col justify-between text-[10px] text-gray-600 font-mono text-right pr-2 py-2 z-10 pointer-events-none">
+                        <span>14¢</span><span>12¢</span><span>10¢</span><span>8¢</span><span>6¢</span>
+                      </div>
+                      
+                      {/* SVG Step Graph (Kalshi Exact Match) */}
+                      <svg viewBox="0 0 400 200" preserveAspectRatio="none" className="w-full h-full">
+                        <defs>
+                          <linearGradient id="greenGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#10b981" stopOpacity="0.2" />
+                            <stop offset="100%" stopColor="#10b981" stopOpacity="0" />
+                          </linearGradient>
+                        </defs>
                         
-                        {isLocked ? (
-                          <div className="py-8 text-center border border-dashed border-red-500/30 rounded-2xl bg-red-500/5">
-                            <h4 className="text-red-500 font-black uppercase tracking-widest mb-1">Market Locked</h4>
-                            <p className="text-gray-400 text-xs">Awaiting resolution.</p>
-                          </div>
-                        ) : (
-                          <div className="space-y-4">
-                            <div className="bg-[#151515] p-4 rounded-xl border border-[#1F1F1F] mb-6">
-                               <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Stake Amount (KSh)</label>
-                               <input 
-                                 type="number" 
-                                 min={MIN_STAKE} 
-                                 value={poolStake || ''} 
-                                 onChange={(e) => setPoolStake(Number(e.target.value))} 
-                                 className="w-full bg-[#0D0D0D] border border-[#1F1F1F] text-white font-black rounded-lg p-3 focus:outline-none focus:border-[#D9C5A0] text-xl" 
-                                 placeholder="0" 
-                               />
-                               <p className="text-[10px] text-gray-500 mt-2 uppercase tracking-widest">Min. {MIN_STAKE} KSh</p>
-                            </div>
-
-                            {event.outcomes.map((outcome, idx) => (
-                              <button 
-                                key={idx} 
-                                onClick={() => { setSelectedOutcomeIdx(idx); submitPoolBet(event.id, idx, poolStake); }}
-                                disabled={poolStake < MIN_STAKE}
-                                className={`w-full font-black py-4 rounded-xl text-lg transition uppercase tracking-widest disabled:opacity-50
-                                  ${idx === 0 ? 'bg-[#D9C5A0] text-[#0D0D0D] hover:bg-[#c4b18f]' : 'bg-[#151515] text-[#D9C5A0] border border-[#1F1F1F] hover:bg-[#1a1a1a]'}
-                                `}
-                              >
-                                Buy {outcome}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                     </div>
-                     
-                     <div className="bg-[#151515] border border-[#1F1F1F] rounded-2xl p-6 flex flex-col shadow-inner h-96">
-                        <div className="flex justify-between items-center border-b border-[#1F1F1F] pb-4 mb-4">
-                           <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2">
-                             <Activity className="w-4 h-4"/> Live Activity
-                           </h3>
-                           <button onClick={() => setChatEventId(event.id)} className="bg-[#1F1F1F] text-[#D9C5A0] text-[10px] font-bold px-3 py-1.5 rounded uppercase tracking-wider hover:bg-[#333333]">Open Warzone Chat</button>
-                        </div>
+                        {/* Yes Line (Green) Area Fill */}
+                        <path d="M0,130 H20 V140 H40 V110 H60 V110 H80 V120 H100 V120 H120 V80 H150 V80 H180 V100 H200 V100 H220 V50 H260 V50 H280 V70 H300 V70 H320 V40 H360 V60 H400 V200 L0,200 Z" fill="url(#greenGradient)" />
                         
-                        <div className="flex-grow overflow-y-auto space-y-3 custom-scrollbar pr-2">
-                           {eventBets.slice(-6).reverse().map((b, i) => {
-                             const p = allProfiles.find(prof => prof.id === b.user_id);
-                             return (
-                               <div key={i} className="flex gap-2 text-sm items-center">
-                                  <span className="font-bold text-white">{p ? sanitizeName(p.username) : 'Anon'}</span>
-                                  <span className="text-gray-400">bought {b.stake.toLocaleString()} KSh</span>
-                                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${b.outcome_index === 0 ? 'bg-[#D9C5A0]/20 text-[#D9C5A0]' : 'bg-[#333]/50 text-gray-400'}`}>
-                                    {event.outcomes[b.outcome_index]}
-                                  </span>
-                               </div>
-                             )
-                           })}
-                           {eventBets.length === 0 && <p className="text-gray-500 text-sm">No volume yet. Be the first.</p>}
+                        {/* No Line (Blue) - Mirrored Bottom */}
+                        <path d="M0,160 H20 V150 H40 V180 H60 V180 H80 V170 H100 V170 H120 V190 H150 V190 H180 V170 H200 V170 H220 V195 H260 V195 H280 V180 H300 V180 H320 V190 H360 V170 H400" fill="none" stroke="#3b82f6" strokeWidth="2" opacity="0.6" />
+
+                        {/* Yes Line (Green) - Main Step Path */}
+                        <path d="M0,130 H20 V140 H40 V110 H60 V110 H80 V120 H100 V120 H120 V80 H150 V80 H180 V100 H200 V100 H220 V50 H260 V50 H280 V70 H300 V70 H320 V40 H360 V60 H400" fill="none" stroke="#10b981" strokeWidth="2.5" className="drop-shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
+                        
+                        {/* Live Ping Dot on current price */}
+                        <circle cx="400" cy="60" r="4" fill="#10b981" className="animate-pulse" />
+                      </svg>
+
+                      {/* Simulated Live Liquidity Popups (Green Text) */}
+                      <div className="absolute top-[30%] left-[40%] text-[#10b981] px-2 py-0.5 font-mono text-[11px] font-bold animate-liquidity-pop">+ $375</div>
+                      <div className="absolute top-[10%] left-[80%] text-[#10b981] px-2 py-0.5 font-mono text-[11px] font-bold animate-liquidity-pop" style={{animationDelay: '1s'}}>+ $1,068</div>
+                      <div className="absolute top-[40%] left-[20%] text-[#10b981] px-2 py-0.5 font-mono text-[11px] font-bold animate-liquidity-pop" style={{animationDelay: '2.5s'}}>+ $500</div>
+                    </div>
+
+                    <div className="flex justify-between items-end mb-2">
+                      <div>
+                        <span className="text-3xl font-bold text-[#D9C5A0]">65%</span><br/>
+                        <span className="text-gray-400 text-sm">Yes</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-3xl font-bold text-[#f43f5e]">35%</span><br/>
+                        <span className="text-gray-400 text-sm">No</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* RIGHT COLUMN: THE TRADE SLIP */}
+                  <div className="bg-[#151515] rounded-3xl p-6 border border-[#1F1F1F] shadow-2xl">
+                    
+                    {/* POOL vs DUEL TOGGLE */}
+                    <div className="flex bg-[#0D0D0D] p-1 rounded-xl mb-6 border border-[#1F1F1F]">
+                      <button 
+                        onClick={() => setBetMode('pool')}
+                        className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all ${betMode === 'pool' ? 'bg-[#333333] text-white shadow-md' : 'text-gray-500 hover:text-white'}`}
+                      >
+                        Trade
+                      </button>
+                      <button 
+                        onClick={() => setBetMode('p2p')}
+                        className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all ${betMode === 'p2p' ? 'bg-[#f43f5e] text-white shadow-md' : 'text-gray-500 hover:text-white'}`}
+                      >
+                        Duel
+                      </button>
+                    </div>
+
+                    {/* --- POOL MODE UI --- */}
+                    {betMode === 'pool' ? (
+                      <div className="animate-in fade-in duration-200">
+                        {/* Yes/No Toggle */}
+                        <div className="flex gap-3 mb-6">
+                          <button 
+                            onClick={() => setSelectedOutcomeIdx(0)}
+                            className={`flex-1 py-3.5 rounded-xl font-bold text-lg transition-all border ${selectedOutcomeIdx === 0 ? 'bg-[#D9C5A0] border-[#D9C5A0] text-[#0D0D0D] shadow-[0_0_20px_rgba(217,197,160,0.2)]' : 'bg-[#2A2A2A] border-[#1F1F1F] text-gray-400'}`}
+                          >
+                            Buy YES
+                          </button>
+                          <button 
+                            onClick={() => setSelectedOutcomeIdx(1)}
+                            className={`flex-1 py-3.5 rounded-xl font-bold text-lg transition-all border ${selectedOutcomeIdx === 1 ? 'bg-[#333333] border-gray-500 text-white shadow-[0_0_20px_rgba(255,255,255,0.1)]' : 'bg-[#2A2A2A] border-[#1F1F1F] text-gray-400'}`}
+                          >
+                            Buy NO
+                          </button>
                         </div>
-                     </div>
+
+                        {/* Stake Input */}
+                        <div className="mb-6">
+                          <label className="block text-gray-400 text-sm mb-2">Stake (KSh)</label>
+                          <div className="relative">
+                            <input 
+                              type="number" 
+                              value={poolStake || ''} 
+                              onChange={(e) => setPoolStake(Number(e.target.value))}
+                              className="w-full bg-[#0D0D0D] border border-[#1F1F1F] text-white font-bold rounded-xl p-4 text-xl focus:outline-none focus:border-[#D9C5A0]"
+                              placeholder="0"
+                            />
+                            {/* Quick Add Chips */}
+                            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
+                              <button onClick={() => setPoolStake((prev) => prev + 1000)} className="bg-[#2A2A2A] hover:bg-[#333] text-gray-300 text-[10px] font-bold px-2 py-1.5 rounded-md transition">+1K</button>
+                              <button onClick={() => setPoolStake((prev) => prev + 5000)} className="bg-[#2A2A2A] hover:bg-[#333] text-gray-300 text-[10px] font-bold px-2 py-1.5 rounded-md transition">+5K</button>
+                              <button onClick={() => setPoolStake((prev) => prev + 10000)} className="bg-[#2A2A2A] hover:bg-[#333] text-gray-300 text-[10px] font-bold px-2 py-1.5 rounded-md transition">+10K</button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Math Breakdown */}
+                        <div className="flex justify-between text-sm mb-6">
+                          <span className="text-gray-500">Est. Payout: <span className="text-white font-bold ml-1">{calculateEstPayout(selectedEventId, selectedOutcomeIdx || 0, poolStake, false).toLocaleString()} KSh</span></span>
+                          <span className="text-gray-500">Protocol Fee: <span className="text-white">3%</span></span>
+                        </div>
+
+                        {/* Action Button */}
+                        <button 
+                          onClick={() => submitPoolBet()}
+                          disabled={poolStake < MIN_STAKE}
+                          className="w-full bg-[#D9C5A0] text-[#0D0D0D] font-black text-lg py-4 rounded-xl hover:bg-[#c4b18f] transition disabled:opacity-50"
+                        >
+                          Submit Pool Order
+                        </button>
+                      </div>
+                    ) : (
+
+                    /* --- DUEL MODE UI --- */
+                      <div className="animate-in fade-in duration-200">
+                        <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                          <Swords className="w-5 h-5 text-[#f43f5e]" /> Duel
+                        </h3>
+
+                        {/* Inputs */}
+                        <div className="space-y-4 mb-6">
+                          <div>
+                            <label className="block text-gray-400 text-sm mb-2">You Risk (KSh)</label>
+                            <input 
+                              type="number" 
+                              value={poolStake || ''} 
+                              onChange={(e) => setPoolStake(Number(e.target.value))}
+                              className="w-full bg-[#0D0D0D] border border-[#f43f5e]/50 focus:border-[#f43f5e] text-white font-bold rounded-xl p-4 text-xl focus:outline-none transition-colors"
+                              placeholder="50,000"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-gray-400 text-sm mb-2">Opponent Pays (KSh)</label>
+                            <input 
+                              type="number" 
+                              value={friendStake || ''} 
+                              onChange={(e) => setFriendStake(Number(e.target.value))}
+                              className="w-full bg-[#0D0D0D] border border-[#f43f5e]/50 focus:border-[#f43f5e] text-[#f43f5e] font-bold rounded-xl p-4 text-xl focus:outline-none transition-colors"
+                              placeholder="50,000"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Math Breakdown */}
+                        <div className="grid grid-cols-3 gap-2 text-center mb-6 border-t border-[#1F1F1F] pt-4">
+                          <div>
+                            <p className="text-[10px] text-gray-500 uppercase">Implied Odds:</p>
+                            <p className="text-sm font-bold text-[#f43f5e]">{impliedOdds}x</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-gray-500 uppercase">Total Pot:</p>
+                            <p className="text-sm font-bold text-white">{(poolStake + friendStake).toLocaleString()} KSh</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-gray-500 uppercase">Your Pot. Profit:</p>
+                            <p className="text-sm font-bold text-white">+{friendStake.toLocaleString()} KSh</p>
+                          </div>
+                        </div>
+
+                        {/* Action Button */}
+                        <button 
+                          onClick={() => submitDuel()}
+                          disabled={poolStake < MIN_STAKE || friendStake < MIN_STAKE}
+                          className="w-full bg-[#f43f5e] text-white font-black text-lg py-4 rounded-xl hover:bg-[#e11d48] transition disabled:opacity-50 shadow-[0_0_20px_rgba(244,63,94,0.3)]"
+                        >
+                          Generate Challenge Link ⚔️
+                        </button>
+                      </div>
+                    )}
 
                   </div>
-
-                  <div className="mt-12 bg-[#151515] border border-[#1F1F1F] rounded-3xl p-6 relative overflow-hidden">
-                    <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2">Rules & Details</h3>
-                    <p className="text-gray-300 text-sm leading-relaxed whitespace-pre-wrap font-light">{event.description}</p>
-                  </div>
-                </div>
+                </>
               )
             })()}
           </div>
@@ -862,107 +991,6 @@ export default function App() {
             </div>
            </div>
         )}
-
-        {/* --- MARKETS FEED --- */}
-        {activeView === 'markets' && (
-          <div className="animate-in fade-in duration-300">
-            
-            <div className="mb-6 relative max-w-md">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-              <input 
-                type="text" 
-                placeholder="Search events, players, teams..." 
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-[#151515] border border-[#1F1F1F] text-white rounded-2xl pl-11 pr-4 py-3 focus:outline-none focus:border-[#D9C5A0] text-sm"
-              />
-            </div>
-
-            <div className="flex gap-2 overflow-x-auto pb-4 no-scrollbar mb-2 select-none">
-              {Object.keys(CATEGORIES).map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => { setSelectedMainCategory(cat); setSelectedSubCategory(null); }}
-                  className={`px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition border whitespace-nowrap flex items-center gap-2 ${
-                    selectedMainCategory === cat 
-                      ? 'bg-[#D9C5A0] text-[#0D0D0D] border-[#D9C5A0]' 
-                      : 'bg-[#151515] text-gray-400 border-[#1F1F1F] hover:border-[#D9C5A0]/50 hover:text-white'
-                  }`}
-                >
-                  {cat === 'Current Affairs' && <Globe className="w-3.5 h-3.5" />}
-                  {cat}
-                </button>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-              {activeEvents.length === 0 ? <div className="col-span-full py-16 text-center text-gray-500 border border-dashed border-[#1F1F1F] rounded-3xl bg-[#151515]/30">No active markets found.</div> : (
-                activeEvents.map((event) => {
-                  const eventBets = bets.filter(b => b.event_id === event.id && b.status === 'open')
-                  const totalPoolVolume = eventBets.reduce((sum, b) => sum + b.stake, 0)
-                  
-                  const eventDateStr = event.closes_at || event.locks_at || '';
-                  const outcomeVolume0 = eventBets.filter(b => b.outcome_index === 0).reduce((sum, b) => sum + b.stake, 0)
-                  const percent0 = totalPoolVolume === 0 ? 50 : Math.round((outcomeVolume0 / totalPoolVolume) * 100)
-
-                  return (
-                    <div 
-                      key={event.id}
-                      onClick={() => {
-                        setSelectedEventId(event.id); 
-                        setSelectedOutcomeIdx(null); 
-                        setActiveView('eventDetail'); 
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                      }}
-                      className="bg-[#151515] rounded-3xl border border-[#1F1F1F] overflow-hidden group cursor-pointer transition-all duration-300 hover:border-[#D9C5A0]/50 hover:-translate-y-1 shadow-lg flex flex-col"
-                    >
-                      {/* HIGH FIDELITY CARD IMAGE */}
-                      <div 
-                        className="h-56 bg-cover bg-center transition duration-500 group-hover:scale-105 relative flex flex-col justify-between p-4"
-                        style={{ backgroundImage: `url(${event.resolution_image_url || 'https://images.unsplash.com/photo-1541133569762-f150ee2d4400'})` }}
-                      >
-                         <div className="absolute inset-0 bg-gradient-to-t from-[#151515] via-[#151515]/20 to-transparent"></div>
-                         
-                         <div className="relative z-10 flex justify-between items-start">
-                            <span className="bg-[#0D0D0D]/80 backdrop-blur-md border border-[#1F1F1F] text-[#D9C5A0] text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-lg shadow-sm">
-                              {event.category.split('_')[0]}
-                            </span>
-                            <LiveTimer targetDate={eventDateStr} />
-                         </div>
-                      </div>
-
-                      {/* CARD BODY */}
-                      <div className="p-6 relative bg-[#151515] flex-grow flex flex-col">
-                        <h3 className="text-xl font-bold text-white mb-4 line-clamp-2 leading-tight group-hover:text-[#D9C5A0] transition-colors">{event.title}</h3>
-                        
-                        <div className="mt-auto">
-                           <div className="flex justify-between text-[10px] text-gray-400 uppercase tracking-widest mb-2 font-bold">
-                             <span>Market Sentiment</span>
-                             <span>{percent0}% {event.outcomes[0]}</span>
-                           </div>
-                           
-                           <div className="w-full h-1.5 bg-[#1F1F1F] rounded-full mb-6 overflow-hidden">
-                             <div className="h-full bg-[#D9C5A0] transition-all duration-500" style={{ width: `${percent0}%` }} />
-                           </div>
-
-                           <div className="flex justify-between items-center pt-4 border-t border-[#1F1F1F]">
-                             <div>
-                                <p className="text-[10px] text-gray-500 uppercase tracking-widest font-semibold mb-0.5">Pool Size</p>
-                                <p className="text-white font-bold tracking-tight text-lg">{totalPoolVolume.toLocaleString()} KSh</p>
-                             </div>
-                             <button className="bg-[#D9C5A0] text-[#0D0D0D] text-xs font-black px-6 py-2.5 rounded-lg uppercase tracking-widest hover:bg-[#c4b18f] transition shadow-md">
-                               Trade Now
-                             </button>
-                           </div>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })
-              )}
-            </div>
-          </div>
-        )}
       </main>
 
       {/* --- WARZONE CHAT AND OVERLAY MODALS --- */}
@@ -1073,6 +1101,21 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* --- CSS INJECTIONS --- */}
+      <style dangerouslySetInnerHTML={{__html: `
+        @keyframes float-up-fade {
+          0% { opacity: 0; transform: translateY(10px) scale(0.9); }
+          20% { opacity: 1; transform: translateY(0px) scale(1); }
+          80% { opacity: 1; transform: translateY(-15px) scale(1); }
+          100% { opacity: 0; transform: translateY(-25px) scale(0.9); }
+        }
+        .animate-liquidity-pop {
+          animation: float-up-fade 2.5s ease-out forwards;
+        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      `}} />
     </div>
   )
 }
