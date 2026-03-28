@@ -1,37 +1,58 @@
 import { createClient } from '@supabase/supabase-js';
 import fetch from 'node-fetch';
 import dotenv from 'dotenv';
+import http from 'http';
 
 dotenv.config();
 
-// 1. Map directly to YOUR exact .env variables
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+// 1. DUMMY SERVER (Keeps Cloud Providers like Render/Railway happy)
+const PORT = process.env.PORT || 3000;
+http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('🟢 Parlayz Degen Engine is ALIVE and hedging.');
+}).listen(PORT, () => console.log(`☁️ Cloud health-check server running on port ${PORT}`));
+
+// 2. SUPABASE SETUP
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !supabaseKey) {
     console.error("🛑 FATAL ERROR: Missing Supabase Keys!");
-    console.log("Make sure 'SUPABASE_URL' and 'SUPABASE_SERVICE_KEY' are in your .env");
     process.exit(1);
 }
 
-// Initialize Supabase
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// 15 Crypto Majors for 24/7 nonstop volume
 const ASSETS = [
     'BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT', 'XRPUSDT', 
     'ADAUSDT', 'AVAXUSDT', 'DOGEUSDT', 'DOTUSDT', 'LINKUSDT', 
     'MATICUSDT', 'SHIBUSDT', 'LTCUSDT', 'TRXUSDT', 'UNIUSDT'
 ];
 
+// COIN LORE DICTIONARY
+const COIN_LORE = {
+    'BTCUSDT': 'Bitcoin is the world’s first decentralized cryptocurrency and the largest digital asset by market cap.',
+    'ETHUSDT': 'Ethereum is the leading smart contract platform powering decentralized finance (DeFi) and Web3.',
+    'SOLUSDT': 'Solana is a high-performance blockchain known for incredible speed and low transaction costs.',
+    'BNBUSDT': 'BNB is the native coin of the Binance ecosystem, the largest crypto exchange in the world.',
+    'XRPUSDT': 'XRP is a highly scalable digital asset built specifically for global institutional payments.',
+    'ADAUSDT': 'Cardano is a research-driven, proof-of-stake blockchain platform built for high security.',
+    'AVAXUSDT': 'Avalanche is a highly scalable Layer-1 blockchain platform for decentralized applications.',
+    'DOGEUSDT': 'Dogecoin is the original meme coin, backed by massive community support and retail volume.',
+    'DOTUSDT': 'Polkadot enables different, entirely separate blockchains to transfer messages and value securely.',
+    'LINKUSDT': 'Chainlink is a decentralized oracle network feeding real-world data to smart contracts.',
+    'MATICUSDT': 'Polygon is a premier Layer-2 scaling solution designed to make Ethereum faster and cheaper.',
+    'SHIBUSDT': 'Shiba Inu is a wildly popular, highly volatile community-driven meme token.',
+    'LTCUSDT': 'Litecoin is one of the oldest altcoins, designed to be the "silver" to Bitcoin\'s gold for fast payments.',
+    'TRXUSDT': 'Tron is a blockchain focused on building a massive, decentralized global digital entertainment system.',
+    'UNIUSDT': 'Uniswap is the largest decentralized automated trading protocol built on Ethereum.'
+};
+
 const HOUSE_UUID = '63484c36-6b40-492b-8bb1-b785ae636958'; // Your admin UUID
 const BINANCE_API = 'https://api.binance.com/api/v3/ticker/price';
 
-console.log("🟢 Parlayz Market Maker V2 ONLINE. 15 Majors. Dynamic Hedging Active.");
+console.log("🟢 Parlayz Precision Engine ONLINE. Snapping to 5-min intervals...");
 
-// ---------------------------------------------------------
-// THE MAKER: Create Markets & Inject Skewed Liquidity
-// ---------------------------------------------------------
 async function createMarkets() {
     try {
         const res = await fetch(BINANCE_API);
@@ -45,16 +66,22 @@ async function createMarkets() {
             const displaySymbol = symbol.replace('USDT', '');
             
             const now = new Date();
-            const locksAt = new Date(now.getTime() + 4 * 60000); // 4 min lock
-            const resolvesAt = new Date(now.getTime() + 5 * 60000); // 5 min resolve
+            const ms = 1000 * 60 * 5; 
+            let locksAt = new Date(Math.ceil(now.getTime() / ms) * ms);
             
+            if (locksAt.getTime() - now.getTime() < 2 * 60000) {
+                locksAt = new Date(locksAt.getTime() + ms);
+            }
+            
+            const resolvesAt = new Date(locksAt.getTime() + 5 * 60000); 
             const timeString = resolvesAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Nairobi' });
             
-            // Clean, professional title
-            const title = `Will ${displaySymbol} stay strictly ABOVE $${currentPrice.toFixed(4).replace(/\.?0+$/, '')} at ${timeString} EAT?`;
-            const description = `[SYS_AUTO] STRIKE:${currentPrice} | Automated 5-minute market. Resolves based on Binance Spot price.`;
+            const title = `Will ${displaySymbol} stay strictly ABOVE $${currentPrice.toFixed(4).replace(/\.?0+$/, '')} at exactly ${timeString} EAT?`;
+            
+            // INJECTING THE COIN INFO HERE
+            const lore = COIN_LORE[symbol] || 'Automated 5-minute crypto market.';
+            const description = `${lore}\n\n[SYS_AUTO] STRIKE:${currentPrice} | Resolves based on Binance Spot.`;
 
-            // 1. Create Market (Only using locks_at!)
             const { data: newEvent, error } = await supabase.from('events').insert({
                 title: title,
                 description: description,
@@ -64,39 +91,27 @@ async function createMarkets() {
                 resolved: false
             }).select('id').single();
 
-            if (error) {
-                console.error(`❌ Failed to create ${symbol}:`, error.message);
-                continue;
-            }
+            if (error) continue;
 
-            // 2. INTELLIGENT HEDGING (The 70/30 Skew Logic)
-            // Total pool size between 2,000 and 6,000 KSh
             const totalLiquidity = Math.floor(Math.random() * (6000 - 2000 + 1) + 2000);
-            // Skew the pot between 25% and 75%
             const skewPercent = Math.random() * (0.75 - 0.25) + 0.25; 
-            
             const stakeYes = Math.floor(totalLiquidity * skewPercent);
             const stakeNo = totalLiquidity - stakeYes;
 
-            // 3. Inject the House Money
             await supabase.from('bets').insert([
                 { event_id: newEvent.id, outcome_index: 0, stake: stakeYes, status: 'open', user_id: HOUSE_UUID },
                 { event_id: newEvent.id, outcome_index: 1, stake: stakeNo, status: 'open', user_id: HOUSE_UUID }
             ]);
 
-            console.log(`📈 LAUNCHED: ${displaySymbol} | Pool: ${totalLiquidity} KSh | Skew: ${Math.round(skewPercent*100)}/${Math.round((1-skewPercent)*100)}`);
+            console.log(`📈 LAUNCHED: ${displaySymbol} | Locks at ${locksAt.toLocaleTimeString()} | Skew: ${Math.round(skewPercent*100)}/${Math.round((1-skewPercent)*100)}`);
         }
     } catch (error) {
         console.error("❌ Maker Error:", error.message);
     }
 }
 
-// ---------------------------------------------------------
-// THE ORACLE: Settle Expired Markets
-// ---------------------------------------------------------
 async function resolveExpiredMarkets() {
     try {
-        // Find markets locked strictly more than 1 minute ago (4min lock + 1min = 5min total duration)
         const oneMinuteAgo = new Date(Date.now() - 60000).toISOString();
 
         const { data: expiredEvents, error } = await supabase
@@ -116,7 +131,6 @@ async function resolveExpiredMarkets() {
             if (!strikeMatch) continue;
             
             const strikePrice = parseFloat(strikeMatch[1]);
-            
             const symbolMatch = ASSETS.find(sym => event.title.includes(sym.replace('USDT', '')));
             if (!symbolMatch) continue;
 
@@ -126,32 +140,21 @@ async function resolveExpiredMarkets() {
             const isUp = currentPrice > strikePrice;
             const winningIndex = isUp ? 0 : 1;
 
-            console.log(`⚖️ SETTLING ${symbolMatch}: Strike $${strikePrice} vs Current $${currentPrice} -> Winner: ${isUp ? 'YES' : 'NO'}`);
+            const finalDesc = `${event.description}\n\n🛑 SETTLED: Final oracle price was $${currentPrice}. ${isUp ? 'YES' : 'NO'} wins.`;
 
-            const { error: dbError } = await supabase.from('events').update({
+            await supabase.from('events').update({
                 resolved: true,
                 winning_outcome_index: winningIndex,
-                resolution_link: `https://www.binance.com/en/trade/${symbolMatch}`
+                resolution_link: `https://www.binance.com/en/trade/${symbolMatch}`,
+                description: finalDesc
             }).eq('id', event.id);
 
-            if (dbError) throw dbError;
-
-            // Trigger your Payout RPC
-            await supabase.rpc('resolve_market_payout', { 
-                target_event_id: event.id, 
-                winning_index: winningIndex 
-            });
-
-            console.log(`✅ PAYOUTS DISTRIBUTED FOR EVENT: ${event.id}`);
+            await supabase.rpc('resolve_market_payout', { target_event_id: event.id, winning_index: winningIndex });
+            console.log(`✅ SETTLED ${symbolMatch}: Strike $${strikePrice} vs Current $${currentPrice}.`);
         }
-    } catch (error) {
-        console.error("❌ Oracle Error:", error.message);
-    }
+    } catch (error) {}
 }
 
-// Run Maker immediately, then every 5 minutes
 createMarkets();
 setInterval(createMarkets, 5 * 60000);
-
-// Run Oracle every 10 seconds
 setInterval(resolveExpiredMarkets, 10000);
