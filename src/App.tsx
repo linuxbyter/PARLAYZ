@@ -55,17 +55,81 @@ const LiveTimer = ({ targetDate }: { targetDate: string }) => {
         const days = Math.floor(distance / (1000 * 60 * 60 * 24))
         const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
         const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60))
+        const seconds = Math.floor((distance % (1000 * 60)) / 1000)
+        
         if (days > 0) setTimeLeft(`${days}d ${hours}h ${minutes}m`)
-        else setTimeLeft(`${hours}h ${minutes}m`)
+        else if (hours > 0) setTimeLeft(`${hours}h ${minutes}m`)
+        else setTimeLeft(`${minutes}m ${seconds}s`)
       }
     }
     calculateTime()
-    const timer = setInterval(calculateTime, 60000) 
+    const timer = setInterval(calculateTime, 1000) 
     return () => clearInterval(timer)
   }, [targetDate])
 
   if (isLocked) return <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest bg-[#1F1F1F] px-2 py-0.5 rounded shadow-lg">Locked</span>
-  return <span className="text-[10px] font-bold text-black bg-[#10b981] border border-[#10b981] px-2 py-0.5 rounded uppercase tracking-widest shadow-lg flex items-center gap-1"><span className="w-1.5 h-1.5 bg-black rounded-full animate-pulse"></span> Live</span>
+  return <span className="text-[10px] font-bold text-black bg-[#10b981] border border-[#10b981] px-2 py-0.5 rounded uppercase tracking-widest shadow-lg flex items-center gap-1 font-mono"><span className="w-1.5 h-1.5 bg-black rounded-full animate-pulse"></span> {timeLeft}</span>
+}
+
+// --- NEW LIVE ORACLE TRACKER ---
+const LiveOracleTracker = ({ event }: { event: Event }) => {
+  const [currentPrice, setCurrentPrice] = useState<number | null>(null);
+  const strikeMatch = event.description?.match(/STRIKE:([\d.]+)/);
+  const strikePrice = strikeMatch ? parseFloat(strikeMatch[1]) : null;
+  const symbolMatch = event.title?.match(/Will ([A-Z]+) stay/);
+  const coin = symbolMatch ? symbolMatch[1] : null;
+
+  useEffect(() => {
+    if (!strikePrice || !coin || event.resolved) return;
+    const fetchPrice = async () => {
+      try {
+        const res = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${coin}USDT`);
+        const data = await res.json();
+        setCurrentPrice(parseFloat(data.price));
+      } catch(e) {}
+    };
+    fetchPrice();
+    const interval = setInterval(fetchPrice, 3000); 
+    return () => clearInterval(interval);
+  }, [strikePrice, coin, event.resolved]);
+
+  if (!strikePrice || !coin) return null;
+  
+  const isWinning = currentPrice !== null && currentPrice > strikePrice;
+  const difference = currentPrice !== null ? Math.abs(currentPrice - strikePrice) : 0;
+
+  return (
+    <div className="bg-[#111] border border-[#1F1F1F] rounded-2xl p-5 mb-8 flex justify-between items-center shadow-inner relative overflow-hidden">
+      {/* Background glow based on status */}
+      {!event.resolved && currentPrice !== null && (
+        <div className={`absolute top-0 right-0 w-32 h-32 blur-3xl rounded-full opacity-10 pointer-events-none ${isWinning ? 'bg-[#10b981]' : 'bg-[#f43f5e]'}`}></div>
+      )}
+      
+      <div className="relative z-10">
+        <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-1 flex items-center gap-2">
+          <Activity className="w-3 h-3" /> Strike Line
+        </p>
+        <p className="text-xl font-mono text-white">${strikePrice.toFixed(4).replace(/\.?0+$/, '')}</p>
+      </div>
+      
+      <div className="text-right relative z-10">
+        <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-1 flex items-center justify-end gap-2">
+          {!event.resolved && <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${isWinning ? 'bg-[#10b981]' : 'bg-[#f43f5e]'}`}></span>}
+          {event.resolved ? 'Final Settled Price' : 'Live Oracle (Binance)'}
+        </p>
+        <div className="flex flex-col items-end">
+          <p className={`text-2xl font-black font-mono tracking-tighter transition-colors duration-300 ${event.resolved ? 'text-gray-300' : isWinning ? 'text-[#10b981]' : 'text-[#f43f5e]'}`}>
+            {currentPrice ? `$${currentPrice.toFixed(4).replace(/\.?0+$/, '')}` : 'Syncing...'}
+          </p>
+          {!event.resolved && currentPrice && (
+            <p className={`text-[9px] font-bold font-mono mt-0.5 ${isWinning ? 'text-[#10b981]/70' : 'text-[#f43f5e]/70'}`}>
+              {isWinning ? '+' : '-'}${difference.toFixed(4)}
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export default function App() {
@@ -209,7 +273,6 @@ export default function App() {
     if (withdrawAmount > (profile?.wallet_balance || 0)) return showToast("Insufficient balance.", "error");
     
     setIsWithdrawing(true);
-    // TODO: Wire this to /api/kotani-withdraw when off-ramp is ready
     setTimeout(() => {
         showToast("Withdrawal request submitted. Processing via Kotani Pay.", "success");
         setWithdrawAmount('');
@@ -231,7 +294,10 @@ export default function App() {
     if (!error) {
       await supabase.from('profiles').update({ wallet_balance: (profile?.wallet_balance || 0) - stake }).eq('id', session.user.id)
       setLastBet({ eventId: eId, outcomeIdx: oIdx, stake: stake })
-      setShowSuccessModal(true); setSelectedEventId(''); setSelectedOutcomeIdx(null); setPoolStake(MIN_STAKE); setActiveView('markets');
+      setShowSuccessModal(true); 
+      setSelectedOutcomeIdx(null); 
+      setPoolStake(MIN_STAKE); 
+      // User STAYS on the event detail page to watch the oracle!
     } else { 
       showToast('Network error pushing wager.'); fetchBets(); fetchProfile(); 
     }
@@ -250,7 +316,10 @@ export default function App() {
     if (!error) {
       await supabase.from('profiles').update({ wallet_balance: (profile?.wallet_balance || 0) - poolStake }).eq('id', session.user.id)
       setLastBet({ eventId: selectedEventId, outcomeIdx: selectedOutcomeIdx, stake: friendStake })
-      setShowSuccessModal(true); setSelectedEventId(''); setSelectedOutcomeIdx(null); setPoolStake(MIN_STAKE); setFriendStake(MIN_STAKE); setActiveView('markets');
+      setShowSuccessModal(true); 
+      setSelectedOutcomeIdx(null); 
+      setPoolStake(MIN_STAKE); 
+      setFriendStake(MIN_STAKE); 
     } else { 
       showToast('Error creating 1v1 duel.'); fetchBets(); fetchProfile(); 
     }
@@ -460,7 +529,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* NO IMAGES. PURE TERMINAL CARDS. */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {activeEvents.length === 0 ? (
                   <div className="col-span-full py-12 text-center text-gray-500 border border-dashed border-[#1F1F1F] rounded-2xl bg-[#111]/50">No markets match your filters.</div>
@@ -512,7 +580,7 @@ export default function App() {
             </div>
           )}
 
-          {/* --- VIEW: EVENT DETAIL (WITH DYNAMIC GRAPH) --- */}
+          {/* --- VIEW: EVENT DETAIL (WITH DYNAMIC GRAPH & ORACLE) --- */}
           {activeView === 'eventDetail' && selectedEventId && (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
               {(() => {
@@ -573,6 +641,9 @@ export default function App() {
                            <p className="text-sm font-bold uppercase tracking-widest text-[#666]">Current Pool Size</p>
                            <p className="text-4xl font-bold text-white">{totalPoolVolume.toLocaleString()} <span className="text-xl text-[#D9C5A0]">KSh</span></p>
                         </div>
+
+                        {/* LIVE ORACLE TRACKER INJECTED HERE */}
+                        <LiveOracleTracker event={event} />
 
                         <div className="bg-[#111] border border-[#1F1F1F] rounded-2xl p-6 sm:p-8 mb-8 shadow-inner">
                           <h4 className="text-[#D9C5A0] font-black text-sm uppercase tracking-widest mb-4 flex items-center gap-2">
@@ -864,7 +935,7 @@ export default function App() {
                 </div>
                 <h3 className="text-2xl font-bold text-white mb-2 tracking-tight uppercase">Position Secured</h3>
                 <p className="text-gray-400 text-sm mb-6 font-light">Your capital is locked in the pool.</p>
-                <button onClick={() => setShowSuccessModal(false)} className="w-full bg-[#1F1F1F] hover:bg-[#333] border border-[#1F1F1F] text-white font-bold py-3.5 rounded-xl transition uppercase text-[10px] tracking-widest">Return to Exchange</button>
+                <button onClick={() => setShowSuccessModal(false)} className="w-full bg-[#1F1F1F] hover:bg-[#333] border border-[#1F1F1F] text-white font-bold py-3.5 rounded-xl transition uppercase text-[10px] tracking-widest">Acknowledge</button>
               </div>
             </div>
           </div>
