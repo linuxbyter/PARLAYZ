@@ -1,6 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Vercel automatically injects process.env variables from your Vercel Dashboard
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
 
@@ -31,20 +30,25 @@ const COIN_LORE = {
 };
 
 const HOUSE_UUID = '63484c36-6b40-492b-8bb1-b785ae636958'; // Your admin UUID
-const BINANCE_API = 'https://api.binance.com/api/v3/ticker/price';
+// SWAPPED TO MEXC TO BYPASS VERCEL US-GEO BLOCK
+const ORACLE_API = 'https://api.mexc.com/api/v3/ticker/price';
 
 export default async function handler(req, res) {
     console.log("🟢 Vercel Engine Triggered: Running 10-Minute Dopamine Cycle...");
 
     try {
-        const binanceRes = await fetch(BINANCE_API);
-        const prices = await binanceRes.json();
+        const oracleRes = await fetch(ORACLE_API);
+        const prices = await oracleRes.json();
+
+        // FAILSAFE: If the exchange blocks us, stop the crash and report it safely.
+        if (!Array.isArray(prices)) {
+            console.error("🛑 ORACLE ERROR:", prices);
+            return res.status(502).json({ error: "Oracle connection blocked or invalid.", details: prices });
+        }
 
         // ---------------------------------------------------------
-        // 1. THE ORACLE: Settle Markets from the "Sweat" Period
+        // 1. THE ORACLE: Settle Markets
         // ---------------------------------------------------------
-        // A market is ready to settle if its locks_at time was 5 minutes ago.
-        // We use 4.5 minutes (270,000 ms) as a buffer just in case Vercel/Cron is a few seconds late.
         const settlementThreshold = new Date(Date.now() - (4.5 * 60000)).toISOString();
         
         const { data: expiredEvents } = await supabase
@@ -64,6 +68,8 @@ export default async function handler(req, res) {
                 if (!symbolMatch) continue;
 
                 const assetData = prices.find(p => p.symbol === symbolMatch);
+                if (!assetData) continue; // Secondary failsafe
+                
                 const currentPrice = parseFloat(assetData.price);
 
                 const isUp = currentPrice > strikePrice;
@@ -73,7 +79,7 @@ export default async function handler(req, res) {
                 await supabase.from('events').update({
                     resolved: true,
                     winning_outcome_index: winningIndex,
-                    resolution_link: `https://www.binance.com/en/trade/${symbolMatch}`,
+                    resolution_link: `https://www.mexc.com/exchange/${symbolMatch.replace('USDT', '_USDT')}`,
                     description: finalDesc
                 }).eq('id', event.id);
 
@@ -82,18 +88,12 @@ export default async function handler(req, res) {
         }
 
         // ---------------------------------------------------------
-        // 2. THE MAKER: Create New Markets & Snap to the Clock
+        // 2. THE MAKER: Create New Markets
         // ---------------------------------------------------------
-        // Snap the current time down to the exact 5-minute mark (e.g., 4:42 -> 4:40)
         const ms = 1000 * 60 * 5; 
         const currentTick = new Date(Math.floor(Date.now() / ms) * ms);
-        
-        // Betting Window: 5 Minutes (Locks at 4:45)
         const locksAt = new Date(currentTick.getTime() + 5 * 60000); 
-        
-        // Settlement Target: 10 Minutes Total (Settles at 4:50)
         const resolvesAt = new Date(locksAt.getTime() + 5 * 60000); 
-        
         const timeString = resolvesAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Nairobi' });
 
         for (const symbol of ASSETS) {
@@ -103,10 +103,9 @@ export default async function handler(req, res) {
             const currentPrice = parseFloat(assetData.price);
             const displaySymbol = symbol.replace('USDT', '');
             
-            // Clean title showing the exact 10-minute settlement time
             const title = `Will ${displaySymbol} stay strictly ABOVE $${currentPrice.toFixed(4).replace(/\.?0+$/, '')} at exactly ${timeString} EAT?`;
             const lore = COIN_LORE[symbol] || 'Automated 10-minute crypto cycle.';
-            const description = `${lore}\n\n[SYS_AUTO] STRIKE:${currentPrice} | Resolves based on Binance Spot.`;
+            const description = `${lore}\n\n[SYS_AUTO] STRIKE:${currentPrice} | Resolves based on Live Spot Oracle.`;
 
             const { data: newEvent, error } = await supabase.from('events').insert({
                 title: title,
@@ -119,7 +118,6 @@ export default async function handler(req, res) {
 
             if (error) continue;
 
-            // Generate 70/30 House Liquidity
             const totalLiquidity = Math.floor(Math.random() * (6000 - 2000 + 1) + 2000);
             const skewPercent = Math.random() * (0.75 - 0.25) + 0.25; 
             const stakeYes = Math.floor(totalLiquidity * skewPercent);
@@ -131,7 +129,7 @@ export default async function handler(req, res) {
             ]);
         }
 
-        return res.status(200).json({ success: true, message: "10-Min Cycle completed." });
+        return res.status(200).json({ success: true, message: "10-Min Cycle completed securely." });
 
     } catch (error) {
         return res.status(500).json({ error: error.message });
