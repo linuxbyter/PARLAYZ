@@ -34,26 +34,24 @@ const HOUSE_UUID = '63484c36-6b40-492b-8bb1-b785ae636958'; // Your admin UUID
 const BINANCE_API = 'https://api.binance.com/api/v3/ticker/price';
 
 export default async function handler(req, res) {
-    // SECURITY: Optional, but you can require a secret header so people can't trigger this manually
-    // if (req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}`) {
-    //    return res.status(401).json({ error: 'Unauthorized' });
-    // }
-
-    console.log("🟢 Vercel Engine Triggered: Running Oracle & Maker...");
+    console.log("🟢 Vercel Engine Triggered: Running 10-Minute Dopamine Cycle...");
 
     try {
         const binanceRes = await fetch(BINANCE_API);
         const prices = await binanceRes.json();
 
         // ---------------------------------------------------------
-        // 1. THE ORACLE: Settle Expired Markets First
+        // 1. THE ORACLE: Settle Markets from the "Sweat" Period
         // ---------------------------------------------------------
-        const oneMinuteAgo = new Date(Date.now() - 60000).toISOString();
+        // A market is ready to settle if its locks_at time was 5 minutes ago.
+        // We use 4.5 minutes (270,000 ms) as a buffer just in case Vercel/Cron is a few seconds late.
+        const settlementThreshold = new Date(Date.now() - (4.5 * 60000)).toISOString();
+        
         const { data: expiredEvents } = await supabase
             .from('events')
             .select('id, title, description')
             .like('description', '%[SYS_AUTO]%')
-            .lte('locks_at', oneMinuteAgo) 
+            .lte('locks_at', settlementThreshold) 
             .eq('resolved', false);
 
         if (expiredEvents && expiredEvents.length > 0) {
@@ -84,8 +82,20 @@ export default async function handler(req, res) {
         }
 
         // ---------------------------------------------------------
-        // 2. THE MAKER: Create New Markets
+        // 2. THE MAKER: Create New Markets & Snap to the Clock
         // ---------------------------------------------------------
+        // Snap the current time down to the exact 5-minute mark (e.g., 4:42 -> 4:40)
+        const ms = 1000 * 60 * 5; 
+        const currentTick = new Date(Math.floor(Date.now() / ms) * ms);
+        
+        // Betting Window: 5 Minutes (Locks at 4:45)
+        const locksAt = new Date(currentTick.getTime() + 5 * 60000); 
+        
+        // Settlement Target: 10 Minutes Total (Settles at 4:50)
+        const resolvesAt = new Date(locksAt.getTime() + 5 * 60000); 
+        
+        const timeString = resolvesAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Nairobi' });
+
         for (const symbol of ASSETS) {
             const assetData = prices.find(p => p.symbol === symbol);
             if (!assetData) continue;
@@ -93,16 +103,9 @@ export default async function handler(req, res) {
             const currentPrice = parseFloat(assetData.price);
             const displaySymbol = symbol.replace('USDT', '');
             
-            const now = new Date();
-            const ms = 1000 * 60 * 5; 
-            let locksAt = new Date(Math.ceil(now.getTime() / ms) * ms);
-            if (locksAt.getTime() - now.getTime() < 2 * 60000) { locksAt = new Date(locksAt.getTime() + ms); }
-            
-            const resolvesAt = new Date(locksAt.getTime() + 5 * 60000); 
-            const timeString = resolvesAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Nairobi' });
-            
+            // Clean title showing the exact 10-minute settlement time
             const title = `Will ${displaySymbol} stay strictly ABOVE $${currentPrice.toFixed(4).replace(/\.?0+$/, '')} at exactly ${timeString} EAT?`;
-            const lore = COIN_LORE[symbol] || 'Automated 5-minute crypto market.';
+            const lore = COIN_LORE[symbol] || 'Automated 10-minute crypto cycle.';
             const description = `${lore}\n\n[SYS_AUTO] STRIKE:${currentPrice} | Resolves based on Binance Spot.`;
 
             const { data: newEvent, error } = await supabase.from('events').insert({
@@ -116,6 +119,7 @@ export default async function handler(req, res) {
 
             if (error) continue;
 
+            // Generate 70/30 House Liquidity
             const totalLiquidity = Math.floor(Math.random() * (6000 - 2000 + 1) + 2000);
             const skewPercent = Math.random() * (0.75 - 0.25) + 0.25; 
             const stakeYes = Math.floor(totalLiquidity * skewPercent);
@@ -127,7 +131,7 @@ export default async function handler(req, res) {
             ]);
         }
 
-        return res.status(200).json({ success: true, message: "Markets cycled successfully." });
+        return res.status(200).json({ success: true, message: "10-Min Cycle completed." });
 
     } catch (error) {
         return res.status(500).json({ error: error.message });
