@@ -84,6 +84,8 @@ export default async function handler(req, res) {
             }));
         }
 
+        // 
+            
         // ---------------------------------------------------------
         // 2. THE MAKER: 10-Min Lifecycle (PARALLEL EXECUTION)
         // ---------------------------------------------------------
@@ -113,6 +115,7 @@ export default async function handler(req, res) {
                 category: 'Crypto_Majors',
                 outcomes: ['Yes (Up)', 'No (Down)'],
                 locks_at: locksAt.toISOString(),
+                closes_at: locksAt.toISOString(), // <-- THE MAGIC BYPASS FIX
                 resolved: false
             }).select('id').single();
 
@@ -128,10 +131,3 @@ export default async function handler(req, res) {
                 { event_id: newEvent.id, outcome_index: 1, stake: stakeNo, status: 'open', user_id: HOUSE_UUID }
             ]);
         }));
-
-        return res.status(200).json({ success: true, message: "High-Speed 10-Min Cycle completed securely." });
-
-    } catch (error) {
-        return res.status(500).json({ error: error.message });
-    }
-}
