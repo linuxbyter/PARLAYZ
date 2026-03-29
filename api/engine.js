@@ -30,27 +30,24 @@ const COIN_LORE = {
 };
 
 const HOUSE_UUID = '63484c36-6b40-492b-8bb1-b785ae636958'; // Your admin UUID
-// SWAPPED TO MEXC TO BYPASS VERCEL US-GEO BLOCK
 const ORACLE_API = 'https://api.mexc.com/api/v3/ticker/price';
 
 export default async function handler(req, res) {
-    console.log("🟢 Vercel Engine Triggered: Running 10-Minute Dopamine Cycle...");
+    console.log("🟢 Vercel Engine: Running High-Speed 10-Min Cycle...");
 
     try {
         const oracleRes = await fetch(ORACLE_API);
         const prices = await oracleRes.json();
 
-        // FAILSAFE: If the exchange blocks us, stop the crash and report it safely.
         if (!Array.isArray(prices)) {
             console.error("🛑 ORACLE ERROR:", prices);
-            return res.status(502).json({ error: "Oracle connection blocked or invalid.", details: prices });
+            return res.status(502).json({ error: "Oracle blocked.", details: prices });
         }
 
         // ---------------------------------------------------------
-        // 1. THE ORACLE: Settle Markets
+        // 1. THE ORACLE: Settle Markets (PARALLEL EXECUTION)
         // ---------------------------------------------------------
         const settlementThreshold = new Date(Date.now() - (4.5 * 60000)).toISOString();
-        
         const { data: expiredEvents } = await supabase
             .from('events')
             .select('id, title, description')
@@ -59,19 +56,19 @@ export default async function handler(req, res) {
             .eq('resolved', false);
 
         if (expiredEvents && expiredEvents.length > 0) {
-            for (const event of expiredEvents) {
+            // Promise.all runs everything instantly instead of waiting
+            await Promise.all(expiredEvents.map(async (event) => {
                 const strikeMatch = event.description.match(/STRIKE:([\d.]+)/);
-                if (!strikeMatch) continue;
+                if (!strikeMatch) return;
                 
                 const strikePrice = parseFloat(strikeMatch[1]);
                 const symbolMatch = ASSETS.find(sym => event.title.includes(sym.replace('USDT', '')));
-                if (!symbolMatch) continue;
+                if (!symbolMatch) return;
 
                 const assetData = prices.find(p => p.symbol === symbolMatch);
-                if (!assetData) continue; // Secondary failsafe
+                if (!assetData) return;
                 
                 const currentPrice = parseFloat(assetData.price);
-
                 const isUp = currentPrice > strikePrice;
                 const winningIndex = isUp ? 0 : 1;
                 const finalDesc = `${event.description}\n\n🛑 SETTLED: Final oracle price was $${currentPrice}. ${isUp ? 'YES' : 'NO'} wins.`;
@@ -84,21 +81,57 @@ export default async function handler(req, res) {
                 }).eq('id', event.id);
 
                 await supabase.rpc('resolve_market_payout', { target_event_id: event.id, winning_index: winningIndex });
-            }
+            }));
         }
 
-      // ---------------------------------------------------------
-        // 2. THE MAKER: 10-Min Lifecycle (5 Min Bet + 5 Min Sweat)
+        // ---------------------------------------------------------
+        // 2. THE MAKER: 10-Min Lifecycle (PARALLEL EXECUTION)
         // ---------------------------------------------------------
         const ms = 1000 * 60 * 5; 
-        
-        // Anchor to the exact current 5-minute block (e.g., exactly 5:00:00)
         const currentTick = new Date(Math.floor(Date.now() / ms) * ms);
         
-        // Locks exactly 5 minutes from the tick (e.g., 5:05:00) -> 5 MINS TO BET
+        // Locks exactly 5 minutes from now (5 Mins to Bet)
         const locksAt = new Date(currentTick.getTime() + 5 * 60000); 
-        
-        // Settles exactly 5 minutes after locking (e.g., 5:10:00) -> 5 MINS TO SWEAT
+        // Settles 5 minutes after locking (5 Mins to Sweat)
         const resolvesAt = new Date(locksAt.getTime() + 5 * 60000); 
-        
         const timeString = resolvesAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Nairobi' });
+
+        await Promise.all(ASSETS.map(async (symbol) => {
+            const assetData = prices.find(p => p.symbol === symbol);
+            if (!assetData) return;
+            
+            const currentPrice = parseFloat(assetData.price);
+            const displaySymbol = symbol.replace('USDT', '');
+            
+            const title = `Will ${displaySymbol} stay strictly ABOVE $${currentPrice.toFixed(4).replace(/\.?0+$/, '')} at exactly ${timeString} EAT?`;
+            const lore = COIN_LORE[symbol] || 'Automated 10-minute crypto cycle.';
+            const description = `${lore}\n\n[SYS_AUTO] STRIKE:${currentPrice} | Resolves based on Live Spot Oracle.`;
+
+            const { data: newEvent, error } = await supabase.from('events').insert({
+                title: title,
+                description: description,
+                category: 'Crypto_Majors',
+                outcomes: ['Yes (Up)', 'No (Down)'],
+                locks_at: locksAt.toISOString(),
+                resolved: false
+            }).select('id').single();
+
+            if (error || !newEvent) return;
+
+            const totalLiquidity = Math.floor(Math.random() * (6000 - 2000 + 1) + 2000);
+            const skewPercent = Math.random() * (0.75 - 0.25) + 0.25; 
+            const stakeYes = Math.floor(totalLiquidity * skewPercent);
+            const stakeNo = totalLiquidity - stakeYes;
+
+            await supabase.from('bets').insert([
+                { event_id: newEvent.id, outcome_index: 0, stake: stakeYes, status: 'open', user_id: HOUSE_UUID },
+                { event_id: newEvent.id, outcome_index: 1, stake: stakeNo, status: 'open', user_id: HOUSE_UUID }
+            ]);
+        }));
+
+        return res.status(200).json({ success: true, message: "High-Speed 10-Min Cycle completed securely." });
+
+    } catch (error) {
+        return res.status(500).json({ error: error.message });
+    }
+}
