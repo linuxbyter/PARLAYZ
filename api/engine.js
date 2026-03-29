@@ -33,19 +33,18 @@ const HOUSE_UUID = '63484c36-6b40-492b-8bb1-b785ae636958'; // Your admin UUID
 const ORACLE_API = 'https://api.mexc.com/api/v3/ticker/price';
 
 export default async function handler(req, res) {
-    console.log("🟢 Vercel Engine: Running High-Speed 10-Min Cycle...");
+    console.log("🟢 Vercel Engine: Running BULK-Speed 10-Min Cycle...");
 
     try {
         const oracleRes = await fetch(ORACLE_API);
         const prices = await oracleRes.json();
 
         if (!Array.isArray(prices)) {
-            console.error("🛑 ORACLE ERROR:", prices);
             return res.status(502).json({ error: "Oracle blocked.", details: prices });
         }
 
         // ---------------------------------------------------------
-        // 1. THE ORACLE: Settle Markets (PARALLEL EXECUTION)
+        // 1. THE ORACLE: Settle Markets (Parallel)
         // ---------------------------------------------------------
         const settlementThreshold = new Date(Date.now() - (4.5 * 60000)).toISOString();
         const { data: expiredEvents } = await supabase
@@ -56,7 +55,6 @@ export default async function handler(req, res) {
             .eq('resolved', false);
 
         if (expiredEvents && expiredEvents.length > 0) {
-            // Promise.all runs everything instantly instead of waiting
             await Promise.all(expiredEvents.map(async (event) => {
                 const strikeMatch = event.description.match(/STRIKE:([\d.]+)/);
                 if (!strikeMatch) return;
@@ -84,23 +82,23 @@ export default async function handler(req, res) {
             }));
         }
 
-        // 
-            
         // ---------------------------------------------------------
-        // 2. THE MAKER: 10-Min Lifecycle (PARALLEL EXECUTION)
+        // 2. THE MAKER: Bulk Create Markets & Fix Overlap
         // ---------------------------------------------------------
         const ms = 1000 * 60 * 5; 
         const currentTick = new Date(Math.floor(Date.now() / ms) * ms);
         
-        // Locks exactly 5 minutes from now (5 Mins to Bet)
+        // 5 Mins to Bet, 5 Mins to Sweat
         const locksAt = new Date(currentTick.getTime() + 5 * 60000); 
-        // Settles 5 minutes after locking (5 Mins to Sweat)
         const resolvesAt = new Date(locksAt.getTime() + 5 * 60000); 
         const timeString = resolvesAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Nairobi' });
 
-        await Promise.all(ASSETS.map(async (symbol) => {
+        const newEventsData = [];
+
+        // Build the payload
+        for (const symbol of ASSETS) {
             const assetData = prices.find(p => p.symbol === symbol);
-            if (!assetData) return;
+            if (!assetData) continue;
             
             const currentPrice = parseFloat(assetData.price);
             const displaySymbol = symbol.replace('USDT', '');
@@ -109,25 +107,47 @@ export default async function handler(req, res) {
             const lore = COIN_LORE[symbol] || 'Automated 10-minute crypto cycle.';
             const description = `${lore}\n\n[SYS_AUTO] STRIKE:${currentPrice} | Resolves based on Live Spot Oracle.`;
 
-            const { data: newEvent, error } = await supabase.from('events').insert({
+            newEventsData.push({
                 title: title,
                 description: description,
                 category: 'Crypto_Majors',
                 outcomes: ['Yes (Up)', 'No (Down)'],
                 locks_at: locksAt.toISOString(),
-                closes_at: locksAt.toISOString(), // <-- THE MAGIC BYPASS FIX
+                closes_at: locksAt.toISOString(), // MAGIC FIX: Stops UI from locking users out early
                 resolved: false
-            }).select('id').single();
+            });
+        }
 
-            if (error || !newEvent) return;
+        // ONE Trip to the Database for all 15 events
+        const { data: insertedEvents, error: eventsError } = await supabase
+            .from('events')
+            .insert(newEventsData)
+            .select('id');
 
+        if (eventsError || !insertedEvents) {
+            throw new Error("Bulk Event Insert Failed: " + (eventsError?.message || "Unknown error"));
+        }
+
+        const newBetsData = [];
+
+        // Build the payload for the liquidity bets
+        for (const event of insertedEvents) {
             const totalLiquidity = Math.floor(Math.random() * (6000 - 2000 + 1) + 2000);
             const skewPercent = Math.random() * (0.75 - 0.25) + 0.25; 
             const stakeYes = Math.floor(totalLiquidity * skewPercent);
             const stakeNo = totalLiquidity - stakeYes;
 
-            await supabase.from('bets').insert([
-                { event_id: newEvent.id, outcome_index: 0, stake: stakeYes, status: 'open', user_id: HOUSE_UUID },
-                { event_id: newEvent.id, outcome_index: 1, stake: stakeNo, status: 'open', user_id: HOUSE_UUID }
-            ]);
-        }));
+            newBetsData.push({ event_id: event.id, outcome_index: 0, stake: stakeYes, status: 'open', user_id: HOUSE_UUID });
+            newBetsData.push({ event_id: event.id, outcome_index: 1, stake: stakeNo, status: 'open', user_id: HOUSE_UUID });
+        }
+
+        // ONE Trip to the Database for all 30 bets
+        await supabase.from('bets').insert(newBetsData);
+
+        return res.status(200).json({ success: true, message: "Bulk-Speed 10-Min Cycle completed securely." });
+
+    } catch (error) {
+        console.error("Engine Error:", error);
+        return res.status(500).json({ error: error.message });
+    }
+}
