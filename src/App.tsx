@@ -39,37 +39,43 @@ const CATEGORIES = {
 }
 
 const LiveTimer = ({ targetDate }: { targetDate: string }) => {
-  const [timeLeft, setTimeLeft] = useState('')
-  const [isLocked, setIsLocked] = useState(false)
+  const [timeLeft, setTimeLeft] = useState<string>('0m 0s');
+  const [isLocked, setIsLocked] = useState(false);
 
   useEffect(() => {
     const calculateTime = () => {
-      if (!targetDate) { setTimeLeft('TBA'); setIsLocked(false); return; }
-      const lockTime = new Date(targetDate).getTime()
-      if (isNaN(lockTime)) { setTimeLeft('TBA'); setIsLocked(false); return; }
+      if (!targetDate) return;
       
-      const distance = lockTime - Date.now()
-      if (distance <= 0) { setIsLocked(true); setTimeLeft('LOCKED'); } 
-      else {
-        setIsLocked(false)
-        const days = Math.floor(distance / (1000 * 60 * 60 * 24))
-        const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
-        const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60))
-        const seconds = Math.floor((distance % (1000 * 60)) / 1000)
-        
-        if (days > 0) setTimeLeft(`${days}d ${hours}h ${minutes}m`)
-        else if (hours > 0) setTimeLeft(`${hours}h ${minutes}m`)
-        else setTimeLeft(`${minutes}m ${seconds}s`)
-      }
-    }
-    calculateTime()
-    const timer = setInterval(calculateTime, 1000) 
-    return () => clearInterval(timer)
-  }, [targetDate])
+      // FORCE UTC FORMAT
+      const safeDate = targetDate.includes('Z') || targetDate.includes('+') ? targetDate : `${targetDate}Z`;
+      const lockTime = new Date(safeDate).getTime();
+      const now = Date.now();
+      const diff = lockTime - now;
 
-  if (isLocked) return <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest bg-[#1F1F1F] px-2 py-0.5 rounded shadow-lg">Locked</span>
-  return <span className="text-[10px] font-bold text-black bg-[#10b981] border border-[#10b981] px-2 py-0.5 rounded uppercase tracking-widest shadow-lg flex items-center gap-1 font-mono"><span className="w-1.5 h-1.5 bg-black rounded-full animate-pulse"></span> {timeLeft}</span>
-}
+      if (diff <= 0) {
+        setTimeLeft('CLOSED');
+        setIsLocked(true);
+        return;
+      }
+
+      const mins = Math.floor(diff / 60000);
+      const secs = Math.floor((diff % 60000) / 1000);
+      setTimeLeft(`${mins}m ${secs}s`);
+      setIsLocked(false);
+    };
+
+    const timer = setInterval(calculateTime, 1000);
+    calculateTime();
+    return () => clearInterval(timer);
+  }, [targetDate]);
+
+  return (
+    <div className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 ${isLocked ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>
+      <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${isLocked ? 'bg-red-500' : 'bg-green-500'}`} />
+      {timeLeft}
+    </div>
+  );
+};
 
 // --- NEW LIVE ORACLE TRACKER ---
 const LiveOracleTracker = ({ event }: { event: Event }) => {
@@ -590,9 +596,11 @@ export default function App() {
                 const safeTitle = event.title || 'Untitled Market';
                 const safeOutcomes = Array.isArray(event.outcomes) && event.outcomes.length >= 2 ? event.outcomes : ['Yes', 'No'];
                 
-                const eventDateStr = event.closes_at || event.locks_at || '';
-                const lockTime = new Date(eventDateStr).getTime();
-                const isLocked = event.resolved || (!isNaN(lockTime) && lockTime <= Date.now());
+              const eventDateStr = event.locks_at || '';
+// FORCE UTC FORMAT
+const safeDateStr = eventDateStr.includes('Z') || eventDateStr.includes('+') ? eventDateStr : `${eventDateStr}Z`;
+const lockTime = new Date(safeDateStr).getTime();
+const isLocked = event.resolved || (!isNaN(lockTime) && lockTime <= Date.now());
                 
                 const eventBets = bets.filter(b => b.event_id === event.id && b.status === 'open');
                 const totalPoolVolume = eventBets.reduce((sum, b) => sum + (b?.stake || 0), 0);
