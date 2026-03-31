@@ -36,7 +36,39 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className="bg-[#0D0D0D] text-white font-sans min-h-screen">
-        <ClerkProvider publishableKey={publishableKey}>
+        <ClerkProvider
+          publishableKey={publishableKey}
+          appearance={{
+            baseTheme: undefined,
+            variables: {
+              colorBackground: '#0D0D0D',
+              colorInputBackground: '#111111',
+              colorPrimary: '#D9C5A0',
+              colorText: '#ffffff',
+              colorTextSecondary: '#888888',
+              colorTextOnPrimaryBackground: '#0D0D0D',
+              borderRadius: '0.75rem',
+            },
+            elements: {
+              card: 'bg-[#0D0D0D] border border-[#1F1F1F]',
+              headerTitle: 'text-white',
+              headerSubtitle: 'text-gray-400',
+              socialButtonsBlockButton: 'bg-[#111] border border-[#1F1F1F] text-white hover:bg-[#1a1a1a]',
+              socialButtonsBlockButtonText: 'text-white',
+              formButtonPrimary: 'bg-[#D9C5A0] hover:bg-[#c4b18f] text-black',
+              formFieldInput: 'bg-[#111] border border-[#1F1F1F] text-white focus:border-[#D9C5A0]',
+              footerActionLink: 'text-[#D9C5A0] hover:text-[#c4b18f]',
+              identityPreviewText: 'text-white',
+              identityPreviewEditButton: 'text-[#D9C5A0]',
+              dividerLine: 'bg-[#1F1F1F]',
+              dividerText: 'text-gray-500',
+              formFieldLabel: 'text-gray-300',
+              userButtonPopoverActionButton: 'text-white hover:bg-[#1a1a1a]',
+              userButtonPopoverActionButtonText: 'text-white',
+              userButtonPopoverActionButtonIconBox: 'text-white',
+            },
+          }}
+        >
           <Providers>
             {children}
           </Providers>

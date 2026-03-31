@@ -9,9 +9,10 @@ import { ArrowUpRight, TrendingUp, TrendingDown, Lock, Clock, ChevronLeft, Users
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import { parseUnits } from 'viem'
+import { useParams } from 'next/navigation'
 
-const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_MARKET_CONTRACT_ADDRESS as `0x${string}`
-const USDT_ADDRESS = process.env.NEXT_PUBLIC_USDT_ADDRESS as `0x${string}`
+const CONTRACT_ADDRESS = (process.env.NEXT_PUBLIC_MARKET_CONTRACT_ADDRESS || '0x0000000000000000000000000000000000000000') as `0x${string}`
+const USDT_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as `0x${string}`
 
 interface PoolBet {
   outcomeIndex: number
@@ -35,12 +36,11 @@ const USDT_ABI = [
   },
 ] as const
 
-export default async function MarketDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const resolvedParams = await params
-  return <MarketDetail resolvedParams={resolvedParams} />
-}
+export default function MarketDetailPage() {
+  const params = useParams()
+  const id = params?.id as string
+  const marketId = id ? BigInt(id) : BigInt(0)
 
-function MarketDetail({ resolvedParams }: { resolvedParams: { id: string } }) {
   const { address, isConnected } = useAccount()
   const { placeBet } = usePlaceBet()
   const [selectedOutcome, setSelectedOutcome] = useState<number | null>(null)
@@ -50,13 +50,12 @@ function MarketDetail({ resolvedParams }: { resolvedParams: { id: string } }) {
   const [poolBets, setPoolBets] = useState<PoolBet[]>([])
   const [showGraph, setShowGraph] = useState(true)
 
-  const marketId = BigInt(resolvedParams.id)
-
   const { data: marketData, isLoading } = useReadContract({
     address: CONTRACT_ADDRESS,
     abi: PARLAYZ_MARKET_ABI,
     functionName: 'getMarket',
     args: [marketId],
+    query: { enabled: marketId > BigInt(0) },
   })
 
   const { data: allowance } = useReadContract({
@@ -64,6 +63,7 @@ function MarketDetail({ resolvedParams }: { resolvedParams: { id: string } }) {
     abi: USDT_ABI,
     functionName: 'allowance',
     args: [address as `0x${string}`, CONTRACT_ADDRESS],
+    query: { enabled: !!address },
   })
 
   useEffect(() => {
@@ -71,7 +71,7 @@ function MarketDetail({ resolvedParams }: { resolvedParams: { id: string } }) {
     const md = marketData as unknown as [string, string, string[], bigint, boolean, number, bigint, boolean, bigint]
     const [, , outcomes, , , , totalPool] = md
     const total = Number(totalPool) / 1e6
-    if (total > 0 && outcomes.length >= 2) {
+    if (total > 0 && outcomes && outcomes.length >= 2) {
       const mockBets: PoolBet[] = outcomes.map((_, idx) => ({
         outcomeIndex: idx,
         amount: total * (idx === 0 ? 0.6 : 0.4) / (outcomes.length - 1 || 1),
@@ -105,7 +105,8 @@ function MarketDetail({ resolvedParams }: { resolvedParams: { id: string } }) {
     )
   }
 
-  const [title, category, outcomes, closesAt, resolved, winningOutcome, totalPool, isCrypto, strikePrice] = marketData as [string, string, string[], bigint, boolean, number, bigint, boolean, bigint]
+  const md = marketData as unknown as [string, string, string[], bigint, boolean, number, bigint, boolean, bigint]
+  const [title, category, outcomes, closesAt, resolved, winningOutcome, totalPool] = md
 
   const isClosed = BigInt(Math.floor(Date.now() / 1000)) >= closesAt
   const poolFormatted = Number(totalPool) / 1e6
@@ -115,14 +116,7 @@ function MarketDetail({ resolvedParams }: { resolvedParams: { id: string } }) {
     const amount = parseFloat(stakeAmount)
     if (amount <= 0) return
 
-    const stakeWei = parseUnits(stakeAmount, 6)
-    const allowanceNum = BigInt(allowance || 0)
-
-    if (allowanceNum < stakeWei) {
-      setIsApproving(true)
-    }
     setIsBetting(true)
-
     try {
       await placeBet(marketId, selectedOutcome, amount)
       setPoolBets(prev => [...prev, { outcomeIndex: selectedOutcome, amount }])
@@ -131,7 +125,6 @@ function MarketDetail({ resolvedParams }: { resolvedParams: { id: string } }) {
     } catch (e) {
       console.error('Bet failed:', e)
     } finally {
-      setIsApproving(false)
       setIsBetting(false)
     }
   }
@@ -291,12 +284,10 @@ function MarketDetail({ resolvedParams }: { resolvedParams: { id: string } }) {
             {/* Submit */}
             <button
               onClick={handleBet}
-              disabled={selectedOutcome === null || isApproving || isBetting}
+              disabled={selectedOutcome === null || isBetting}
               className="w-full bg-[#26a17b] hover:bg-[#1e8c6b] disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-2 text-sm uppercase tracking-wider"
             >
-              {isApproving ? (
-                <>Approving USDT...</>
-              ) : isBetting ? (
+              {isBetting ? (
                 <>Placing Bet...</>
               ) : (
                 <>

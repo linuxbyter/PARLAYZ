@@ -5,7 +5,7 @@ import { useAccount, useConnect, useDisconnect } from 'wagmi'
 import { Activity, Wallet, ChevronDown } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
 export default function Header() {
   const { user } = useUser()
@@ -14,13 +14,18 @@ export default function Header() {
   const { connect, connectors } = useConnect()
   const { disconnect } = useDisconnect()
   const [showWalletMenu, setShowWalletMenu] = useState(false)
-  const [readyConnector, setReadyConnector] = useState<any>(null)
+  const [connectError, setConnectError] = useState('')
 
-  useEffect(() => {
+  const handleConnect = useCallback(() => {
+    setConnectError('')
     if (connectors && connectors.length > 0) {
-      setReadyConnector(connectors[0])
+      try {
+        connect({ connector: connectors[0] })
+      } catch (e: any) {
+        setConnectError(e.message || 'Failed to connect')
+      }
     }
-  }, [connectors])
+  }, [connect, connectors])
 
   const shortAddr = address ? `${address.slice(0, 6)}...${address.slice(-4)}` : ''
 
@@ -83,9 +88,8 @@ export default function Header() {
             </div>
           ) : (
             <button
-              onClick={() => readyConnector && connect({ connector: readyConnector })}
-              disabled={!readyConnector}
-              className="flex items-center gap-2 bg-[#D9C5A0] text-black font-bold px-4 py-2 rounded-xl text-sm hover:bg-[#c4b18f] transition disabled:opacity-50"
+              onClick={handleConnect}
+              className="flex items-center gap-2 bg-[#D9C5A0] text-black font-bold px-4 py-2 rounded-xl text-sm hover:bg-[#c4b18f] transition"
             >
               <Wallet className="w-4 h-4" />
               Connect
