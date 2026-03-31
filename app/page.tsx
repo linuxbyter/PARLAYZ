@@ -22,7 +22,7 @@ interface Market {
 
 const MOCK_MARKETS: Market[] = [
   {
-    id: 'btc-cycle-1',
+    id: '0',
     title: 'Will BTC be above $104,000 at :35?',
     category: 'Crypto',
     outcomes: ['UP', 'DOWN'],
@@ -32,7 +32,7 @@ const MOCK_MARKETS: Market[] = [
     type: 'crypto',
   },
   {
-    id: 'eth-cycle-1',
+    id: '1',
     title: 'Will ETH break $2,100 by :50?',
     category: 'Crypto',
     outcomes: ['YES', 'NO'],
@@ -42,7 +42,7 @@ const MOCK_MARKETS: Market[] = [
     type: 'crypto',
   },
   {
-    id: 'epl-1',
+    id: '2',
     title: 'Arsenal vs Chelsea - Who wins?',
     category: 'Sports',
     outcomes: ['Arsenal', 'Draw', 'Chelsea'],

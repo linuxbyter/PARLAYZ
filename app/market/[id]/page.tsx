@@ -11,8 +11,14 @@ import { useState, useEffect } from 'react'
 import { parseUnits } from 'viem'
 import { useParams } from 'next/navigation'
 
-const CONTRACT_ADDRESS = (process.env.NEXT_PUBLIC_MARKET_CONTRACT_ADDRESS || '0x0000000000000000000000000000000000000000') as `0x${string}`
+const CONTRACT_ADDRESS = (process.env.NEXT_PUBLIC_MARKET_CONTRACT_ADDRESS || '') as `0x${string}`
 const USDT_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as `0x${string}`
+
+const MOCK_MARKETS: Record<string, { title: string; category: string; outcomes: string[]; closesAt: string; resolved: boolean; poolSize: number }> = {
+  '0': { title: 'Will BTC be above $104,000 at :35?', category: 'Crypto', outcomes: ['UP', 'DOWN'], closesAt: '2026-03-31T11:35:00Z', resolved: false, poolSize: 1240 },
+  '1': { title: 'Will ETH break $2,100 by :50?', category: 'Crypto', outcomes: ['YES', 'NO'], closesAt: '2026-03-31T11:50:00Z', resolved: false, poolSize: 890 },
+  '2': { title: 'Arsenal vs Chelsea - Who wins?', category: 'Sports', outcomes: ['Arsenal', 'Draw', 'Chelsea'], closesAt: '2026-04-01T15:00:00Z', resolved: false, poolSize: 4520 },
+}
 
 interface PoolBet {
   outcomeIndex: number
@@ -40,22 +46,25 @@ export default function MarketDetailPage() {
   const params = useParams()
   const id = params?.id as string
   const marketId = id ? BigInt(id) : BigInt(0)
+  const isContractDeployed = CONTRACT_ADDRESS && CONTRACT_ADDRESS !== '0x0000000000000000000000000000000000000000'
 
   const { address, isConnected } = useAccount()
   const { placeBet } = usePlaceBet()
   const [selectedOutcome, setSelectedOutcome] = useState<number | null>(null)
   const [stakeAmount, setStakeAmount] = useState('0.5')
-  const [isApproving, setIsApproving] = useState(false)
   const [isBetting, setIsBetting] = useState(false)
   const [poolBets, setPoolBets] = useState<PoolBet[]>([])
   const [showGraph, setShowGraph] = useState(true)
+
+  const mockMarket = MOCK_MARKETS[id]
+  const isMock = !isContractDeployed && mockMarket
 
   const { data: marketData, isLoading } = useReadContract({
     address: CONTRACT_ADDRESS,
     abi: PARLAYZ_MARKET_ABI,
     functionName: 'getMarket',
     args: [marketId],
-    query: { enabled: marketId > BigInt(0) },
+    query: { enabled: isContractDeployed && marketId > BigInt(0) },
   })
 
   const { data: allowance } = useReadContract({
@@ -63,22 +72,30 @@ export default function MarketDetailPage() {
     abi: USDT_ABI,
     functionName: 'allowance',
     args: [address as `0x${string}`, CONTRACT_ADDRESS],
-    query: { enabled: !!address },
+    query: { enabled: isContractDeployed && !!address },
   })
 
   useEffect(() => {
+    if (isMock) {
+      const total = mockMarket.poolSize
+      const outcomes = mockMarket.outcomes
+      setPoolBets(outcomes.map((_, idx) => ({
+        outcomeIndex: idx,
+        amount: total * (idx === 0 ? 0.6 : 0.4) / (outcomes.length - 1 || 1),
+      })))
+      return
+    }
     if (!marketData) return
     const md = marketData as unknown as [string, string, string[], bigint, boolean, number, bigint, boolean, bigint]
     const [, , outcomes, , , , totalPool] = md
     const total = Number(totalPool) / 1e6
     if (total > 0 && outcomes && outcomes.length >= 2) {
-      const mockBets: PoolBet[] = outcomes.map((_, idx) => ({
+      setPoolBets(outcomes.map((_, idx) => ({
         outcomeIndex: idx,
         amount: total * (idx === 0 ? 0.6 : 0.4) / (outcomes.length - 1 || 1),
-      }))
-      setPoolBets(mockBets)
+      })))
     }
-  }, [marketData])
+  }, [marketData, isMock, mockMarket])
 
   if (!isConnected) {
     return (
@@ -93,7 +110,19 @@ export default function MarketDetailPage() {
     )
   }
 
-  if (isLoading || !marketData) {
+  let title = '', category = '', outcomes: string[] = [], closesAt = BigInt(0), resolved = false, winningOutcome = 0, totalPool = BigInt(0)
+
+  if (isMock && mockMarket) {
+    title = mockMarket.title
+    category = mockMarket.category
+    outcomes = mockMarket.outcomes
+    closesAt = BigInt(new Date(mockMarket.closesAt).getTime() / 1000)
+    resolved = mockMarket.resolved
+    totalPool = BigInt(Math.round(mockMarket.poolSize * 1e6))
+  } else if (marketData) {
+    const md = marketData as unknown as [string, string, string[], bigint, boolean, number, bigint, boolean, bigint]
+    ;[title, category, outcomes, closesAt, resolved, winningOutcome, totalPool] = md
+  } else if (isLoading) {
     return (
       <div className="min-h-screen bg-[#0D0D0D] text-white">
         <Header />
@@ -103,10 +132,17 @@ export default function MarketDetailPage() {
         </main>
       </div>
     )
+  } else {
+    return (
+      <div className="min-h-screen bg-[#0D0D0D] text-white">
+        <Header />
+        <main className="max-w-2xl mx-auto px-4 py-20 text-center">
+          <h2 className="text-2xl font-black text-white mb-2">Market not found</h2>
+          <Link href="/" className="text-[#D9C5A0] hover:underline">← Back to Markets</Link>
+        </main>
+      </div>
+    )
   }
-
-  const md = marketData as unknown as [string, string, string[], bigint, boolean, number, bigint, boolean, bigint]
-  const [title, category, outcomes, closesAt, resolved, winningOutcome, totalPool] = md
 
   const isClosed = BigInt(Math.floor(Date.now() / 1000)) >= closesAt
   const poolFormatted = Number(totalPool) / 1e6
@@ -118,7 +154,9 @@ export default function MarketDetailPage() {
 
     setIsBetting(true)
     try {
-      await placeBet(marketId, selectedOutcome, amount)
+      if (isContractDeployed) {
+        await placeBet(marketId, selectedOutcome, amount)
+      }
       setPoolBets(prev => [...prev, { outcomeIndex: selectedOutcome, amount }])
       setStakeAmount('0.5')
       setSelectedOutcome(null)
@@ -146,6 +184,12 @@ export default function MarketDetailPage() {
           <ChevronLeft className="w-4 h-4" />
           Back to Markets
         </Link>
+
+        {isMock && (
+          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-3 mb-4 text-center">
+            <p className="text-xs text-yellow-400 font-bold">Preview Mode — Smart Contract not deployed yet</p>
+          </div>
+        )}
 
         {/* Market Header */}
         <div className="bg-[#111] border border-[#1F1F1F] rounded-2xl p-6 mb-6">
@@ -292,7 +336,7 @@ export default function MarketDetailPage() {
               ) : (
                 <>
                   <ArrowUpRight className="w-4 h-4" />
-                  Place Bet
+                  {isMock ? 'Place Bet (Preview)' : 'Place Bet'}
                 </>
               )}
             </button>
