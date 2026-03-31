@@ -1,8 +1,8 @@
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
-    "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
+    './src/**/*.{js,ts,jsx,tsx,mdx}',
+    './app/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
     extend: {
@@ -14,7 +14,7 @@ export default {
       },
       animation: {
         marquee: 'marquee 55s linear infinite',
-      }, // <--- (I added the missing comma here)
+      },
       colors: {
         gold: {
           400: '#fbbf24',
