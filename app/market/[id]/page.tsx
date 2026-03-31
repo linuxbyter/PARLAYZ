@@ -97,19 +97,6 @@ export default function MarketDetailPage() {
     }
   }, [marketData, isMock, mockMarket])
 
-  if (!isConnected) {
-    return (
-      <div className="min-h-screen bg-[#0D0D0D] text-white">
-        <Header />
-        <main className="max-w-2xl mx-auto px-4 py-20 text-center">
-          <Lock className="w-16 h-16 text-gray-700 mx-auto mb-4" />
-          <h2 className="text-2xl font-black text-white mb-2">Connect your wallet</h2>
-          <p className="text-gray-400">You need a connected Base wallet to view and trade markets.</p>
-        </main>
-      </div>
-    )
-  }
-
   let title = '', category = '', outcomes: string[] = [], closesAt = BigInt(0), resolved = false, winningOutcome = 0, totalPool = BigInt(0)
 
   if (isMock && mockMarket) {
