@@ -2,6 +2,10 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from './lib/supabase'
 import Landing from './Landing'
+import MarketTimer, { getCycleInfo } from './components/MarketTimer'
+import MarketStatus from './components/MarketStatus'
+import BetInterface from './components/BetInterface'
+import KotaniPay from './components/KotaniPay'
 import { LogOut, X, Bell, Wallet, History, Trophy, Activity, Search, Globe, Clock, Send, ChevronLeft, ArrowDownToLine, ArrowUpRight } from 'lucide-react'
 
 // --- MILITARY GRADE ERROR BOUNDARY ---
@@ -23,8 +27,8 @@ class AppErrorBoundary extends React.Component {
 }
 
 interface Event { id: string; title: string; description: string; category: string; outcomes: string[]; closes_at?: string; locks_at?: string; created_at: string; resolved: boolean; settlement_source?: string; resolution_image_url?: string; }
-interface Bet { id: string; event_id: string; outcome_index: number; stake: number; status: string; user_id: string; }
-interface Profile { id: string; username: string; wallet_balance: number; avatar: string; has_claimed_airdrop: boolean; is_public: boolean; phone_number?: string; is_bot?: boolean }
+interface Bet { id: string; event_id: string; outcome_index: number; stake: number; status: string; user_id: string; stake_currency?: 'KSh' | 'USDT'; }
+interface Profile { id: string; username: string; wallet_balance: number; avatar: string; has_claimed_airdrop: boolean; is_public: boolean; phone_number?: string; is_bot?: boolean; usdt_balance?: number; }
 interface AppNotification { id: string; user_id: string; message: string; type: string; is_read: boolean; created_at: string }
 
 const MIN_STAKE = 200
@@ -165,6 +169,8 @@ export default function App() {
   const [poolStake, setPoolStake] = useState<number>(MIN_STAKE)
   const [betMode, setBetMode] = useState<'pool' | 'p2p'>('pool')
   const [friendStake, setFriendStake] = useState<number>(MIN_STAKE)
+  const [betCurrency, setBetCurrency] = useState<'KSh' | 'USDT'>('KSh')
+  const [usdtStake, setUsdtStake] = useState<number>(0.5)
   
   const [lastBet, setLastBet] = useState<{eventId: string, outcomeIdx: number, stake: number} | null>(null)
   
@@ -180,6 +186,7 @@ export default function App() {
   const [depositPhone, setDepositPhone] = useState<string>('')
   const [depositAmount, setDepositAmount] = useState<number>('')
   const [isDepositing, setIsDepositing] = useState(false)
+  const [showKotaniWidget, setShowKotaniWidget] = useState(false)
   
   const [withdrawPhone, setWithdrawPhone] = useState<string>('')
   const [withdrawAmount, setWithdrawAmount] = useState<number>('')
@@ -187,6 +194,141 @@ export default function App() {
 
   const [newUsername, setNewUsername] = useState('')
   const [newAvatar, setNewAvatar] = useState('⚡')
+
+  const [cycleMarkets, setCycleMarkets] = useState<{ open: any; sweating: any } | null>(null)
+  const [cycleStatus, setCycleStatus] = useState<'open' | 'locked' | 'resolving'>('open')
+  const [btcPrice, setBtcPrice] = useState<number | null>(null)
+  const [btcOpenPrice, setBtcOpenPrice] = useState<number | null>(null)
+
+  useEffect(() => {
+    const fetchBtcPrice = async () => {
+      try {
+        const res = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT')
+        const data = await res.json()
+        const price = parseFloat(data.price)
+        setBtcPrice(price)
+        const cycle = getCycleInfo()
+        if (cycle.isBetWindowOpen && !btcOpenPrice) {
+          setBtcOpenPrice(price)
+        }
+        if (!cycle.isBetWindowOpen && btcOpenPrice) {
+          setBtcOpenPrice(null)
+        }
+      } catch (e) {}
+    }
+    fetchBtcPrice()
+    const interval = setInterval(fetchBtcPrice, 3000)
+    return () => clearInterval(interval)
+  }, [btcOpenPrice])
+
+  useEffect(() => {
+    const syncCycleMarkets = async () => {
+      if (!session?.user) return
+      const now = new Date()
+      const cycle = getCycleInfo(now)
+      const openMarketId = `cycle-${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${now.getHours()}-${cycle.cycleStartMin}`
+      const sweatMarketId = `cycle-${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${now.getHours()}-${cycle.betWindowEnd}`
+
+      setCycleStatus(cycle.isBetWindowOpen ? 'open' : 'locked')
+
+      const { data: existingOpen } = await supabase.from('events').select('*').eq('id', openMarketId).single()
+      const { data: existingSweat } = await supabase.from('events').select('*').eq('id', sweatMarketId).single()
+
+      if (!existingOpen && cycle.isBetWindowOpen) {
+        const strikeBase = btcPrice || 100000
+        const strikeUp = (strikeBase * 1.002).toFixed(2)
+        const strikeDown = (strikeBase * 0.998).toFixed(2)
+        const lockTime = new Date(now)
+        lockTime.setMinutes(cycle.betWindowEnd, 0, 0)
+        const resolveTime = new Date(now)
+        resolveTime.setMinutes(cycle.cycleEndMin, 0, 0)
+
+        const { data: newMarket } = await supabase.from('events').insert({
+          id: openMarketId,
+          title: `Will BTC be above $${strikeBase.toFixed(0)} at :${String(cycle.betWindowEnd).padStart(2, '0')}?`,
+          description: `BTC/USDT 5-min cycle market.\nOpen at :${String(cycle.cycleStartMin).padStart(2, '0')} | Bets lock at :${String(cycle.betWindowEnd).padStart(2, '0')} | Resolves at :${String(cycle.cycleEndMin).padStart(2, '0')}\n\nUP: BTC price at lock time >= $${strikeBase.toFixed(0)}\nDOWN: BTC price at lock time < $${strikeBase.toFixed(0)}\n\nCurrent BTC: $${strikeBase.toFixed(2)}`,
+          category: 'Crypto_Majors',
+          outcomes: ['UP', 'DOWN'],
+          closes_at: lockTime.toISOString(),
+          locks_at: lockTime.toISOString(),
+          resolved: false,
+          settlement_source: 'binance',
+          created_at: now.toISOString(),
+        }).select().single()
+
+        if (newMarket) {
+          setCycleMarkets({ open: newMarket, sweating: existingSweat || null })
+        }
+      } else if (existingOpen) {
+        setCycleMarkets({ open: existingOpen, sweating: existingSweat || null })
+      }
+
+      if (existingSweat && !existingSweat.resolved && cycle.isBetWindowClosed) {
+        const { data: sweatBets } = await supabase.from('bets').select('*').eq('event_id', sweatMarketId).eq('status', 'open')
+        if (sweatBets && sweatBets.length > 0) {
+          try {
+            const res = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT')
+            const data = await res.json()
+            const currentBtc = parseFloat(data.price)
+            const strikeMatch = existingSweat.description?.match(/above \$(\d+)/)
+            const strike = strikeMatch ? parseFloat(strikeMatch[1]) : 100000
+            const isUp = currentBtc >= strike
+            const winningOutcome = isUp ? 0 : 1
+
+            await supabase.from('events').update({ resolved: true, resolution_image_url: '' }).eq('id', sweatMarketId)
+
+            const losingOutcome = winningOutcome === 0 ? 1 : 0
+            await supabase.from('bets').update({ status: 'lost' }).eq('event_id', sweatMarketId).eq('outcome_index', losingOutcome).eq('status', 'open')
+            await supabase.from('bets').update({ status: 'won' }).eq('event_id', sweatMarketId).eq('outcome_index', winningOutcome).eq('status', 'open')
+
+            const winners = sweatBets.filter((b) => b.outcome_index === winningOutcome)
+            const totalPool = sweatBets.reduce((sum, b) => sum + b.stake, 0)
+            const winningPool = winners.reduce((sum, b) => sum + b.stake, 0)
+
+            for (const winner of winners) {
+              const share = winner.stake / winningPool
+              const grossPayout = share * totalPool
+              const profit = grossPayout - winner.stake
+              const fee = profit > 0 ? profit * 0.03 : 0
+              const netPayout = winner.stake + profit - fee
+              const isUSDT = winner.stake_currency === 'USDT'
+
+              if (isUSDT) {
+                const { data: prof } = await supabase.from('profiles').select('usdt_balance').eq('id', winner.user_id).single()
+                await supabase.from('profiles').update({ usdt_balance: (prof?.usdt_balance || 0) + netPayout }).eq('id', winner.user_id)
+              } else {
+                const { data: prof } = await supabase.from('profiles').select('wallet_balance').eq('id', winner.user_id).single()
+                await supabase.from('profiles').update({ wallet_balance: (prof?.wallet_balance || 0) + netPayout }).eq('id', winner.user_id)
+              }
+
+              await supabase.from('notifications').insert({
+                user_id: winner.user_id,
+                message: `✅ You won ${netPayout.toFixed(2)} ${isUSDT ? 'USDT' : 'KSh'} on BTC ${isUp ? 'UP' : 'DOWN'}!`,
+                type: 'bet_won',
+                is_read: false,
+              })
+            }
+
+            const losers = sweatBets.filter((b) => b.outcome_index === losingOutcome)
+            for (const loser of losers) {
+              await supabase.from('notifications').insert({
+                user_id: loser.user_id,
+                message: `❌ BTC went ${isUp ? 'UP' : 'DOWN'}. You lost ${loser.stake} ${loser.stake_currency || 'KSh'}.`,
+                type: 'bet_lost',
+                is_read: false,
+              })
+            }
+          } catch (e) {
+            console.error('Auto-resolution failed:', e)
+          }
+        }
+      }
+    }
+
+    syncCycleMarkets()
+    const interval = setInterval(syncCycleMarkets, 10000)
+    return () => clearInterval(interval)
+  }, [session, btcPrice])
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => setSession(session))
@@ -262,16 +404,21 @@ export default function App() {
     setIsDepositing(true);
     showToast("Initiating secure connection...", "success"); 
     try {
-      const response = await fetch('/api/kotani-deposit', {
+      const response = await fetch('/api/stkpush', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ amount: depositAmount, phone: depositPhone, userId: session.user.id, username: profile?.username || 'Trader' })
       });
       const data = await response.json();
-      if (data.success) { showToast("M-Pesa STK Push sent! Check your phone.", "success"); setDepositAmount(''); } 
+      if (data.success || data.status === 'success') { showToast("M-Pesa STK Push sent! Check your phone.", "success"); setDepositAmount(''); } 
       else { showToast(data.message || "Failed to trigger deposit.", "error"); }
     } catch (error) { showToast("Network error contacting payment gateway.", "error"); } 
     finally { setIsDepositing(false); }
+  }
+
+  const openKotaniOnRamp = () => {
+    const widgetUrl = `https://genpay.kotanipay.com?apiKey=${process.env.VITE_KOTANI_WIDGET_KEY || ''}&userId=${session?.user?.id || ''}&defaultCurrency=USDT&redirectUrl=${encodeURIComponent(window.location.origin)}`;
+    window.open(widgetUrl, '_blank', 'width=480,height=640,scrollbars=yes');
   }
 
   const handleWithdraw = async () => {
@@ -286,24 +433,38 @@ export default function App() {
     }, 1500);
   }
 
-  const submitPoolBet = async (overrideE?: string, overrideO?: number, overrideS?: number) => {
-    const eId = overrideE || selectedEventId; const oIdx = overrideO !== undefined ? overrideO : selectedOutcomeIdx; const stake = overrideS || poolStake
+  const submitPoolBet = async (overrideE?: string, overrideO?: number, overrideS?: number, currency?: 'KSh' | 'USDT', usdtAmt?: number) => {
+    const eId = overrideE || selectedEventId; const oIdx = overrideO !== undefined ? overrideO : selectedOutcomeIdx; 
+    const isUSDT = currency === 'USDT';
+    const stake = isUSDT ? usdtAmt : (overrideS || poolStake)
     if (!eId || oIdx === null || !session?.user || !profile) return showToast("Select an outcome first.")
-    if ((profile?.wallet_balance || 0) < stake) return showToast('Insufficient KSh balance.')
-    if (stake < MIN_STAKE) return showToast(`Min stake is ${MIN_STAKE} KSh.`)
+    if (isUSDT) {
+      if ((profile?.usdt_balance || 0) < stake) return showToast('Insufficient USDT balance.')
+      if (stake < 0.1) return showToast('Min stake is 0.1 USDT.')
+    } else {
+      if ((profile?.wallet_balance || 0) < stake) return showToast('Insufficient KSh balance.')
+      if (stake < MIN_STAKE) return showToast(`Min stake is ${MIN_STAKE} KSh.`)
+    }
     
-    const optimisticBet: Bet = { id: `temp-${Date.now()}`, event_id: eId, outcome_index: oIdx, stake: stake, status: 'open', user_id: session.user.id }
+    const optimisticBet: Bet = { id: `temp-${Date.now()}`, event_id: eId, outcome_index: oIdx, stake: stake, status: 'open', user_id: session.user.id, stake_currency: isUSDT ? 'USDT' : 'KSh' }
     setBets(prev => [...prev, optimisticBet])
-    setProfile(prev => prev ? { ...prev, wallet_balance: prev.wallet_balance - stake } : null)
+    if (isUSDT) {
+      setProfile(prev => prev ? { ...prev, usdt_balance: prev.usdt_balance - stake } : null)
+    } else {
+      setProfile(prev => prev ? { ...prev, wallet_balance: prev.wallet_balance - stake } : null)
+    }
 
-    const { error } = await supabase.from('bets').insert({ event_id: eId, outcome_index: oIdx, stake: stake, status: 'open', user_id: session.user.id })
+    const { error } = await supabase.from('bets').insert({ event_id: eId, outcome_index: oIdx, stake: stake, status: 'open', user_id: session.user.id, stake_currency: isUSDT ? 'USDT' : 'KSh' })
     if (!error) {
-      await supabase.from('profiles').update({ wallet_balance: (profile?.wallet_balance || 0) - stake }).eq('id', session.user.id)
+      if (isUSDT) {
+        await supabase.from('profiles').update({ usdt_balance: (profile?.usdt_balance || 0) - stake }).eq('id', session.user.id)
+      } else {
+        await supabase.from('profiles').update({ wallet_balance: (profile?.wallet_balance || 0) - stake }).eq('id', session.user.id)
+      }
       setLastBet({ eventId: eId, outcomeIdx: oIdx, stake: stake })
       setShowSuccessModal(true); 
       setSelectedOutcomeIdx(null); 
       setPoolStake(MIN_STAKE); 
-      // User STAYS on the event detail page to watch the oracle!
     } else { 
       showToast('Network error pushing wager.'); fetchBets(); fetchProfile(); 
     }
@@ -471,6 +632,11 @@ export default function App() {
                 <span className="font-bold text-sm sm:text-base">{profile?.wallet_balance?.toLocaleString() || '0'}</span>
                 <span className="text-gray-500 text-xs font-semibold uppercase tracking-wider hidden sm:inline">KSh</span>
               </button>
+              <button onClick={() => setActiveView('wallet')} className="bg-[#111111] border border-[#1F1F1F] hover:border-[#10b981]/50 rounded-xl px-3 sm:px-4 py-1.5 flex items-center gap-2 transition group">
+                <span className="w-4 h-4 rounded-full bg-[#26a17b] flex items-center justify-center text-[8px] font-black text-white">₮</span>
+                <span className="font-bold text-sm sm:text-base text-[#10b981]">{profile?.usdt_balance?.toFixed(2) || '0.00'}</span>
+                <span className="text-gray-500 text-xs font-semibold uppercase tracking-wider hidden sm:inline">USDT</span>
+              </button>
               <button onClick={() => setShowLogoutModal(true)} className="w-9 h-9 rounded-xl bg-[#111111] border border-[#1F1F1F] flex items-center justify-center text-lg hover:border-red-500/50 transition cursor-pointer" title="Sign Out">{profile?.avatar || '👤'}</button>
             </div>
           </div>
@@ -496,6 +662,80 @@ export default function App() {
           {activeView === 'markets' && (
             <div className="animate-in fade-in duration-300">
               
+              {/* CYCLE MARKET TIMER + STATUS */}
+              <MarketTimer />
+              <MarketStatus
+                marketId={cycleMarkets?.open?.id}
+                onStatusChange={(s) => setCycleStatus(s)}
+              />
+
+              {/* CYCLE MARKET CARD */}
+              {cycleMarkets?.open && (
+                <div className="mb-6 grid grid-cols-1 lg:grid-cols-3 gap-4">
+                  <div className="lg:col-span-2">
+                    <div
+                      onClick={() => { setSelectedEventId(cycleMarkets.open.id); setSelectedOutcomeIdx(null); setActiveView('eventDetail'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                      className="bg-[#111] border border-[#D9C5A0]/40 hover:border-[#D9C5A0]/60 rounded-2xl p-5 transition-all cursor-pointer flex flex-col group"
+                    >
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[9px] font-black text-[#D9C5A0] bg-[#D9C5A0]/10 px-2 py-1 rounded uppercase tracking-widest">CYCLE</span>
+                          <MarketTimer compact />
+                        </div>
+                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+                          {btcPrice ? `$${btcPrice.toLocaleString()}` : 'Loading...'}
+                        </span>
+                      </div>
+                      <h3 className="text-lg font-bold text-white mb-3 line-clamp-2 leading-tight group-hover:text-[#D9C5A0] transition-colors">
+                        {cycleMarkets.open.title}
+                      </h3>
+                      {(() => {
+                        const eventBets = bets.filter(b => b.event_id === cycleMarkets.open.id && b.status === 'open')
+                        const totalPool = eventBets.reduce((sum, b) => sum + (b?.stake || 0), 0)
+                        const vol0 = eventBets.filter(b => b.outcome_index === 0).reduce((sum, b) => sum + (b?.stake || 0), 0)
+                        const pct = totalPool === 0 ? 50 : Math.round((vol0 / totalPool) * 100)
+                        return (
+                          <div className="mt-auto">
+                            <div className="flex justify-between text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">
+                              <span>{pct}% UP</span>
+                              <span>{100 - pct}% DOWN</span>
+                            </div>
+                            <div className="h-1.5 bg-[#1a1a1a] rounded-full overflow-hidden">
+                              <div className="h-full bg-[#D9C5A0] transition-all duration-500" style={{ width: `${pct}%` }} />
+                            </div>
+                            <p className="text-[10px] text-gray-600 mt-1">Pool: {totalPool.toFixed(2)} USDT</p>
+                          </div>
+                        )
+                      })()}
+                    </div>
+                  </div>
+
+                  {/* BET INTERFACE */}
+                  <div className="lg:col-span-1">
+                    <BetInterface
+                      market={cycleMarkets.open}
+                      profile={profile}
+                      poolBets={bets.filter(b => b.event_id === cycleMarkets.open.id && b.status === 'open')}
+                      onSubmitBet={({ eventId, outcomeIndex, stake, currency }) => {
+                        submitPoolBet(eventId, outcomeIndex, undefined, currency, stake)
+                      }}
+                      showToast={showToast}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* SWEATING MARKET */}
+              {cycleMarkets?.sweating && !cycleMarkets.sweating.resolved && (
+                <div className="mb-6 bg-[#1a0a0c] border border-red-500/20 rounded-2xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-[9px] font-black text-red-400 bg-red-500/10 px-2 py-1 rounded uppercase tracking-widest">SWEATING</span>
+                    <span className="text-xs text-red-400 font-bold">⛔ Locked - Resolving soon</span>
+                  </div>
+                  <p className="text-sm font-bold text-white">{cycleMarkets.sweating.title}</p>
+                </div>
+              )}
+
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
                 <div className="relative w-full sm:max-w-md">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
@@ -726,26 +966,61 @@ const isLocked = event.resolved || (!isNaN(lockTime) && lockTime <= Date.now());
                                 </div>
                               ) : (
                                 <div className="animate-in fade-in duration-200">
+                                  <div className="mb-4 flex bg-[#0D0D0D] p-1 rounded-xl border border-[#1F1F1F]">
+                                    <button onClick={() => setBetCurrency('KSh')} className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider transition-colors rounded-lg ${betCurrency === 'KSh' ? 'bg-[#333] text-white shadow-md' : 'bg-transparent text-[#666] hover:text-white'}`}>KSh</button>
+                                    <button onClick={() => setBetCurrency('USDT')} className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider transition-colors rounded-lg ${betCurrency === 'USDT' ? 'bg-[#26a17b] text-white shadow-md' : 'bg-transparent text-[#666] hover:text-white'}`}>USDT</button>
+                                  </div>
                                   <div className="mb-6 flex gap-3">
                                     <button onClick={() => setSelectedOutcomeIdx(0)} className={`flex-1 rounded-xl py-3.5 text-sm sm:text-base font-black uppercase tracking-widest transition-all border ${selectedOutcomeIdx === 0 ? 'bg-[#D9C5A0] border-[#D9C5A0] text-[#0D0D0D] shadow-[0_0_20px_rgba(217,197,160,0.2)]' : 'border-[#1F1F1F] bg-[#2A2A2A] text-gray-400'}`}>{safeOutcomes[0]}</button>
                                     <button onClick={() => setSelectedOutcomeIdx(1)} className={`flex-1 rounded-xl py-3.5 text-sm sm:text-base font-black uppercase tracking-widest transition-all border ${selectedOutcomeIdx === 1 ? 'bg-[#3b82f6] border-[#3b82f6] text-white shadow-[0_0_20px_rgba(59,130,246,0.2)]' : 'border-[#1F1F1F] bg-[#2A2A2A] text-gray-400'}`}>{safeOutcomes[1]}</button>
                                   </div>
-                                  <div className="mb-4">
-                                    <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[#666]">Amount (KSh)</label>
-                                    <div className="relative">
-                                      <input type="number" value={poolStake || ''} onChange={(e) => setPoolStake(Number(e.target.value))} placeholder="0" className="w-full rounded-xl border border-[#1F1F1F] bg-[#0D0D0D] py-4 pl-4 pr-32 text-xl font-bold text-white focus:border-[#D9C5A0] focus:outline-none" />
-                                      <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
-                                        <button onClick={() => setPoolStake((prev) => prev + 1000)} className="bg-[#2A2A2A] hover:bg-[#333] text-gray-300 text-[10px] font-bold px-2 py-1.5 rounded-md transition">+1K</button>
-                                        <button onClick={() => setPoolStake((prev) => prev + 5000)} className="bg-[#2A2A2A] hover:bg-[#333] text-gray-300 text-[10px] font-bold px-2 py-1.5 rounded-md transition">+5K</button>
+                                  {betCurrency === 'USDT' ? (
+                                    <div className="mb-4">
+                                      <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[#666]">Amount (USDT)</label>
+                                      <div className="grid grid-cols-3 gap-2 mb-3">
+                                        {[0.5, 1, 5].map(amt => (
+                                          <button key={amt} onClick={() => setUsdtStake(amt)} className={`rounded-xl py-3 text-sm font-black uppercase tracking-widest transition-all border ${usdtStake === amt ? 'bg-[#26a17b] border-[#26a17b] text-white shadow-[0_0_15px_rgba(38,161,123,0.3)]' : 'border-[#1F1F1F] bg-[#2A2A2A] text-gray-400 hover:border-[#26a17b]/50'}`}>
+                                            {amt} USDT
+                                          </button>
+                                        ))}
+                                      </div>
+                                      <input type="number" value={usdtStake || ''} onChange={(e) => setUsdtStake(Number(e.target.value))} placeholder="Custom amount" step="0.1" className="w-full rounded-xl border border-[#1F1F1F] bg-[#0D0D0D] py-3 px-4 text-lg font-bold text-white focus:border-[#26a17b] focus:outline-none" />
+                                    </div>
+                                  ) : (
+                                    <div className="mb-4">
+                                      <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-[#666]">Amount (KSh)</label>
+                                      <div className="relative">
+                                        <input type="number" value={poolStake || ''} onChange={(e) => setPoolStake(Number(e.target.value))} placeholder="0" className="w-full rounded-xl border border-[#1F1F1F] bg-[#0D0D0D] py-4 pl-4 pr-32 text-xl font-bold text-white focus:border-[#D9C5A0] focus:outline-none" />
+                                        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
+                                          <button onClick={() => setPoolStake((prev) => prev + 1000)} className="bg-[#2A2A2A] hover:bg-[#333] text-gray-300 text-[10px] font-bold px-2 py-1.5 rounded-md transition">+1K</button>
+                                          <button onClick={() => setPoolStake((prev) => prev + 5000)} className="bg-[#2A2A2A] hover:bg-[#333] text-gray-300 text-[10px] font-bold px-2 py-1.5 rounded-md transition">+5K</button>
+                                        </div>
                                       </div>
                                     </div>
-                                  </div>
+                                  )}
+                                  {betCurrency === 'USDT' && (
+                                    <div className="mb-4">
+                                      <h4 className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Recent USDT Bets</h4>
+                                      <div className="space-y-2 max-h-32 overflow-y-auto custom-scrollbar">
+                                        {bets.filter(b => b.stake_currency === 'USDT').slice(-5).reverse().map((b, i) => {
+                                          const bp = allProfiles.find(p => p.id === b.user_id);
+                                          return (
+                                            <div key={i} className="flex justify-between items-center bg-[#0D0D0D] border border-[#1F1F1F] rounded-lg px-3 py-2 text-xs">
+                                              <span className="text-[#D9C5A0] font-bold">{bp ? sanitizeName(bp.username) : 'Anon'}</span>
+                                              <span className="text-[#26a17b] font-mono font-bold">{b.stake} USDT</span>
+                                            </div>
+                                          );
+                                        })}
+                                        {bets.filter(b => b.stake_currency === 'USDT').length === 0 && <p className="text-gray-600 text-xs text-center py-2">No USDT bets yet</p>}
+                                      </div>
+                                    </div>
+                                  )}
                                   <div className="flex justify-between text-xs mb-6 font-semibold">
-                                     <span className="text-gray-500 uppercase tracking-widest">Est. Payout: <span className="text-white ml-1 font-mono">{calculateEstPayout(selectedEventId, selectedOutcomeIdx || 0, poolStake, false).toLocaleString()} KSh</span></span>
+                                     <span className="text-gray-500 uppercase tracking-widest">Est. Payout: <span className="text-white ml-1 font-mono">{betCurrency === 'USDT' ? (usdtStake * 1.8).toFixed(2) + ' USDT' : calculateEstPayout(selectedEventId, selectedOutcomeIdx || 0, poolStake, false).toLocaleString() + ' KSh'}</span></span>
                                      <span className="text-gray-500 uppercase tracking-widest">Fee: <span className="text-white">3%</span></span>
                                   </div>
-                                  <button onClick={() => submitPoolBet()} disabled={poolStake < MIN_STAKE || selectedOutcomeIdx === null} className="w-full rounded-xl bg-[#D9C5A0] py-4 text-sm font-bold uppercase tracking-wider text-[#0D0D0D] transition-colors hover:bg-[#c9b590] disabled:opacity-50">
-                                    Submit Pool Order
+                                  <button onClick={() => betCurrency === 'USDT' ? submitPoolBet(undefined, undefined, undefined, 'USDT', usdtStake) : submitPoolBet()} disabled={betCurrency === 'USDT' ? usdtStake < 0.1 || selectedOutcomeIdx === null : poolStake < MIN_STAKE || selectedOutcomeIdx === null} className={`w-full rounded-xl py-4 text-sm font-bold uppercase tracking-wider transition-colors disabled:opacity-50 ${betCurrency === 'USDT' ? 'bg-[#26a17b] hover:bg-[#1e8c6b] text-white' : 'bg-[#D9C5A0] hover:bg-[#c9b590] text-[#0D0D0D]'}`}>
+                                    {betCurrency === 'USDT' ? 'Place USDT Bet' : 'Submit Pool Order'}
                                   </button>
                                 </div>
                               )}
@@ -773,22 +1048,48 @@ const isLocked = event.resolved || (!isNaN(lockTime) && lockTime <= Date.now());
                 </div>
               </div>
               
-              <div className="bg-[#111111] border border-[#1F1F1F] rounded-3xl p-8 mb-8 relative overflow-hidden shadow-2xl text-center sm:text-left">
-                <p className="text-gray-400 text-sm font-semibold uppercase tracking-widest mb-2 relative z-10 flex items-center justify-center sm:justify-start gap-2">Available Balance</p>
-                <h1 className="text-5xl font-black text-white mb-1 relative z-10 tracking-tight">{profile?.wallet_balance?.toLocaleString() || '0'} <span className="text-2xl text-[#D9C5A0]">KSh</span></h1>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+                <div className="bg-[#111111] border border-[#1F1F1F] rounded-3xl p-6 relative overflow-hidden shadow-2xl text-center sm:text-left">
+                  <p className="text-gray-400 text-xs font-semibold uppercase tracking-widest mb-2 relative z-10 flex items-center justify-center sm:justify-start gap-2"><Wallet className="w-4 h-4" /> KSh Balance</p>
+                  <h1 className="text-4xl font-black text-white mb-1 relative z-10 tracking-tight">{profile?.wallet_balance?.toLocaleString() || '0'} <span className="text-xl text-[#D9C5A0]">KSh</span></h1>
+                </div>
+                <div className="bg-gradient-to-br from-[#0a2a1a] to-[#111111] border border-[#10b981]/30 rounded-3xl p-6 relative overflow-hidden shadow-2xl text-center sm:text-left">
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-[#10b981]/5 rounded-full blur-2xl"></div>
+                  <p className="text-gray-400 text-xs font-semibold uppercase tracking-widest mb-2 relative z-10 flex items-center justify-center sm:justify-start gap-2"><span className="w-4 h-4 rounded-full bg-[#26a17b] flex items-center justify-center text-[8px] font-black text-white">₮</span> USDT Balance</p>
+                  <h1 className="text-4xl font-black text-white mb-1 relative z-10 tracking-tight">{profile?.usdt_balance?.toFixed(2) || '0.00'} <span className="text-xl text-[#10b981]">USDT</span></h1>
+                </div>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
                 
-                {/* DEPOSIT CARD */}
-                <div className="bg-[#111111] border border-[#10b981]/30 rounded-3xl p-6 sm:p-8 relative overflow-hidden shadow-[0_0_30px_rgba(16,185,129,0.05)]">
+                {/* DEPOSIT USDT VIA KOTANI */}
+                <div className="bg-gradient-to-br from-[#0a2a1a] to-[#111111] border border-[#10b981]/30 rounded-3xl p-6 sm:p-8 relative overflow-hidden shadow-[0_0_30px_rgba(16,185,129,0.1)]">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-[#10b981]/5 rounded-full blur-3xl"></div>
+                  <div className="flex items-center gap-4 mb-6 relative z-10">
+                    <div className="w-12 h-12 rounded-xl bg-[#26a17b]/20 flex items-center justify-center border border-[#26a17b]/30">
+                      <span className="text-xl font-black text-[#26a17b]">₮</span>
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-white">Deposit USDT via Kotani</h3>
+                      <p className="text-xs text-gray-400">Buy USDT with M-Pesa</p>
+                    </div>
+                  </div>
+                  
+                  <button onClick={openKotaniOnRamp} className="w-full mt-2 bg-[#26a17b] hover:bg-[#1e8c6b] text-white font-black py-4 rounded-xl transition uppercase text-xs tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-[#26a17b]/20">
+                    <ArrowUpRight className="w-4 h-4" /> Open On-Ramp Widget
+                  </button>
+                  <p className="text-[10px] text-gray-500 text-center mt-3 relative z-10">Powered by Kotani Pay • Sandbox Mode</p>
+                </div>
+
+                {/* DEPOSIT KSh VIA M-PESA */}
+                <div className="bg-[#111111] border border-[#D9C5A0]/30 rounded-3xl p-6 sm:p-8 relative overflow-hidden shadow-[0_0_30px_rgba(217,197,160,0.05)]">
                   <div className="flex items-center gap-4 mb-6 relative z-10">
                     <div className="w-12 h-12 rounded-xl bg-[#10b981]/10 flex items-center justify-center border border-[#10b981]/20">
                       <ArrowUpRight className="w-6 h-6 text-[#10b981]" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-bold text-white">Deposit via M-Pesa</h3>
-                      <p className="text-xs text-gray-400">Instant KSh top-ups.</p>
+                      <h3 className="text-lg font-bold text-white">Deposit KSh via M-Pesa</h3>
+                      <p className="text-xs text-gray-400">Instant KSh top-ups</p>
                     </div>
                   </div>
                   
@@ -948,6 +1249,28 @@ const isLocked = event.resolved || (!isNaN(lockTime) && lockTime <= Date.now());
             </div>
           </div>
         )}
+
+        {/* MOBILE BOTTOM NAV */}
+        <nav className="fixed bottom-0 left-0 right-0 z-40 bg-[#0a0a0a]/95 backdrop-blur-xl border-t border-[#1F1F1F] sm:hidden safe-area-bottom">
+          <div className="flex justify-around items-center py-2 px-2">
+            <button onClick={() => setActiveView('markets')} className={`flex flex-col items-center gap-1 py-2 px-3 rounded-xl transition ${activeView === 'markets' || activeView === 'eventDetail' ? 'text-[#D9C5A0]' : 'text-gray-500'}`}>
+              <Activity className="w-5 h-5" />
+              <span className="text-[10px] font-bold uppercase">Markets</span>
+            </button>
+            <button onClick={() => setActiveView('wagers')} className={`flex flex-col items-center gap-1 py-2 px-3 rounded-xl transition ${activeView === 'wagers' ? 'text-[#D9C5A0]' : 'text-gray-500'}`}>
+              <History className="w-5 h-5" />
+              <span className="text-[10px] font-bold uppercase">Bets</span>
+            </button>
+            <button onClick={() => setActiveView('wallet')} className={`flex flex-col items-center gap-1 py-2 px-3 rounded-xl transition ${activeView === 'wallet' ? 'text-[#D9C5A0]' : 'text-gray-500'}`}>
+              <Wallet className="w-5 h-5" />
+              <span className="text-[10px] font-bold uppercase">Wallet</span>
+            </button>
+            <button onClick={() => setActiveView('leaderboard')} className={`flex flex-col items-center gap-1 py-2 px-3 rounded-xl transition ${activeView === 'leaderboard' ? 'text-[#D9C5A0]' : 'text-gray-500'}`}>
+              <Trophy className="w-5 h-5" />
+              <span className="text-[10px] font-bold uppercase">Ranks</span>
+            </button>
+          </div>
+        </nav>
       </div>
     </AppErrorBoundary>
   )
