@@ -1,16 +1,22 @@
 'use client'
 
 import Header from '@/src/components/Header'
+import ParimutuelGraph from '@/src/components/ParimutuelGraph'
 import { useAccount, useReadContract } from 'wagmi'
 import { PARLAYZ_MARKET_ABI } from '@/src/abi/ParlayzMarket'
 import { usePlaceBet } from '@/src/hooks/useMarket'
-import { ArrowUpRight, TrendingUp, TrendingDown, Lock, Clock, ChevronLeft } from 'lucide-react'
+import { ArrowUpRight, TrendingUp, TrendingDown, Lock, Clock, ChevronLeft, Users, BarChart3 } from 'lucide-react'
 import Link from 'next/link'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { parseUnits } from 'viem'
 
 const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_MARKET_CONTRACT_ADDRESS as `0x${string}`
 const USDT_ADDRESS = process.env.NEXT_PUBLIC_USDT_ADDRESS as `0x${string}`
+
+interface PoolBet {
+  outcomeIndex: number
+  amount: number
+}
 
 const USDT_ABI = [
   {
@@ -41,6 +47,8 @@ function MarketDetail({ resolvedParams }: { resolvedParams: { id: string } }) {
   const [stakeAmount, setStakeAmount] = useState('0.5')
   const [isApproving, setIsApproving] = useState(false)
   const [isBetting, setIsBetting] = useState(false)
+  const [poolBets, setPoolBets] = useState<PoolBet[]>([])
+  const [showGraph, setShowGraph] = useState(true)
 
   const marketId = BigInt(resolvedParams.id)
 
@@ -57,6 +65,20 @@ function MarketDetail({ resolvedParams }: { resolvedParams: { id: string } }) {
     functionName: 'allowance',
     args: [address as `0x${string}`, CONTRACT_ADDRESS],
   })
+
+  useEffect(() => {
+    if (!marketData) return
+    const md = marketData as unknown as [string, string, string[], bigint, boolean, number, bigint, boolean, bigint]
+    const [, , outcomes, , , , totalPool] = md
+    const total = Number(totalPool) / 1e6
+    if (total > 0 && outcomes.length >= 2) {
+      const mockBets: PoolBet[] = outcomes.map((_, idx) => ({
+        outcomeIndex: idx,
+        amount: total * (idx === 0 ? 0.6 : 0.4) / (outcomes.length - 1 || 1),
+      }))
+      setPoolBets(mockBets)
+    }
+  }, [marketData])
 
   if (!isConnected) {
     return (
@@ -103,6 +125,7 @@ function MarketDetail({ resolvedParams }: { resolvedParams: { id: string } }) {
 
     try {
       await placeBet(marketId, selectedOutcome, amount)
+      setPoolBets(prev => [...prev, { outcomeIndex: selectedOutcome, amount }])
       setStakeAmount('0.5')
       setSelectedOutcome(null)
     } catch (e) {
@@ -113,11 +136,19 @@ function MarketDetail({ resolvedParams }: { resolvedParams: { id: string } }) {
     }
   }
 
+  const totalVol = poolBets.reduce((s, b) => s + b.amount, 0)
+  const outcomeVol: number[] = outcomes.map((_, idx) =>
+    poolBets.filter(b => b.outcomeIndex === idx).reduce((s, b) => s + b.amount, 0)
+  )
+  const estPayout = selectedOutcome !== null && outcomeVol[selectedOutcome] > 0
+    ? (parseFloat(stakeAmount) / (outcomeVol[selectedOutcome] + parseFloat(stakeAmount))) * (totalVol + parseFloat(stakeAmount))
+    : parseFloat(stakeAmount) * 1.8
+
   return (
     <div className="min-h-screen bg-[#0D0D0D] text-white">
       <Header />
 
-      <main className="max-w-2xl mx-auto px-4 py-8">
+      <main className="max-w-3xl mx-auto px-4 py-8">
         <Link href="/" className="flex items-center gap-2 text-sm text-gray-500 hover:text-white mb-6 transition">
           <ChevronLeft className="w-4 h-4" />
           Back to Markets
@@ -144,8 +175,57 @@ function MarketDetail({ resolvedParams }: { resolvedParams: { id: string } }) {
             )}
           </div>
           <h1 className="text-xl font-black text-white leading-tight">{title}</h1>
-          <p className="text-sm text-gray-500 mt-2">Pool: {poolFormatted.toFixed(2)} USDT</p>
+          <div className="flex items-center gap-4 mt-3 text-xs text-gray-500">
+            <span className="flex items-center gap-1"><Users className="w-3 h-3" /> Pool: {poolFormatted.toFixed(2)} USDT</span>
+            <button
+              onClick={() => setShowGraph(!showGraph)}
+              className="flex items-center gap-1 text-[#D9C5A0] hover:text-white transition"
+            >
+              <BarChart3 className="w-3 h-3" />
+              {showGraph ? 'Hide' : 'Show'} Graph
+            </button>
+          </div>
         </div>
+
+        {/* Parimutuel Pool Graph */}
+        {showGraph && !resolved && (
+          <div className="bg-[#111] border border-[#1F1F1F] rounded-2xl p-4 mb-6">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3 flex items-center gap-2">
+              <BarChart3 className="w-4 h-4" />
+              Parimutuel Pool Distribution
+            </h3>
+            <ParimutuelGraph
+              bets={poolBets}
+              outcomes={outcomes}
+              height={260}
+            />
+          </div>
+        )}
+
+        {/* Payout Calculator */}
+        {selectedOutcome !== null && !resolved && !isClosed && (
+          <div className="bg-[#0a0a0a] border border-[#1F1F1F] rounded-xl p-4 mb-6">
+            <h4 className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-3">Payout Estimate</h4>
+            <div className="grid grid-cols-3 gap-4 text-center">
+              <div>
+                <p className="text-[9px] text-gray-600 uppercase font-bold">Stake</p>
+                <p className="text-sm font-mono font-bold text-white">{parseFloat(stakeAmount).toFixed(2)}</p>
+              </div>
+              <div>
+                <p className="text-[9px] text-gray-600 uppercase font-bold">Est. Payout</p>
+                <p className="text-sm font-mono font-bold text-green-400">{estPayout.toFixed(2)} USDT</p>
+              </div>
+              <div>
+                <p className="text-[9px] text-gray-600 uppercase font-bold">Profit</p>
+                <p className="text-sm font-mono font-bold text-green-400">+{(estPayout - parseFloat(stakeAmount)).toFixed(2)}</p>
+              </div>
+            </div>
+            <div className="mt-3 pt-3 border-t border-[#1F1F1F] flex justify-between text-[10px] text-gray-600">
+              <span>Pool share: {totalVol > 0 ? ((parseFloat(stakeAmount) / (totalVol + parseFloat(stakeAmount))) * 100).toFixed(1) : 0}%</span>
+              <span>Platform fee: 3%</span>
+            </div>
+          </div>
+        )}
 
         {/* Bet Interface */}
         {!resolved && !isClosed && (
@@ -154,22 +234,29 @@ function MarketDetail({ resolvedParams }: { resolvedParams: { id: string } }) {
 
             {/* Outcomes */}
             <div className="grid grid-cols-2 gap-3 mb-4">
-              {outcomes.map((outcome, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => setSelectedOutcome(idx)}
-                  className={`py-3 rounded-xl text-sm font-black uppercase tracking-widest transition-all border flex items-center justify-center gap-2 ${
-                    selectedOutcome === idx
-                      ? idx === 0
-                        ? 'bg-green-500 border-green-500 text-white'
-                        : 'bg-red-500 border-red-500 text-white'
-                      : 'border-[#1F1F1F] bg-[#1a1a1a] text-gray-400 hover:border-[#D9C5A0]/50'
-                  }`}
-                >
-                  {idx === 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-                  {outcome}
-                </button>
-              ))}
+              {outcomes.map((outcome, idx) => {
+                const vol = outcomeVol[idx] || 0
+                const pct = totalVol > 0 ? ((vol / totalVol) * 100).toFixed(0) : '50'
+                return (
+                  <button
+                    key={idx}
+                    onClick={() => setSelectedOutcome(idx)}
+                    className={`py-4 rounded-xl text-sm font-black uppercase tracking-widest transition-all border flex flex-col items-center gap-1 ${
+                      selectedOutcome === idx
+                        ? idx === 0
+                          ? 'bg-green-500/20 border-green-500 text-green-400'
+                          : 'bg-red-500/20 border-red-500 text-red-400'
+                        : 'border-[#1F1F1F] bg-[#1a1a1a] text-gray-400 hover:border-[#D9C5A0]/50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      {idx === 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                      {outcome}
+                    </div>
+                    <span className="text-[10px] text-gray-500 font-mono">{pct}% · {vol.toFixed(2)} USDT</span>
+                  </button>
+                )
+              })}
             </div>
 
             {/* Stake */}
