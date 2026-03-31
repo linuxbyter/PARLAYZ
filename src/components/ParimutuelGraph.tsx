@@ -144,7 +144,7 @@ export default function ParimutuelGraph({ bets, outcomes, height = 280, animated
                 fontSize="9"
                 fontFamily="monospace"
               >
-                {outcomeVolumes[idx].toFixed(2)} USDT
+                {outcomeVolumes[idx].toFixed(2)} USDT / {(outcomeVolumes[idx] * 129.5).toFixed(0)} KSH
               </text>
             </g>
           )
@@ -166,7 +166,7 @@ export default function ParimutuelGraph({ bets, outcomes, height = 280, animated
 
       {/* Pool summary */}
       <div className="flex items-center justify-between px-2 py-2 text-xs text-gray-500 border-t border-[#1F1F1F]">
-        <span>Total Pool: <span className="text-white font-mono font-bold">{totalPool.toFixed(2)} USDT</span></span>
+        <span>Total Pool: <span className="text-white font-mono font-bold">{totalPool.toFixed(2)} USDT / {(totalPool * 129.5).toFixed(0)} KSH</span></span>
         <span>Outcomes: <span className="text-white font-bold">{outcomes.length}</span></span>
       </div>
     </div>

@@ -4,17 +4,18 @@ import Header from '@/src/components/Header'
 import { SignedIn, SignedOut, SignInButton, useUser } from '@clerk/nextjs'
 import { useAccount, useBalance } from 'wagmi'
 import { base } from 'wagmi/chains'
-import { ArrowUpRight, ArrowDownToLine, Wallet, Smartphone, CreditCard, Building2, Copy, CheckCircle, Loader2, AlertCircle } from 'lucide-react'
+import { ArrowUpRight, ArrowDownToLine, Wallet, Smartphone, CreditCard, Building2, Copy, CheckCircle, Loader2, AlertCircle, RefreshCw } from 'lucide-react'
 import { useState, useCallback } from 'react'
 
 export const dynamic = 'force-dynamic'
 
 const USDT_CONTRACT = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
+const KSH_RATE = 129.5
 
 export default function WalletPage() {
   const { user } = useUser()
   const { address, isConnected } = useAccount()
-  const { data: balance } = useBalance({
+  const { data: balance, refetch } = useBalance({
     address,
     token: USDT_CONTRACT as `0x${string}`,
     chainId: base.id,
@@ -28,11 +29,12 @@ export default function WalletPage() {
   const [copied, setCopied] = useState(false)
 
   const usdtBalance = parseFloat(balance?.formatted || '0')
-  const kshRate = 129.5
-  const kshBalance = usdtBalance * kshRate
+  const kshBalance = usdtBalance * KSH_RATE
 
   const displayBalance = balanceView === 'USDT' ? usdtBalance : kshBalance
   const displayCurrency = balanceView
+  const altBalance = balanceView === 'USDT' ? kshBalance : usdtBalance
+  const altCurrency = balanceView === 'USDT' ? 'KSH' : 'USDT'
 
   const copyAddress = useCallback(() => {
     if (!address) return
@@ -87,12 +89,7 @@ export default function WalletPage() {
             </h1>
             <p className="text-sm text-gray-500 font-bold relative z-10">
               {displayCurrency}
-              {balanceView === 'USDT' && (
-                <span className="ml-2 text-xs text-gray-600">≈ {kshBalance.toFixed(0)} KSH</span>
-              )}
-              {balanceView === 'KSH' && (
-                <span className="ml-2 text-xs text-gray-600">≈ {usdtBalance.toFixed(2)} USDT</span>
-              )}
+              <span className="ml-2 text-xs text-gray-600">≈ {altBalance.toFixed(2)} {altCurrency}</span>
             </p>
 
             {/* Wallet Address */}
@@ -104,8 +101,25 @@ export default function WalletPage() {
                 <button onClick={copyAddress} className="text-gray-500 hover:text-[#D9C5A0] transition">
                   {copied ? <CheckCircle className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
                 </button>
+                <button onClick={() => refetch()} className="text-gray-500 hover:text-[#D9C5A0] transition">
+                  <RefreshCw className="w-3.5 h-3.5" />
+                </button>
               </div>
             )}
+          </div>
+
+          {/* Dual Balance Cards */}
+          <div className="grid grid-cols-2 gap-3 mb-6">
+            <div className="bg-[#0a2a1a] border border-[#10b981]/30 rounded-2xl p-4 text-center">
+              <p className="text-[9px] text-gray-500 uppercase font-bold tracking-widest mb-1">USDT Balance</p>
+              <p className="text-xl font-black text-green-400 font-mono">{usdtBalance.toFixed(2)}</p>
+              <p className="text-[10px] text-gray-600">≈ {(usdtBalance * KSH_RATE).toFixed(0)} KSH</p>
+            </div>
+            <div className="bg-[#1a1a0a] border border-[#D9C5A0]/30 rounded-2xl p-4 text-center">
+              <p className="text-[9px] text-gray-500 uppercase font-bold tracking-widest mb-1">KSH Balance</p>
+              <p className="text-xl font-black text-[#D9C5A0] font-mono">{kshBalance.toFixed(0)}</p>
+              <p className="text-[10px] text-gray-600">≈ {usdtBalance.toFixed(2)} USDT</p>
+            </div>
           </div>
 
           {/* Action Buttons */}
