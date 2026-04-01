@@ -75,15 +75,20 @@ export function useMarketLogic(
 
   const [timeRemaining, setTimeRemaining] = useState(LOCK_MS)
 
-  // House seeding: $30 minimum in each pool
+  // House seeding: $30-$80 randomized, not 50/50
   useEffect(() => {
     if (!houseSeeded.current) {
       houseSeeded.current = true
+      const totalSeed = 30 + Math.random() * 50
+      const upRatio = 0.3 + Math.random() * 0.4
+      const upPool = Math.round(totalSeed * upRatio * 10) / 10
+      const downPool = Math.round((totalSeed - upPool) * 10) / 10
+      const upPct = (upPool / (upPool + downPool)) * 100
       setState(prev => ({
         ...prev,
-        upPool: 30,
-        downPool: 30,
-        poolHistory: [{ time: Date.now(), upPct: 50, downPct: 50 }],
+        upPool,
+        downPool,
+        poolHistory: [{ time: Date.now(), upPct, downPct: 100 - upPct }],
       }))
     }
   }, [])
