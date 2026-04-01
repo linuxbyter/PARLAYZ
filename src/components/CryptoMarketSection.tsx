@@ -4,12 +4,6 @@ import { useState, useEffect, useRef } from 'react'
 import { CryptoMarketCard } from './CryptoMarketCard'
 import { INSTRUMENTS, INSTRUMENT_TABS, VOLATILITY, type InstrumentCategory } from '@/src/lib/instruments'
 
-const SLOT_MS = 5 * 60 * 1000
-
-function getCurrentSlot(): number {
-  return Math.floor(Date.now() / SLOT_MS)
-}
-
 interface InstrumentFeed {
   livePrice: number
   priceHistory: { time: number; price: number }[]
@@ -20,7 +14,6 @@ interface CryptoMarketSectionProps {
 }
 
 export const CryptoMarketSection: React.FC<CryptoMarketSectionProps> = ({ category = 'all' }) => {
-  const [currentSlot, setCurrentSlot] = useState(getCurrentSlot())
   const [feeds, setFeeds] = useState<Record<string, InstrumentFeed>>({})
   const [activeTab, setActiveTab] = useState<string>(category === 'all' ? 'all' : category)
   const wsRefs = useRef<Record<string, WebSocket>>({})
@@ -108,16 +101,6 @@ export const CryptoMarketSection: React.FC<CryptoMarketSectionProps> = ({ catego
     return () => clearInterval(interval)
   }, [])
 
-  useEffect(() => {
-    const tick = setInterval(() => {
-      const slot = getCurrentSlot()
-      setCurrentSlot(prev => (slot !== prev ? slot : prev))
-    }, 1000)
-    return () => clearInterval(tick)
-  }, [])
-
-  const lockedSlot = currentSlot - 1
-
   return (
     <div className="space-y-8">
       <div className="flex items-center gap-2 overflow-x-auto pb-2">
@@ -136,46 +119,23 @@ export const CryptoMarketSection: React.FC<CryptoMarketSectionProps> = ({ catego
         ))}
       </div>
 
-      {visibleInstruments.map(inst => {
-        const feed = feeds[inst.id]
-        if (!feed) return null
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {visibleInstruments.map(inst => {
+          const feed = feeds[inst.id]
+          if (!feed) return null
 
-        return (
-          <div key={inst.id} className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider">{inst.label}</h3>
-              <span className="text-xs font-mono text-gray-500">
-                ${feed.livePrice.toLocaleString('en-US', {
-                  minimumFractionDigits: inst.id === 'SHIB' || inst.id === 'PEPE' ? 8 : 2,
-                  maximumFractionDigits: inst.id === 'SHIB' || inst.id === 'PEPE' ? 8 : 2,
-                })}
-              </span>
-            </div>
-            <div className="flex flex-col gap-4">
-              <CryptoMarketCard
-                key={`locked-${inst.id}-${lockedSlot}`}
-                slot={lockedSlot}
-                phase="LOCKED"
-                coin={inst.label}
-                instrumentId={inst.id}
-                initialPrice={inst.initialPrice}
-                livePrice={feed.livePrice}
-                priceHistory={feed.priceHistory}
-              />
-              <CryptoMarketCard
-                key={`open-${inst.id}-${currentSlot}`}
-                slot={currentSlot}
-                phase="OPEN"
-                coin={inst.label}
-                instrumentId={inst.id}
-                initialPrice={inst.initialPrice}
-                livePrice={feed.livePrice}
-                priceHistory={feed.priceHistory}
-              />
-            </div>
-          </div>
-        )
-      })}
+          return (
+            <CryptoMarketCard
+              key={inst.id}
+              instrumentId={inst.id}
+              coin={inst.label}
+              initialPrice={inst.initialPrice}
+              livePrice={feed.livePrice}
+              priceHistory={feed.priceHistory}
+            />
+          )
+        })}
+      </div>
     </div>
   )
 }
