@@ -1,9 +1,10 @@
 'use client'
 
 import Header from '@/src/components/Header'
+import { CryptoMarketCard } from '@/src/components/CryptoMarketCard'
 import { SignedIn, SignedOut, SignInButton } from '@clerk/nextjs'
 import { useAccount } from 'wagmi'
-import { ArrowUpRight, TrendingUp, TrendingDown, Lock, Clock, ChevronRight } from 'lucide-react'
+import { ArrowUpRight, Clock, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
 
@@ -72,6 +73,8 @@ export default function Home() {
   }, [])
 
   const filteredMarkets = filter === 'all' ? MOCK_MARKETS : MOCK_MARKETS.filter(m => m.type === filter)
+  const cryptoMarkets = filteredMarkets.filter(m => m.type === 'crypto')
+  const otherMarkets = filteredMarkets.filter(m => m.type !== 'crypto')
 
   return (
     <div className="min-h-screen bg-[#0D0D0D] text-white">
@@ -114,40 +117,58 @@ export default function Home() {
           ))}
         </div>
 
-        {/* Markets Grid */}
-        <SignedIn>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredMarkets.map(market => (
-              <Link
-                key={market.id}
-                href={`/market/${market.id}`}
-                className="bg-[#111] border border-[#1F1F1F] hover:border-[#D9C5A0]/40 rounded-2xl p-5 transition-all cursor-pointer group"
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-[9px] font-black text-[#D9C5A0] bg-[#D9C5A0]/10 px-2 py-1 rounded uppercase tracking-widest">
-                    {market.category}
-                  </span>
-                  {market.resolved ? (
-                    <span className="text-[10px] text-gray-500 font-bold uppercase">Settled</span>
-                  ) : (
-                    <div className="flex items-center gap-1.5 text-green-400">
-                      <Clock className="w-3 h-3" />
-                      <span className="text-[10px] font-bold uppercase">Open</span>
-                    </div>
-                  )}
-                </div>
-
-                <h3 className="text-base font-bold text-white mb-4 leading-tight group-hover:text-[#D9C5A0] transition-colors">
-                  {market.title}
-                </h3>
-
-                <div className="flex items-center justify-between text-xs text-gray-500">
-                  <span>Pool: {market.poolSize} USDT</span>
-                  <ChevronRight className="w-4 h-4 text-gray-600 group-hover:text-[#D9C5A0] transition-colors" />
-                </div>
-              </Link>
-            ))}
+        {/* Live Crypto Market Card */}
+        {filter !== 'sports' && (
+          <div className="mb-8">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-gray-500 mb-4 flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+              Live Crypto Market
+            </h2>
+            <div className="max-w-2xl">
+              <CryptoMarketCard symbol="BTC/USDT" />
+            </div>
           </div>
+        )}
+
+        {/* Other Markets Grid */}
+        <SignedIn>
+          {otherMarkets.length > 0 && (
+            <>
+              <h2 className="text-sm font-bold uppercase tracking-wider text-gray-500 mb-4">Other Markets</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+                {otherMarkets.map(market => (
+                  <Link
+                    key={market.id}
+                    href={`/market/${market.id}`}
+                    className="bg-[#111] border border-[#1F1F1F] hover:border-[#D9C5A0]/40 rounded-2xl p-5 transition-all cursor-pointer group"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-[9px] font-black text-[#D9C5A0] bg-[#D9C5A0]/10 px-2 py-1 rounded uppercase tracking-widest">
+                        {market.category}
+                      </span>
+                      {market.resolved ? (
+                        <span className="text-[10px] text-gray-500 font-bold uppercase">Settled</span>
+                      ) : (
+                        <div className="flex items-center gap-1.5 text-green-400">
+                          <Clock className="w-3 h-3" />
+                          <span className="text-[10px] font-bold uppercase">Open</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <h3 className="text-base font-bold text-white mb-4 leading-tight group-hover:text-[#D9C5A0] transition-colors">
+                      {market.title}
+                    </h3>
+
+                    <div className="flex items-center justify-between text-xs text-gray-500">
+                      <span>Pool: {market.poolSize} USDT</span>
+                      <ChevronRight className="w-4 h-4 text-gray-600 group-hover:text-[#D9C5A0] transition-colors" />
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </>
+          )}
         </SignedIn>
 
         <SignedOut>

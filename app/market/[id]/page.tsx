@@ -228,17 +228,23 @@ export default function MarketDetailPage() {
                   <button
                     key={idx}
                     onClick={() => setSelectedOutcome(idx)}
-                    className={`py-4 rounded-xl text-sm font-black uppercase tracking-widest transition-all border flex flex-col items-center gap-1 ${
+                    className={`py-4 rounded-xl transition-all border flex flex-col items-center gap-1 ${
                       selectedOutcome === idx
                         ? idx === 0
-                          ? 'bg-green-500/20 border-green-500 text-green-400'
-                          : 'bg-red-500/20 border-red-500 text-red-400'
-                        : 'border-[#1F1F1F] bg-[#1a1a1a] text-gray-400 hover:border-[#D9C5A0]/50'
+                          ? 'bg-green-500/20 border-green-500'
+                          : 'bg-red-500/20 border-red-500'
+                        : 'border-[#1F1F1F] bg-[#1a1a1a] hover:border-[#D9C5A0]/50'
                     }`}
                   >
                     <div className="flex items-center gap-2">
-                      {idx === 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-                      {outcome}
+                      {idx === 0 ? <TrendingUp className="w-4 h-4 text-green-400" /> : <TrendingDown className="w-4 h-4 text-red-400" />}
+                      <span className={`text-sm font-black uppercase tracking-widest ${
+                        selectedOutcome === idx
+                          ? idx === 0 ? 'text-green-400' : 'text-red-400'
+                          : 'text-white'
+                      }`}>
+                        {outcome}
+                      </span>
                     </div>
                     <span className="text-[10px] text-gray-500 font-mono">{pct}% · {vol.toFixed(2)} USDT</span>
                   </button>
