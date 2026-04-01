@@ -57,7 +57,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-[#0D0D0D] text-white">
-      <Header />
+      <Header activeBetsCount={3} balance={2138.00} />
 
       <main className="max-w-[1400px] mx-auto px-4 py-8">
         {/* BTC Price Banner */}

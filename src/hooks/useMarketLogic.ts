@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 
 const CYCLE_MS = 10 * 60 * 1000
 const LOCK_MS = 5 * 60 * 1000
-const GRACE_MS = 1 * 60 * 1000
+const GRACE_END_MS = 6 * 60 * 1000
 
 export type MarketPhase = 'OPEN' | 'LOCKED' | 'GRACE' | 'RESOLVED'
 
@@ -14,22 +14,23 @@ export interface MarketState {
   livePrice: number
   openStartMs: number
   lockAtMs: number
+  graceEndMs: number
   resolveAtMs: number
   upPool: number
   downPool: number
-  userBets: { side: 'UP' | 'DOWN'; amount: number; timestamp: number }[]
+  userUpStake: number
+  userDownStake: number
   resolution: 'UP' | 'DOWN' | null
   poolHistory: { time: number; upPct: number; downPct: number }[]
 }
 
 export function getCycleBoundary(): number {
-  const now = Date.now()
-  return Math.floor(now / CYCLE_MS) * CYCLE_MS
+  return Math.floor(Date.now() / CYCLE_MS) * CYCLE_MS
 }
 
-export function getPhase(ms: number, openStartMs: number, lockAtMs: number, resolveAtMs: number): MarketPhase {
+export function getPhase(ms: number, openStartMs: number, lockAtMs: number, graceEndMs: number, resolveAtMs: number): MarketPhase {
   if (ms >= resolveAtMs) return 'RESOLVED'
-  if (ms >= lockAtMs && ms < lockAtMs + GRACE_MS) return 'GRACE'
+  if (ms >= lockAtMs && ms < graceEndMs) return 'GRACE'
   if (ms >= lockAtMs) return 'LOCKED'
   return 'OPEN'
 }
@@ -45,14 +46,16 @@ export function useMarketLogic(
   canChickenOut: boolean
   chickenOutRefund: number
   placeBet: (side: 'UP' | 'DOWN', amount: number) => void
-  chickenOut: () => number
+  withdrawStake: (side: 'UP' | 'DOWN') => number
   userTotalStake: number
-  userSide: 'UP' | 'DOWN' | null
 } {
   const openStartMs = useRef(getCycleBoundary())
   const lockAtMs = useRef(openStartMs.current + LOCK_MS)
+  const graceEndMs = useRef(openStartMs.current + GRACE_END_MS)
   const resolveAtMs = useRef(openStartMs.current + CYCLE_MS)
   const resolvedRef = useRef(false)
+  const strikeCaptured = useRef(false)
+  const houseSeeded = useRef(false)
 
   const [state, setState] = useState<MarketState>({
     phase: 'OPEN',
@@ -60,23 +63,35 @@ export function useMarketLogic(
     livePrice: initialPrice,
     openStartMs: openStartMs.current,
     lockAtMs: lockAtMs.current,
+    graceEndMs: graceEndMs.current,
     resolveAtMs: resolveAtMs.current,
     upPool: 0,
     downPool: 0,
-    userBets: [],
+    userUpStake: 0,
+    userDownStake: 0,
     resolution: null,
     poolHistory: [{ time: Date.now(), upPct: 50, downPct: 50 }],
   })
 
   const [timeRemaining, setTimeRemaining] = useState(LOCK_MS)
 
-  const strikeCaptured = useRef(false)
-  const graceStarted = useRef(false)
+  // House seeding: $30 minimum in each pool
+  useEffect(() => {
+    if (!houseSeeded.current) {
+      houseSeeded.current = true
+      setState(prev => ({
+        ...prev,
+        upPool: 30,
+        downPool: 30,
+        poolHistory: [{ time: Date.now(), upPct: 50, downPct: 50 }],
+      }))
+    }
+  }, [])
 
   useEffect(() => {
     const tick = setInterval(() => {
       const now = Date.now()
-      const phase = getPhase(now, openStartMs.current, lockAtMs.current, resolveAtMs.current)
+      const phase = getPhase(now, openStartMs.current, lockAtMs.current, graceEndMs.current, resolveAtMs.current)
       const remaining = phase === 'OPEN'
         ? lockAtMs.current - now
         : phase === 'LOCKED' || phase === 'GRACE'
@@ -89,7 +104,7 @@ export function useMarketLogic(
         const next = { ...prev, phase, livePrice }
 
         // Capture strike at lock moment
-        if (phase !== 'OPEN' && !strikeCaptured.current) {
+        if ((phase === 'LOCKED' || phase === 'GRACE' || phase === 'RESOLVED') && !strikeCaptured.current) {
           strikeCaptured.current = true
           next.strikePrice = livePrice
         }
@@ -125,33 +140,45 @@ export function useMarketLogic(
         ...prev,
         upPool: side === 'UP' ? prev.upPool + amount : prev.upPool,
         downPool: side === 'DOWN' ? prev.downPool + amount : prev.downPool,
-        userBets: [...prev.userBets, { side, amount, timestamp: Date.now() }],
+        userUpStake: side === 'UP' ? prev.userUpStake + amount : prev.userUpStake,
+        userDownStake: side === 'DOWN' ? prev.userDownStake + amount : prev.userDownStake,
       }
     })
   }, [])
 
-  const chickenOut = useCallback((): number => {
+  const withdrawStake = useCallback((side: 'UP' | 'DOWN'): number => {
     let refund = 0
     setState(prev => {
-      if (prev.phase !== 'GRACE') return prev
-      const totalStake = prev.userBets.reduce((s, b) => s + b.amount, 0)
-      if (totalStake <= 0) return prev
-      refund = totalStake * 0.8
+      const stake = side === 'UP' ? prev.userUpStake : prev.userDownStake
+      if (stake <= 0) return prev
+      if (prev.phase === 'RESOLVED') return prev
+
+      let refundRate = 1.0
+      if (prev.phase === 'GRACE') refundRate = 0.8
+      else if (prev.phase === 'LOCKED') return prev
+
+      refund = stake * refundRate
+      const penalty = stake - refund
+
       return {
         ...prev,
-        upPool: prev.upPool - prev.userBets.filter(b => b.side === 'UP').reduce((s, b) => s + b.amount * 0.2, 0),
-        downPool: prev.downPool - prev.userBets.filter(b => b.side === 'DOWN').reduce((s, b) => s + b.amount * 0.2, 0),
-        userBets: [],
+        upPool: side === 'UP' ? Math.max(0, prev.upPool - penalty) : prev.upPool,
+        downPool: side === 'DOWN' ? Math.max(0, prev.downPool - penalty) : prev.downPool,
+        userUpStake: side === 'UP' ? 0 : prev.userUpStake,
+        userDownStake: side === 'DOWN' ? 0 : prev.userDownStake,
       }
     })
     return refund
   }, [])
 
-  const userTotalStake = state.userBets.reduce((s, b) => s + b.amount, 0)
-  const userSide = state.userBets.length > 0 ? state.userBets[state.userBets.length - 1].side : null
+  const userTotalStake = state.userUpStake + state.userDownStake
   const canBet = state.phase === 'OPEN'
-  const canChickenOut = state.phase === 'GRACE' && userTotalStake > 0
-  const chickenOutRefund = userTotalStake * 0.8
+  const canChickenOut = (state.phase === 'OPEN' || state.phase === 'GRACE') && userTotalStake > 0
+  const chickenOutRefund = state.phase === 'OPEN'
+    ? userTotalStake
+    : state.phase === 'GRACE'
+    ? userTotalStake * 0.8
+    : 0
 
   return {
     ...state,
@@ -160,8 +187,7 @@ export function useMarketLogic(
     canChickenOut,
     chickenOutRefund,
     placeBet,
-    chickenOut,
+    withdrawStake,
     userTotalStake,
-    userSide,
   }
 }
