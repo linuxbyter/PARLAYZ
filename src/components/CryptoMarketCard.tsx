@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   LineChart,
@@ -11,172 +11,208 @@ import {
   ResponsiveContainer,
   Tooltip,
 } from 'recharts'
-import { differenceInSeconds, addMinutes, format } from 'date-fns'
-import { TrendingUp, TrendingDown, Lock, Clock } from 'lucide-react'
+import { format } from 'date-fns'
+import { TrendingUp, TrendingDown, Lock, CheckCircle, XCircle } from 'lucide-react'
 
-type MarketPhase = 'OPEN' | 'LOCKED' | 'RESOLVED'
+const SLOT_MS = 5 * 60 * 1000
 
-const MOCK_INITIAL_PRICE = 104000
-const MOCK_BET_AMOUNT = 1
-const CYCLE_DURATION = 600
-const OPEN_DURATION = 300
-
-interface CryptoMarketCardProps {
-  symbol?: string
+function getSlotEndTime(slot: number): number {
+  return (slot + 1) * SLOT_MS
 }
 
-export const CryptoMarketCard: React.FC<CryptoMarketCardProps> = ({ symbol = 'BTC/USDT' }) => {
-  const [marketPhase, setMarketPhase] = useState<MarketPhase>('OPEN')
-  const [strikePrice, setStrikePrice] = useState<number | null>(null)
-  const [livePrice, setLivePrice] = useState<number>(MOCK_INITIAL_PRICE)
-  const [priceHistory, setPriceHistory] = useState<{ t: number; price: number }[]>([])
-  const [timeRemainingSeconds, setTimeRemainingSeconds] = useState<number>(300)
-  const [poolAnimations, setPoolAnimations] = useState<{ id: string; amount: number }[]>([])
-  const [upPool, setUpPool] = useState<number>(0)
-  const [downPool, setDownPool] = useState<number>(0)
+function getTimeRemainingInSlot(slot: number): number {
+  return Math.max(0, getSlotEndTime(slot) - Date.now())
+}
 
-  const cycleStartTime = useRef<Date>(new Date())
+interface MarketSlotState {
+  slot: number
+  phase: 'OPEN' | 'LOCKED' | 'RESOLVED'
+  strikePrice: number | null
+  currentPrice: number
+  priceHistory: { time: number; price: number }[]
+  upPool: number
+  downPool: number
+  userSide: 'UP' | 'DOWN' | null
+  userStake: number
+  floatingBets: { id: string; amount: number }[]
+  resolution: 'UP' | 'DOWN' | null
+}
 
-  const simulatePriceMovement = (currentPrice: number): number => {
-    const change = (Math.random() - 0.499) * 120
-    return parseFloat((currentPrice + change).toFixed(2))
-  }
+interface CryptoMarketCardProps {
+  slot: number
+  phase: 'OPEN' | 'LOCKED'
+  coin: string
+  initialPrice: number
+  livePrice: number
+  priceHistory: { time: number; price: number }[]
+  onResolve?: (resolution: 'UP' | 'DOWN', slot: number) => void
+}
 
-  const resetCycle = () => {
-    setMarketPhase('OPEN')
-    setStrikePrice(null)
-    setPriceHistory([])
-    setUpPool(0)
-    setDownPool(0)
-    setLivePrice(MOCK_INITIAL_PRICE)
-    setTimeRemainingSeconds(OPEN_DURATION)
-    cycleStartTime.current = new Date()
-  }
+export const CryptoMarketCard: React.FC<CryptoMarketCardProps> = ({
+  slot,
+  phase,
+  coin,
+  initialPrice,
+  livePrice,
+  priceHistory,
+  onResolve,
+}) => {
+  const [state, setState] = useState<MarketSlotState>({
+    slot,
+    phase,
+    strikePrice: null,
+    currentPrice: initialPrice,
+    priceHistory: [],
+    upPool: 0,
+    downPool: 0,
+    userSide: null,
+    userStake: 0,
+    floatingBets: [],
+    resolution: null,
+  })
+
+  const [timeRemaining, setTimeRemaining] = useState(getTimeRemainingInSlot(slot))
+  const [showResolved, setShowResolved] = useState(false)
+  const strikeCaptured = useRef(false)
+  const resolvedRef = useRef(false)
 
   useEffect(() => {
-    let elapsed = 0
+    if (phase === 'LOCKED' && !strikeCaptured.current && state.strikePrice === null) {
+      strikeCaptured.current = true
+      setState(prev => ({ ...prev, strikePrice: initialPrice }))
+    }
+  }, [])
 
+  useEffect(() => {
     const tick = setInterval(() => {
-      elapsed += 1
+      const remaining = getTimeRemainingInSlot(slot)
+      setTimeRemaining(remaining)
 
-      const newLivePrice = simulatePriceMovement(livePrice)
-      setLivePrice(newLivePrice)
-      setPriceHistory(prev => [...prev, { t: elapsed, price: newLivePrice }])
+      setState(prev => ({ ...prev, currentPrice: livePrice }))
 
-      if (elapsed < OPEN_DURATION) {
-        setMarketPhase('OPEN')
-        setTimeRemainingSeconds(OPEN_DURATION - elapsed)
-      } else if (elapsed === OPEN_DURATION) {
-        setMarketPhase('LOCKED')
-        setStrikePrice(newLivePrice)
-        setTimeRemainingSeconds(CYCLE_DURATION - OPEN_DURATION)
-      } else if (elapsed < CYCLE_DURATION) {
-        setMarketPhase('LOCKED')
-        setTimeRemainingSeconds(CYCLE_DURATION - elapsed)
-      } else {
-        setMarketPhase('RESOLVED')
-        clearInterval(tick)
-        setTimeout(() => resetCycle(), 3000)
+      if (phase === 'LOCKED' && remaining <= 0 && !resolvedRef.current) {
+        resolvedRef.current = true
+        const finalPrice = livePrice
+        const strike = state.strikePrice ?? initialPrice
+        const resolution: 'UP' | 'DOWN' = finalPrice > strike ? 'UP' : 'DOWN'
+
+        setState(p => ({ ...p, phase: 'RESOLVED', resolution }))
+        if (onResolve) onResolve(resolution, slot)
+
+        setTimeout(() => {
+          setShowResolved(true)
+        }, 5000)
       }
     }, 1000)
 
     return () => clearInterval(tick)
-  }, [])
-
-  const cardTitle = useMemo(() => {
-    if (marketPhase === 'OPEN') {
-      return `Will ${symbol} go UP or DOWN in the next 5 minutes?`
-    }
-    if (marketPhase === 'LOCKED' && strikePrice !== null) {
-      const formattedStrike = strikePrice.toLocaleString('en-US', {
-        style: 'currency',
-        currency: 'USD',
-        minimumFractionDigits: 0,
-      })
-      const resolveTime = format(addMinutes(cycleStartTime.current, 10), 'h:mm a')
-      return `Will ${symbol} close above or below ${formattedStrike} at ${resolveTime}?`
-    }
-    return `${symbol} market is settling...`
-  }, [marketPhase, strikePrice, symbol])
-
-  const borderClass = marketPhase === 'LOCKED'
-    ? 'border-2 border-red-500'
-    : 'border border-gray-200 dark:border-gray-700'
+  }, [slot, phase, livePrice, initialPrice, onResolve, state.strikePrice])
 
   const formatCountdown = (seconds: number): string => {
-    const m = Math.floor(seconds / 60).toString().padStart(2, '0')
-    const s = (seconds % 60).toString().padStart(2, '0')
+    const m = Math.floor(seconds / 1000 / 60).toString().padStart(2, '0')
+    const s = Math.floor((seconds / 1000) % 60).toString().padStart(2, '0')
     return `${m}:${s}`
   }
 
   const handleBet = (direction: 'UP' | 'DOWN', amount: number) => {
-    if (marketPhase !== 'OPEN') return
+    if (state.phase !== 'OPEN') return
 
-    if (direction === 'UP') setUpPool(prev => prev + amount)
-    else setDownPool(prev => prev + amount)
+    setState(prev => ({
+      ...prev,
+      upPool: direction === 'UP' ? prev.upPool + amount : prev.upPool,
+      downPool: direction === 'DOWN' ? prev.downPool + amount : prev.downPool,
+      userSide: prev.userSide ?? direction,
+      userStake: prev.userStake + amount,
+    }))
 
     const animId = crypto.randomUUID()
-    setPoolAnimations(prev => [...prev, { id: animId, amount }])
+    setState(prev => ({
+      ...prev,
+      floatingBets: [...prev.floatingBets, { id: animId, amount }],
+    }))
 
     setTimeout(() => {
-      setPoolAnimations(prev => prev.filter(a => a.id !== animId))
+      setState(prev => ({
+        ...prev,
+        floatingBets: prev.floatingBets.filter(a => a.id !== animId),
+      }))
     }, 1600)
   }
 
-  const totalPool = upPool + downPool
+  const totalPool = state.upPool + state.downPool
+
+  const resolutionTime = format(new Date(getSlotEndTime(slot)), 'h:mm a')
+
+  const cardTitle = useMemo(() => {
+    if (state.phase === 'RESOLVED' && state.resolution) {
+      return state.resolution === 'UP'
+        ? `${coin} closed UP ✅ — above $${state.strikePrice?.toLocaleString()}`
+        : `${coin} closed DOWN ❌ — below $${state.strikePrice?.toLocaleString()}`
+    }
+    if (state.phase === 'LOCKED' && state.strikePrice !== null) {
+      return `Will ${coin} close above or below $${state.strikePrice.toLocaleString()} at ${resolutionTime}?`
+    }
+    return `Will ${coin} go UP or DOWN by ${resolutionTime}?`
+  }, [state.phase, state.resolution, state.strikePrice, coin, resolutionTime])
+
+  const borderClass = state.phase === 'LOCKED'
+    ? 'border-2 border-red-500/80 shadow-[0_0_20px_rgba(239,68,68,0.3)] bg-[#1a0a0a]'
+    : 'border border-white/10 bg-[#111111]'
+
+  if (showResolved) return null
 
   return (
-    <div className={`bg-[#111] rounded-2xl p-6 transition-all duration-500 ${borderClass}`}>
-      {/* Phase Badge */}
+    <div className={`rounded-2xl p-6 transition-all duration-500 ${borderClass}`}>
+      {/* Badge */}
       <div className="flex items-center justify-between mb-4">
-        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold ${
-          marketPhase === 'OPEN'
-            ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-            : marketPhase === 'LOCKED'
-            ? 'bg-red-500/20 text-red-400 border border-red-500/30'
-            : 'bg-gray-500/20 text-gray-400 border border-gray-500/30'
-        }`}>
-          <div className={`w-2 h-2 rounded-full ${
-            marketPhase === 'OPEN' ? 'bg-green-400 animate-pulse' :
-            marketPhase === 'LOCKED' ? 'bg-red-400' : 'bg-gray-400'
-          }`} />
-          {marketPhase}
-        </div>
+        {state.phase === 'OPEN' ? (
+          <span className="bg-green-500/20 text-green-400 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-widest">
+            ● Live — Betting Open
+          </span>
+        ) : state.phase === 'LOCKED' ? (
+          <span className="bg-red-500/20 text-red-400 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-widest animate-pulse">
+            🔒 Locked — Sweating
+          </span>
+        ) : (
+          <span className="bg-gray-500/20 text-gray-400 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-widest">
+            Resolved
+          </span>
+        )}
         <p className="text-xs text-gray-400">
-          {marketPhase === 'OPEN' ? 'Closes in' : 'Resolves in'}: {formatCountdown(timeRemainingSeconds)}
+          {state.phase === 'OPEN' ? 'Closes in' : 'Resolves in'}: {formatCountdown(timeRemaining)}
         </p>
       </div>
 
-      {/* Dynamic Title */}
-      <h2 className="text-lg font-bold text-white mb-6 leading-snug">{cardTitle}</h2>
+      {/* Title */}
+      <h2 className="text-lg font-bold text-white mb-4 leading-snug">{cardTitle}</h2>
 
-      {/* Live Price Display */}
+      {/* Live Price */}
       <div className="flex items-center justify-between mb-4">
         <div>
           <p className="text-[10px] text-gray-500 uppercase font-bold tracking-widest">Live Price</p>
           <p className="text-2xl font-black font-mono text-white">
-            ${livePrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            ${state.currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}
           </p>
         </div>
-        {strikePrice !== null && marketPhase === 'LOCKED' && (
+        {state.phase === 'LOCKED' && state.strikePrice !== null && (
           <div>
             <p className="text-[10px] text-gray-500 uppercase font-bold tracking-widest">Strike</p>
             <p className="text-2xl font-black font-mono text-red-400">
-              ${strikePrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              ${state.strikePrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}
             </p>
           </div>
         )}
       </div>
 
       {/* Recharts Line Chart (LOCKED phase only) */}
-      {marketPhase === 'LOCKED' && strikePrice !== null && (
+      {state.phase === 'LOCKED' && state.strikePrice !== null && priceHistory.length > 0 && (
         <div className="mb-6">
           <ResponsiveContainer width="100%" height={160}>
             <LineChart data={priceHistory}>
-              <XAxis dataKey="t" hide />
+              <XAxis dataKey="time" hide />
               <YAxis
                 domain={['auto', 'auto']}
-                tickFormatter={(v) => `$${v.toLocaleString()}`}
+                tickFormatter={(v: number) => `$${v.toLocaleString()}`}
                 width={70}
               />
               <Tooltip
@@ -184,10 +220,10 @@ export const CryptoMarketCard: React.FC<CryptoMarketCardProps> = ({ symbol = 'BT
                 labelFormatter={() => ''}
               />
               <ReferenceLine
-                y={strikePrice}
+                y={state.strikePrice}
                 stroke="#EF4444"
                 strokeDasharray="4 4"
-                label={{ value: `Strike $${strikePrice.toLocaleString()}`, fill: '#EF4444', fontSize: 11 }}
+                label={{ value: `Strike $${state.strikePrice.toLocaleString()}`, fill: '#EF4444', fontSize: 11 }}
               />
               <Line
                 type="monotone"
@@ -203,66 +239,68 @@ export const CryptoMarketCard: React.FC<CryptoMarketCardProps> = ({ symbol = 'BT
       )}
 
       {/* Pool Distribution (OPEN phase only) */}
-      {marketPhase === 'OPEN' && (
+      {state.phase === 'OPEN' && (
         <div className="mb-6">
           <div className="flex justify-between text-xs text-gray-400 mb-2">
-            <span>UP: {upPool.toFixed(1)} USDT</span>
-            <span>DOWN: {downPool.toFixed(1)} USDT</span>
+            <span>UP: {state.upPool.toFixed(1)} USDT</span>
+            <span>DOWN: {state.downPool.toFixed(1)} USDT</span>
           </div>
           <div className="w-full h-3 bg-[#1a1a1a] rounded-full overflow-hidden flex">
             <div
               className="bg-green-500 transition-all duration-500"
-              style={{ width: `${totalPool > 0 ? (upPool / totalPool) * 100 : 50}%` }}
+              style={{ width: `${totalPool > 0 ? (state.upPool / totalPool) * 100 : 50}%` }}
             />
             <div
               className="bg-red-500 transition-all duration-500"
-              style={{ width: `${totalPool > 0 ? (downPool / totalPool) * 100 : 50}%` }}
+              style={{ width: `${totalPool > 0 ? (state.downPool / totalPool) * 100 : 50}%` }}
             />
           </div>
         </div>
       )}
 
-      {/* Floating Pool Animation + Total Pool */}
-      <div className="mb-6">
-        <div style={{ position: 'relative', height: '28px' }}>
-          <AnimatePresence mode="sync">
-            {poolAnimations.map(anim => (
-              <motion.span
-                key={anim.id}
-                initial={{ opacity: 1, y: 0 }}
-                animate={{ opacity: 0, y: -20 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 1.5, ease: 'easeOut' }}
-                style={{
-                  position: 'absolute',
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                  color: '#22C55E',
-                  fontWeight: 600,
-                  fontSize: '14px',
-                  pointerEvents: 'none',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                +{anim.amount} USDT
-              </motion.span>
-            ))}
-          </AnimatePresence>
+      {/* Floating Pool Animation */}
+      {state.phase === 'OPEN' && (
+        <div className="mb-6">
+          <div style={{ position: 'relative', height: '28px' }}>
+            <AnimatePresence mode="sync">
+              {state.floatingBets.map(anim => (
+                <motion.span
+                  key={anim.id}
+                  initial={{ opacity: 1, y: 0 }}
+                  animate={{ opacity: 0, y: -20 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 1.5, ease: 'easeOut' }}
+                  style={{
+                    position: 'absolute',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    color: '#22C55E',
+                    fontWeight: 600,
+                    fontSize: '14px',
+                    pointerEvents: 'none',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  +{anim.amount} USDT
+                </motion.span>
+              ))}
+            </AnimatePresence>
+          </div>
+          <p className="text-center text-sm text-gray-500">Total Pool</p>
+          <p className="text-center text-xl font-semibold">
+            {totalPool.toLocaleString()} USDT
+          </p>
         </div>
-        <p className="text-center text-sm text-gray-500">Total Pool</p>
-        <p className="text-center text-xl font-semibold">
-          {totalPool.toLocaleString()} USDT
-        </p>
-      </div>
+      )}
 
       {/* Bet Buttons (OPEN phase only) */}
-      {marketPhase === 'OPEN' && (
+      {state.phase === 'OPEN' && (
         <div className="grid grid-cols-2 gap-3 mb-4">
           <button
-            disabled={marketPhase !== 'OPEN'}
-            onClick={() => handleBet('UP', MOCK_BET_AMOUNT)}
+            disabled={state.phase !== 'OPEN'}
+            onClick={() => handleBet('UP', 1)}
             className={`py-4 rounded-xl text-sm font-black uppercase tracking-widest transition-all border flex items-center justify-center gap-2 ${
-              marketPhase !== 'OPEN'
+              state.phase !== 'OPEN'
                 ? 'opacity-40 cursor-not-allowed border-[#1F1F1F] bg-[#1a1a1a] text-gray-600'
                 : 'border-[#1F1F1F] bg-[#1a1a1a] text-green-400 hover:border-green-500/50 hover:bg-green-500/10'
             }`}
@@ -271,10 +309,10 @@ export const CryptoMarketCard: React.FC<CryptoMarketCardProps> = ({ symbol = 'BT
             UP ▲
           </button>
           <button
-            disabled={marketPhase !== 'OPEN'}
-            onClick={() => handleBet('DOWN', MOCK_BET_AMOUNT)}
+            disabled={state.phase !== 'OPEN'}
+            onClick={() => handleBet('DOWN', 1)}
             className={`py-4 rounded-xl text-sm font-black uppercase tracking-widest transition-all border flex items-center justify-center gap-2 ${
-              marketPhase !== 'OPEN'
+              state.phase !== 'OPEN'
                 ? 'opacity-40 cursor-not-allowed border-[#1F1F1F] bg-[#1a1a1a] text-gray-600'
                 : 'border-[#1F1F1F] bg-[#1a1a1a] text-red-400 hover:border-red-500/50 hover:bg-red-500/10'
             }`}
@@ -286,20 +324,26 @@ export const CryptoMarketCard: React.FC<CryptoMarketCardProps> = ({ symbol = 'BT
       )}
 
       {/* Locked Phase UI */}
-      {marketPhase === 'LOCKED' && (
+      {state.phase === 'LOCKED' && (
         <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-4 text-center">
           <Lock className="w-6 h-6 text-red-400 mx-auto mb-2" />
           <p className="text-sm font-bold text-red-400">MARKET LOCKED</p>
-          <p className="text-xs text-gray-400 mt-1">Resolves in {formatCountdown(timeRemainingSeconds)}</p>
+          <p className="text-xs text-gray-400 mt-1">Resolves in {formatCountdown(timeRemaining)}</p>
         </div>
       )}
 
       {/* Resolved Phase UI */}
-      {marketPhase === 'RESOLVED' && (
+      {state.phase === 'RESOLVED' && state.resolution && (
         <div className="bg-gray-500/10 border border-gray-500/30 rounded-xl p-4 mb-4 text-center">
-          <Clock className="w-6 h-6 text-gray-400 mx-auto mb-2" />
-          <p className="text-sm font-bold text-gray-400">SETTLING...</p>
-          <p className="text-xs text-gray-500 mt-1">Next cycle starting soon</p>
+          {state.resolution === 'UP' ? (
+            <CheckCircle className="w-6 h-6 text-green-400 mx-auto mb-2" />
+          ) : (
+            <XCircle className="w-6 h-6 text-red-400 mx-auto mb-2" />
+          )}
+          <p className="text-sm font-bold text-gray-300">
+            {state.resolution === 'UP' ? 'UP Won ✅' : 'DOWN Won ❌'}
+          </p>
+          <p className="text-xs text-gray-500 mt-1">Settling payouts...</p>
         </div>
       )}
 

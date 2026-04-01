@@ -1,7 +1,7 @@
 'use client'
 
 import Header from '@/src/components/Header'
-import { CryptoMarketCard } from '@/src/components/CryptoMarketCard'
+import { CryptoMarketSection } from '@/src/components/CryptoMarketSection'
 import { SignedIn, SignedOut, SignInButton } from '@clerk/nextjs'
 import { useAccount } from 'wagmi'
 import { ArrowUpRight, Clock, ChevronRight } from 'lucide-react'
@@ -117,15 +117,15 @@ export default function Home() {
           ))}
         </div>
 
-        {/* Live Crypto Market Card */}
+        {/* Live Crypto Market Section */}
         {filter !== 'sports' && (
           <div className="mb-8">
             <h2 className="text-sm font-bold uppercase tracking-wider text-gray-500 mb-4 flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-              Live Crypto Market
+              Live Crypto Markets
             </h2>
             <div className="max-w-2xl">
-              <CryptoMarketCard symbol="BTC/USDT" />
+              <CryptoMarketSection coin="BTC/USDT" initialPrice={btcPrice ?? 104000} />
             </div>
           </div>
         )}
