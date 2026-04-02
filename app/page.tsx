@@ -1,10 +1,9 @@
 'use client'
 
 import Header from '@/src/components/Header'
-import { CryptoMarketSection } from '@/src/components/CryptoMarketSection'
 import { SignedIn, SignedOut, SignInButton } from '@clerk/nextjs'
 import { useAccount } from 'wagmi'
-import { ArrowUpRight, Clock, ChevronRight } from 'lucide-react'
+import { Clock, ChevronRight, Zap } from 'lucide-react'
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
 
@@ -12,32 +11,31 @@ export const dynamic = 'force-dynamic'
 
 interface Market {
   id: string
-  title: string
+  label: string
   category: string
-  outcomes: string[]
-  closesAt: string
-  resolved: boolean
   poolSize: string
-  type: 'crypto' | 'sports' | 'culture'
+  yesPrice: number
+  noPrice: number
 }
 
-const MOCK_MARKETS: Market[] = [
-  {
-    id: '2',
-    title: 'Arsenal vs Chelsea - Who wins?',
-    category: 'Sports',
-    outcomes: ['Arsenal', 'Draw', 'Chelsea'],
-    closesAt: '2026-04-01T15:00:00Z',
-    resolved: false,
-    poolSize: '4,520',
-    type: 'sports',
-  },
+const MARKETS: Market[] = [
+  { id: 'BTC', label: 'Bitcoin', category: 'Crypto_Majors', poolSize: '12,400', yesPrice: 67, noPrice: 33 },
+  { id: 'ETH', label: 'Ethereum', category: 'Crypto_Majors', poolSize: '8,900', yesPrice: 54, noPrice: 46 },
+  { id: 'SOL', label: 'Solana', category: 'Crypto_Majors', poolSize: '5,200', yesPrice: 72, noPrice: 28 },
+  { id: 'LTC', label: 'Litecoin', category: 'Crypto_Majors', poolSize: '3,100', yesPrice: 45, noPrice: 55 },
+  { id: 'LINK', label: 'Chainlink', category: 'Crypto_Majors', poolSize: '2,800', yesPrice: 61, noPrice: 39 },
+  { id: 'DOGE', label: 'Dogecoin', category: 'Crypto_Majors', poolSize: '4,500', yesPrice: 38, noPrice: 62 },
+  { id: 'SHIB', label: 'Shiba Inu', category: 'Crypto_Meme', poolSize: '1,200', yesPrice: 55, noPrice: 45 },
+  { id: 'PEPE', label: 'Pepe', category: 'Crypto_Meme', poolSize: '980', yesPrice: 42, noPrice: 58 },
+  { id: 'NAS100', label: 'Nasdaq 100', category: 'Finance_Futures', poolSize: '15,600', yesPrice: 70, noPrice: 30 },
+  { id: 'GOLD', label: 'Gold (XAU)', category: 'Finance_Futures', poolSize: '22,300', yesPrice: 63, noPrice: 37 },
+  { id: 'OIL', label: 'Brent Crude', category: 'Finance_Futures', poolSize: '7,400', yesPrice: 48, noPrice: 52 },
 ]
 
 export default function Home() {
   const { isConnected } = useAccount()
   const [btcPrice, setBtcPrice] = useState<number | null>(null)
-  const [filter, setFilter] = useState<'all' | 'crypto' | 'sports'>('all')
+  const [filter, setFilter] = useState<'all' | 'Crypto_Majors' | 'Crypto_Meme' | 'Finance_Futures'>('all')
 
   useEffect(() => {
     const fetchPrice = async () => {
@@ -52,110 +50,111 @@ export default function Home() {
     return () => clearInterval(interval)
   }, [])
 
-  const filteredMarkets = filter === 'all' ? MOCK_MARKETS : MOCK_MARKETS.filter(m => m.type === filter)
-  const otherMarkets = filteredMarkets.filter(m => m.type !== 'crypto')
+  const filteredMarkets = filter === 'all' ? MARKETS : MARKETS.filter(m => m.category === filter)
 
   return (
-    <div className="min-h-screen bg-[#0D0D0D] text-white">
+    <div className="min-h-screen bg-[#000000] text-white">
       <Header />
 
-      <main className="max-w-[1400px] mx-auto px-4 py-8">
+      <main className="max-w-7xl mx-auto px-4 py-6">
         {/* BTC Price Banner */}
-        <div className="bg-[#111] border border-[#1F1F1F] rounded-2xl p-4 mb-6 flex items-center justify-between">
+        <div className="bg-[#111] border border-[#1F1F1F] rounded-xl p-4 mb-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-orange-500/20 flex items-center justify-center">
-              <span className="text-lg font-black text-orange-400">₿</span>
+            <div className="w-10 h-10 rounded-full bg-[#D4AF37]/20 flex items-center justify-center">
+              <span className="text-lg font-black text-[#D4AF37]">₿</span>
             </div>
             <div>
               <p className="text-[10px] text-gray-500 uppercase font-bold tracking-widest">BTC/USDT Live</p>
               <p className="text-xl font-black font-mono text-white">
-                {btcPrice ? `$${btcPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : 'Loading...'}
+                {btcPrice ? '$' + btcPrice.toLocaleString(undefined, { minimumFractionDigits: 2 }) : 'Loading...'}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-            <span className="text-xs text-green-400 font-bold">LIVE</span>
+            <div className="w-2 h-2 rounded-full bg-[#D4AF37] animate-pulse" />
+            <span className="text-xs text-[#D4AF37] font-bold">LIVE</span>
           </div>
         </div>
 
         {/* Filter Tabs */}
-        <div className="flex items-center gap-2 mb-6">
-          {(['all', 'crypto', 'sports'] as const).map(f => (
+        <div className="flex items-center gap-2 mb-6 overflow-x-auto pb-2">
+          {[
+            { id: 'all', label: 'All Markets' },
+            { id: 'Crypto_Majors', label: 'Majors' },
+            { id: 'Crypto_Meme', label: 'Meme' },
+            { id: 'Finance_Futures', label: 'Futures' },
+          ].map(f => (
             <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`px-4 py-2 rounded-xl text-sm font-bold uppercase tracking-wider transition ${
-                filter === f
-                  ? 'bg-[#D9C5A0] text-black'
-                  : 'bg-[#111] border border-[#1F1F1F] text-gray-400 hover:text-white'
+              key={f.id}
+              onClick={() => setFilter(f.id as typeof filter)}
+              className={`px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wider transition whitespace-nowrap ${
+                filter === f.id
+                  ? 'bg-[#D4AF37] text-black'
+                  : 'bg-[#111] border border-[#1F1F1F] text-gray-400 hover:text-white hover:border-[#D4AF37]/50'
               }`}
             >
-              {f}
+              {f.label}
             </button>
           ))}
         </div>
 
-        {/* Live Crypto Market Section */}
-        {filter !== 'sports' && (
-          <div className="mb-8">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-gray-500 mb-4 flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-              Live Crypto & Futures Markets
-            </h2>
-            <CryptoMarketSection />
-          </div>
-        )}
-
-        {/* Other Markets Grid */}
-        {filter !== 'crypto' && (
-          <SignedIn>
-            {otherMarkets.length > 0 && (
-              <>
-                <h2 className="text-sm font-bold uppercase tracking-wider text-gray-500 mb-4">Other Markets</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-                  {otherMarkets.map(market => (
-                    <Link
-                      key={market.id}
-                      href={`/market/${market.id}`}
-                      className="bg-[#111] border border-[#1F1F1F] hover:border-[#D9C5A0]/40 rounded-2xl p-5 transition-all cursor-pointer group"
-                    >
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-[9px] font-black text-[#D9C5A0] bg-[#D9C5A0]/10 px-2 py-1 rounded uppercase tracking-widest">
-                          {market.category}
-                        </span>
-                        {market.resolved ? (
-                          <span className="text-[10px] text-gray-500 font-bold uppercase">Settled</span>
-                        ) : (
-                          <div className="flex items-center gap-1.5 text-green-400">
-                            <Clock className="w-3 h-3" />
-                            <span className="text-[10px] font-bold uppercase">Open</span>
-                          </div>
-                        )}
-                      </div>
-
-                      <h3 className="text-base font-bold text-white mb-4 leading-tight group-hover:text-[#D9C5A0] transition-colors">
-                        {market.title}
-                      </h3>
-
-                      <div className="flex items-center justify-between text-xs text-gray-500">
-                        <span>Pool: {market.poolSize} USDT</span>
-                        <ChevronRight className="w-4 h-4 text-gray-600 group-hover:text-[#D9C5A0] transition-colors" />
-                      </div>
-                    </Link>
-                  ))}
+        {/* Markets Grid - EVERY card is a Link to /market/[id] */}
+        <SignedIn>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {filteredMarkets.map(market => (
+              <Link
+                key={market.id}
+                href={`/market/${market.id}`}
+                className="group bg-[#111] border border-[#1F1F1F] hover:border-[#D4AF37]/50 rounded-xl p-4 transition-all duration-200 hover:shadow-[0_0_20px_rgba(212,175,55,0.15)] block"
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Zap className="w-3.5 h-3.5 text-[#D4AF37]" />
+                    <span className="text-xs font-bold text-gray-400 uppercase">{market.label}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-1.5 h-1.5 rounded-full bg-[#D4AF37] animate-pulse" />
+                    <span className="text-[9px] text-[#D4AF37] font-bold uppercase">Live</span>
+                  </div>
                 </div>
-              </>
-            )}
-          </SignedIn>
-        )}
+
+                <h3 className="text-sm font-bold text-white mb-3 leading-snug group-hover:text-[#D4AF37] transition-colors">
+                  Will {market.label} go UP or DOWN in 5 min?
+                </h3>
+
+                <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
+                  <div className="flex items-center gap-1.5">
+                    <Clock className="w-3 h-3" />
+                    <span>5 min cycle</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[#D4AF37] font-mono font-bold">{market.poolSize}</span>
+                    <span>USDT</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-3 border-t border-[#1F1F1F]">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-green-500" />
+                    <span className="text-[10px] text-green-400 font-bold">YES {market.yesPrice}¢</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-red-500" />
+                    <span className="text-[10px] text-red-400 font-bold">NO {market.noPrice}¢</span>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-gray-600 group-hover:text-[#D4AF37] transition-colors" />
+                </div>
+              </Link>
+            ))}
+          </div>
+        </SignedIn>
 
         <SignedOut>
           <div className="text-center py-20">
             <h2 className="text-3xl font-black text-white mb-4">Sign in to trade markets</h2>
-            <p className="text-gray-400 mb-8">Connect your wallet and Clerk account to start betting on Base L2.</p>
+            <p className="text-gray-400 mb-8">Connect your wallet and Clerk account to start betting.</p>
             <SignInButton mode="modal">
-              <button className="bg-[#D9C5A0] text-black font-bold px-8 py-3 rounded-xl text-sm hover:bg-[#c4b18f] transition">
+              <button className="bg-gradient-to-r from-[#D4AF37] to-[#F0D060] text-black font-bold px-8 py-3 rounded-xl text-sm hover:opacity-90 transition">
                 Get Started
               </button>
             </SignInButton>
