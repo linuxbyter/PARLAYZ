@@ -21,14 +21,14 @@ export interface MarketState {
   userUpStake: number
   userDownStake: number
   resolution: 'UP' | 'DOWN' | null
-  poolHistory: { time: number; upPct: number; downPct: number }[]
+  poolHistory: { time: number; upPct: number }[]
 }
 
-export function getCycleBoundary(): number {
+function getCycleBoundary(): number {
   return Math.floor(Date.now() / CYCLE_MS) * CYCLE_MS
 }
 
-export function getPhase(ms: number, openStartMs: number, lockAtMs: number, graceEndMs: number, resolveAtMs: number): MarketPhase {
+function getPhase(ms: number, lockAtMs: number, graceEndMs: number, resolveAtMs: number): MarketPhase {
   if (ms >= resolveAtMs) return 'RESOLVED'
   if (ms >= lockAtMs && ms < graceEndMs) return 'GRACE'
   if (ms >= lockAtMs) return 'LOCKED'
@@ -42,12 +42,14 @@ export function useMarketLogic(
   onResolve?: (resolution: 'UP' | 'DOWN') => void
 ): MarketState & {
   timeRemaining: number
+  cycleProgress: number
   canBet: boolean
   canChickenOut: boolean
   chickenOutRefund: number
   placeBet: (side: 'UP' | 'DOWN', amount: number) => void
   withdrawStake: (side: 'UP' | 'DOWN') => number
   userTotalStake: number
+  upProbability: number
 } {
   const openStartMs = useRef(getCycleBoundary())
   const lockAtMs = useRef(openStartMs.current + LOCK_MS)
@@ -70,12 +72,11 @@ export function useMarketLogic(
     userUpStake: 0,
     userDownStake: 0,
     resolution: null,
-    poolHistory: [{ time: Date.now(), upPct: 50, downPct: 50 }],
+    poolHistory: [{ time: Date.now(), upPct: 50 }],
   })
 
   const [timeRemaining, setTimeRemaining] = useState(LOCK_MS)
 
-  // House seeding: $30-$80 randomized, not 50/50
   useEffect(() => {
     if (!houseSeeded.current) {
       houseSeeded.current = true
@@ -88,7 +89,7 @@ export function useMarketLogic(
         ...prev,
         upPool,
         downPool,
-        poolHistory: [{ time: Date.now(), upPct, downPct: 100 - upPct }],
+        poolHistory: [{ time: Date.now(), upPct }],
       }))
     }
   }, [])
@@ -96,7 +97,7 @@ export function useMarketLogic(
   useEffect(() => {
     const tick = setInterval(() => {
       const now = Date.now()
-      const phase = getPhase(now, openStartMs.current, lockAtMs.current, graceEndMs.current, resolveAtMs.current)
+      const phase = getPhase(now, lockAtMs.current, graceEndMs.current, resolveAtMs.current)
       const remaining = phase === 'OPEN'
         ? lockAtMs.current - now
         : phase === 'LOCKED' || phase === 'GRACE'
@@ -108,21 +109,18 @@ export function useMarketLogic(
       setState(prev => {
         const next = { ...prev, phase, livePrice }
 
-        // Capture strike at lock moment
         if ((phase === 'LOCKED' || phase === 'GRACE' || phase === 'RESOLVED') && !strikeCaptured.current) {
           strikeCaptured.current = true
           next.strikePrice = livePrice
         }
 
-        // Record pool history every 3 seconds
         const total = next.upPool + next.downPool
         const upPct = total > 0 ? (next.upPool / total) * 100 : 50
         const lastHistory = prev.poolHistory[prev.poolHistory.length - 1]
         if (!lastHistory || now - lastHistory.time > 3000) {
-          next.poolHistory = [...prev.poolHistory.slice(-119), { time: now, upPct, downPct: 100 - upPct }]
+          next.poolHistory = [...prev.poolHistory.slice(-119), { time: now, upPct }]
         }
 
-        // Auto-resolve
         if (phase === 'RESOLVED' && !resolvedRef.current) {
           resolvedRef.current = true
           const strike = next.strikePrice ?? initialPrice
@@ -141,12 +139,17 @@ export function useMarketLogic(
   const placeBet = useCallback((side: 'UP' | 'DOWN', amount: number) => {
     setState(prev => {
       if (prev.phase !== 'OPEN') return prev
+      const newUpPool = side === 'UP' ? prev.upPool + amount : prev.upPool
+      const newDownPool = side === 'DOWN' ? prev.downPool + amount : prev.downPool
+      const total = newUpPool + newDownPool
+      const upPct = total > 0 ? (newUpPool / total) * 100 : 50
       return {
         ...prev,
-        upPool: side === 'UP' ? prev.upPool + amount : prev.upPool,
-        downPool: side === 'DOWN' ? prev.downPool + amount : prev.downPool,
+        upPool: newUpPool,
+        downPool: newDownPool,
         userUpStake: side === 'UP' ? prev.userUpStake + amount : prev.userUpStake,
         userDownStake: side === 'DOWN' ? prev.userDownStake + amount : prev.userDownStake,
+        poolHistory: [...prev.poolHistory.slice(-119), { time: Date.now(), upPct }],
       }
     })
   }, [])
@@ -185,14 +188,20 @@ export function useMarketLogic(
     ? userTotalStake * 0.8
     : 0
 
+  const totalPool = state.upPool + state.downPool
+  const upProbability = totalPool > 0 ? (state.upPool / totalPool) * 100 : 50
+  const cycleProgress = Math.min(1, (Date.now() - state.openStartMs) / CYCLE_MS)
+
   return {
     ...state,
     timeRemaining,
+    cycleProgress,
     canBet,
     canChickenOut,
     chickenOutRefund,
     placeBet,
     withdrawStake,
     userTotalStake,
+    upProbability,
   }
 }

@@ -17,7 +17,7 @@ export default function DuelPage() {
 
   return (
     <div className="min-h-screen bg-[#0D0D0D] text-white">
-      <Header activeBetsCount={3} balance={2138.00} />
+      <Header />
       <main className="max-w-2xl mx-auto px-4 py-8">
         <button onClick={() => router.push('/')} className="flex items-center gap-2 text-gray-400 hover:text-white transition mb-6">
           <ArrowLeft className="w-4 h-4" />
