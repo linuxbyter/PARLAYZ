@@ -6,22 +6,31 @@ import { useMarketLogic, type MarketPhase } from '@/src/hooks/useMarketLogic'
 import { SentimentChart } from '@/src/components/SentimentChart'
 import { INSTRUMENTS, formatPrice } from '@/src/lib/instruments'
 import { format } from 'date-fns'
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   TrendingUp, TrendingDown, CheckCircle, XCircle,
   AlertTriangle, ArrowLeft, Shield, Zap, Info, Swords,
-  Copy, Users, Clock, ArrowUpRight, ArrowLeftRight,
+  Copy, Users, Clock, ArrowUpRight, MessageSquare, Crown,
+  Send, Wallet, ArrowLeftRight, Star,
 } from 'lucide-react'
-import { useWallet } from '@/src/hooks/useWallet'
+import { useWallet, useCurrency } from '@/src/hooks/useWallet'
 
 interface FloatingBet { id: string; amount: number; x: number; y: number }
+interface Taunt { id: string; userId: string; username: string; message: string; timestamp: number; isPremium?: boolean }
+
+const MOCK_TAUNTS: Taunt[] = [
+  { id: 't1', userId: '0x1a2b', username: 'Maxtheillest', message: 'BTC going to the moon UP all the way!', timestamp: Date.now() - 60000, isPremium: true },
+  { id: 't2', userId: '0x3c4d', username: 'V2_Toxic', message: 'DOWN is the only way. Trust me bro', timestamp: Date.now() - 30000 },
+  { id: 't3', userId: '0x5e6f', username: 'AmadGotHoes', message: 'Just loaded 500 USDT. Lets gooo', timestamp: Date.now() - 15000, isPremium: true },
+]
 
 const MOCK_CHALLENGES = [
   { id: 'c1', user: '0x1a2b...3c4d', side: 'UP' as const, stake: 5, accepted: false },
   { id: 'c2', user: '0x5e6f...7a8b', side: 'DOWN' as const, stake: 10, accepted: false },
-  { id: 'c3', user: '0x9c0d...1e2f', side: 'UP' as const, stake: 2, accepted: false },
 ]
+
+const YELLOW_CARD_FEE_RATE = 0.02
 
 export default function MarketDetailPage() {
   const params = useParams()
@@ -29,13 +38,20 @@ export default function MarketDetailPage() {
   const id = params?.id as string
   const inst = INSTRUMENTS.find(i => i.id === id)
   const wallet = useWallet()
+  const { currency, displaySymbol } = useCurrency()
 
   const [livePrice, setLivePrice] = useState(inst?.initialPrice ?? 0)
   const [priceHistory, setPriceHistory] = useState<{ time: number; price: number }[]>([])
   const [floatingBets, setFloatingBets] = useState<FloatingBet[]>([])
   const [stakeAmount, setStakeAmount] = useState('1')
-  const [detailTab, setDetailTab] = useState<'pool' | 'duels'>('pool')
+  const [detailTab, setDetailTab] = useState<'pool' | 'duels' | 'chat'>('pool')
   const [challenges, setChallenges] = useState(MOCK_CHALLENGES)
+  const [taunts, setTaunts] = useState<Taunt[]>(MOCK_TAUNTS)
+  const [tauntInput, setTauntInput] = useState('')
+  const [showDeposit, setShowDeposit] = useState(false)
+  const [depositAmount, setDepositAmount] = useState('')
+  const [depositMethod, setDepositMethod] = useState<'mpesa' | 'card' | 'bank'>('mpesa')
+  const chatRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!inst) return
@@ -87,6 +103,31 @@ export default function MarketDetailPage() {
     setChallenges(prev => prev.map(c => c.id === duelId ? { ...c, accepted: true } : c))
   }, [])
 
+  const sendTaunt = useCallback(() => {
+    if (!tauntInput.trim()) return
+    const newTaunt: Taunt = {
+      id: crypto.randomUUID(),
+      userId: '0x' + Math.random().toString(16).slice(2, 6),
+      username: 'You',
+      message: tauntInput.trim(),
+      timestamp: Date.now(),
+      isPremium: Math.random() > 0.7,
+    }
+    setTaunts(prev => [...prev, newTaunt])
+    setTauntInput('')
+  }, [tauntInput])
+
+  const handleDeposit = useCallback(() => {
+    const amount = parseFloat(depositAmount)
+    if (!amount || amount <= 0) return
+    const fee = amount * YELLOW_CARD_FEE_RATE
+    const totalBillable = amount + fee
+    console.log('Yellow Card deposit:', amount, 'fee:', fee.toFixed(2), 'total:', totalBillable.toFixed(2))
+    wallet.addBalance(amount)
+    setShowDeposit(false)
+    setDepositAmount('')
+  }, [depositAmount, wallet])
+
   if (!inst) {
     return (
       <div className="min-h-screen bg-[#000000] text-white">
@@ -118,15 +159,11 @@ export default function MarketDetailPage() {
   }
   const pc = phaseConfig[market.phase]
 
-  const displayPrice = wallet.currency === 'KSH' ? market.livePrice * 125 : market.livePrice
-  const displayStrike = market.strikePrice ? (wallet.currency === 'KSH' ? market.strikePrice * 125 : market.strikePrice) : null
-  const pricePrefix = wallet.currency === 'KSH' ? 'KSh ' : '$'
-
   return (
     <div className="min-h-screen bg-[#000000] text-white">
       <Header />
 
-      <main className="max-w-5xl mx-auto px-4 py-6">
+      <main className="max-w-6xl mx-auto px-4 py-6">
         <div className="flex items-center justify-between mb-6">
           <button onClick={() => router.push('/')} className="flex items-center gap-2 text-gray-400 hover:text-white transition">
             <ArrowLeft className="w-4 h-4" />
@@ -145,20 +182,20 @@ export default function MarketDetailPage() {
             <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">{inst.label}</span>
           </div>
           <h1 className="text-2xl font-black text-white leading-tight">
-            {market.phase === 'OPEN' && <>Will {inst.label} go <span className="text-green-400">UP</span> or <span className="text-yellow-600">DOWN</span> in 5 minutes?</>}
-            {market.phase !== 'OPEN' && market.phase !== 'RESOLVED' && market.strikePrice && <>Will {inst.label} close above or below <span className="text-[#D4AF37] font-mono">{pricePrefix}{formatPrice(displayStrike ?? 0, inst.id)}</span> at {resolveTime}?</>}
-            {market.phase === 'RESOLVED' && market.resolution && <>{inst.label} closed <span className={market.resolution === 'UP' ? 'text-green-400' : 'text-yellow-600'}>{market.resolution}</span>{market.resolution === 'UP' ? ' ✅' : ' ❌'}</>}
+            {market.phase === 'OPEN' && <>Will {inst.label} go <span className="text-[#D4AF37]">UP</span> or <span className="text-yellow-600">DOWN</span> in 5 minutes?</>}
+            {market.phase !== 'OPEN' && market.phase !== 'RESOLVED' && market.strikePrice && <>Will {inst.label} close above or below <span className="text-[#D4AF37] font-mono">${formatPrice(market.strikePrice, inst.id)}</span> at {resolveTime}?</>}
+            {market.phase === 'RESOLVED' && market.resolution && <>{inst.label} closed <span className={market.resolution === 'UP' ? 'text-[#D4AF37]' : 'text-yellow-600'}>{market.resolution}</span>{market.resolution === 'UP' ? ' ✅' : ' ❌'}</>}
           </h1>
         </div>
 
         <div className="grid grid-cols-3 gap-4 mb-6">
           <div className="bg-[#111] border border-[#1F1F1F] rounded-2xl p-4">
             <p className="text-[9px] text-gray-600 uppercase font-bold tracking-widest mb-1">Live Price</p>
-            <p className="text-xl font-black font-mono text-white">{pricePrefix}{formatPrice(displayPrice, inst.id)}</p>
+            <p className="text-xl font-black font-mono text-white">${formatPrice(market.livePrice, inst.id)}</p>
           </div>
           <div className="bg-[#111] border border-[#1F1F1F] rounded-2xl p-4">
             <p className="text-[9px] text-gray-600 uppercase font-bold tracking-widest mb-1">Strike Price</p>
-            <p className="text-xl font-black font-mono text-[#D4AF37]">{displayStrike ? pricePrefix + formatPrice(displayStrike, inst.id) : '—'}</p>
+            <p className="text-xl font-black font-mono text-[#D4AF37]">{market.strikePrice ? '$' + formatPrice(market.strikePrice, inst.id) : '—'}</p>
           </div>
           <div className="bg-[#111] border border-[#1F1F1F] rounded-2xl p-4">
             <p className="text-[9px] text-gray-600 uppercase font-bold tracking-widest mb-1">Pool</p>
@@ -168,14 +205,22 @@ export default function MarketDetailPage() {
         </div>
 
         <div className="flex bg-[#111] border border-[#1F1F1F] rounded-xl p-1 gap-1 mb-6">
-          <button onClick={() => setDetailTab('pool')} className={'flex-1 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition ' + (detailTab === 'pool' ? 'bg-[#D4AF37] text-black' : 'text-gray-500 hover:text-white')}>Pool</button>
-          <button onClick={() => setDetailTab('duels')} className={'flex-1 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition ' + (detailTab === 'duels' ? 'bg-[#D4AF37] text-black' : 'text-gray-500 hover:text-white')}>Duels</button>
+          {[
+            { id: 'pool' as const, label: 'Pool', icon: TrendingUp },
+            { id: 'duels' as const, label: 'Duels', icon: Swords },
+            { id: 'chat' as const, label: 'Taunts', icon: MessageSquare },
+          ].map(tab => (
+            <button key={tab.id} onClick={() => setDetailTab(tab.id)} className={'flex-1 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition flex items-center justify-center gap-1.5 ' + (detailTab === tab.id ? 'bg-[#D4AF37] text-black' : 'text-gray-500 hover:text-white')}>
+              <tab.icon className="w-3.5 h-3.5" />
+              {tab.label}
+            </button>
+          ))}
         </div>
 
         {detailTab === 'pool' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
-              <SentimentChart data={market.poolHistory} height={240} frozen={market.phase !== 'OPEN'} />
+              <SentimentChart data={market.poolHistory} height={260} frozen={market.phase !== 'OPEN'} />
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-green-500/5 border border-green-500/20 rounded-2xl p-5 text-center">
@@ -225,7 +270,7 @@ export default function MarketDetailPage() {
                   <li>Source: Binance API</li>
                   {market.phase === 'OPEN' && <li className="text-green-400">Withdraw anytime: 100% refund</li>}
                   {market.phase === 'GRACE' && <li className="text-[#D4AF37]">Chicken Out: 80% refund, {remainingSecs}s left</li>}
-                  {market.phase === 'LOCKED' && <li className="text-gray-500">Locked in &mdash; no withdrawals</li>}
+                  {market.phase === 'LOCKED' && <li className="text-gray-500">Locked in — no withdrawals</li>}
                 </ul>
               </div>
             </div>
@@ -298,17 +343,20 @@ export default function MarketDetailPage() {
                 {market.canChickenOut && (
                   <button onClick={() => { handleWithdraw('UP'); if (market.userDownStake > 0) handleWithdraw('DOWN') }} className="w-full py-2.5 rounded-xl border border-[#D4AF37]/40 bg-[#D4AF37]/10 text-[#D4AF37] text-xs font-bold uppercase tracking-wider hover:bg-[#D4AF37]/20 transition flex items-center justify-center gap-2 mb-4">
                     <AlertTriangle className="w-4 h-4" />
-                    Chicken Out &mdash; {market.chickenOutRefund.toFixed(2)} USDT
+                    Chicken Out — {market.chickenOutRefund.toFixed(2)} USDT
                   </button>
                 )}
                 {market.phase === 'RESOLVED' && market.resolution && (
                   <div className="bg-gray-500/10 rounded-xl p-4 text-center mb-4">
-                    {market.resolution === 'UP' ? <CheckCircle className="w-8 h-8 text-green-400 mx-auto mb-2" /> : <XCircle className="w-8 h-8 text-yellow-600 mx-auto mb-2" />}
+                    {market.resolution === 'UP' ? <CheckCircle className="w-8 h-8 text-[#D4AF37] mx-auto mb-2" /> : <XCircle className="w-8 h-8 text-yellow-600 mx-auto mb-2" />}
                     <p className="text-sm font-bold text-gray-300">{market.resolution} Won</p>
                   </div>
                 )}
-                <div className="flex gap-2 mt-4">
-                  <button disabled className="flex-1 opacity-50 cursor-not-allowed py-2 rounded-xl border text-[10px] font-bold uppercase tracking-wider border-[#1F1F1F] bg-[#1a1a1a] text-gray-400">Deposit</button>
+                <button onClick={() => setShowDeposit(true)} className="w-full py-2.5 rounded-xl border border-[#D4AF37]/40 bg-[#D4AF37]/10 text-[#D4AF37] text-xs font-bold uppercase tracking-wider hover:bg-[#D4AF37]/20 transition flex items-center justify-center gap-2 mb-2">
+                  <Wallet className="w-4 h-4" />
+                  Deposit via Yellow Card
+                </button>
+                <div className="flex gap-2">
                   <button disabled className="flex-1 opacity-50 cursor-not-allowed py-2 rounded-xl border text-[10px] font-bold uppercase tracking-wider border-[#1F1F1F] bg-[#1a1a1a] text-gray-400">Withdraw</button>
                 </div>
               </div>
@@ -364,12 +412,91 @@ export default function MarketDetailPage() {
             </div>
           </div>
         )}
+
+        {detailTab === 'chat' && (
+          <div className="max-w-3xl mx-auto">
+            <div className="bg-[#111] border border-[#1F1F1F] rounded-2xl overflow-hidden">
+              <div className="flex items-center justify-between p-4 border-b border-[#1F1F1F]">
+                <h4 className="text-sm font-bold uppercase tracking-wider text-gray-400 flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4" /> Market Taunts
+                </h4>
+                <span className="text-[10px] text-gray-500">{taunts.length} messages</span>
+              </div>
+              <div ref={chatRef} className="h-80 overflow-y-auto p-4 space-y-3">
+                <AnimatePresence>
+                  {taunts.map(taunt => (
+                    <motion.div key={taunt.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex items-start gap-3">
+                      <div className={'w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ' + (taunt.isPremium ? 'bg-gradient-to-br from-[#D4AF37] to-[#B8960C] text-black' : 'bg-[#1a1a1a] text-gray-400')}>
+                        {taunt.isPremium ? <Crown className="w-3.5 h-3.5" /> : taunt.userId.slice(0, 2).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className={'text-xs font-bold ' + (taunt.isPremium ? 'text-[#D4AF37]' : 'text-white')}>{taunt.username}</span>
+                          {taunt.isPremium && <Star className="w-3 h-3 text-[#D4AF37] fill-[#D4AF37]" />}
+                          <span className="text-[9px] text-gray-600">{Math.floor((Date.now() - taunt.timestamp) / 1000)}s ago</span>
+                        </div>
+                        <p className="text-sm text-gray-300">{taunt.message}</p>
+                      </div>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </div>
+              <div className="p-4 border-t border-[#1F1F1F]">
+                <div className="flex items-center gap-2">
+                  <input value={tauntInput} onChange={e => setTauntInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendTaunt()} placeholder="Send a taunt..." className="flex-1 bg-[#0a0a0a] border border-[#1F1F1F] text-white rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#D4AF37] placeholder:text-gray-600" />
+                  <button onClick={sendTaunt} className="p-2.5 rounded-xl bg-[#D4AF37] text-black hover:bg-[#c4a030] transition">
+                    <Send className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
 
+      {/* Deposit Modal */}
+      {showDeposit && (
+        <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={() => setShowDeposit(false)}>
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-[#111] border border-[#1F1F1F] rounded-3xl w-full max-w-md p-6 relative" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setShowDeposit(false)} className="absolute top-4 right-4 text-gray-500 hover:text-white transition">✕</button>
+            <h3 className="text-xl font-black text-white mb-1">Deposit USDT</h3>
+            <p className="text-sm text-gray-400 mb-4">Powered by Yellow Card • 2% processing fee</p>
+            <div className="grid grid-cols-3 gap-2 mb-4">
+              {[{ id: 'mpesa' as const, label: 'M-Pesa', icon: '📱' }, { id: 'card' as const, label: 'Card', icon: '💳' }, { id: 'bank' as const, label: 'Bank', icon: '🏦' }].map(m => (
+                <button key={m.id} onClick={() => setDepositMethod(m.id)} className={'py-3 rounded-xl text-xs font-bold transition border flex flex-col items-center gap-1 ' + (depositMethod === m.id ? 'bg-[#D4AF37]/20 border-[#D4AF37] text-[#D4AF37]' : 'border-[#1F1F1F] bg-[#1a1a1a] text-gray-400')}>
+                  <span className="text-lg">{m.icon}</span>{m.label}
+                </button>
+              ))}
+            </div>
+            <div className="mb-4">
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">Amount (USDT)</label>
+              <div className="grid grid-cols-3 gap-2 mb-2">
+                {[10, 50, 100].map(amt => (
+                  <button key={amt} onClick={() => setDepositAmount(String(amt))} className={'py-2 rounded-lg text-xs font-bold transition border ' + (depositAmount === String(amt) ? 'bg-[#D4AF37] border-[#D4AF37] text-black' : 'border-[#1F1F1F] bg-[#1a1a1a] text-gray-400')}>{amt}</button>
+                ))}
+              </div>
+              <input type="number" value={depositAmount} onChange={e => setDepositAmount(e.target.value)} placeholder="Custom amount" className="w-full bg-[#0a0a0a] border border-[#1F1F1F] text-white rounded-xl p-3 focus:outline-none focus:border-[#D4AF37] font-mono" />
+            </div>
+            {depositAmount && parseFloat(depositAmount) > 0 && (
+              <div className="bg-[#0a0a0a] rounded-xl p-3 mb-4 space-y-1.5">
+                <div className="flex justify-between text-xs"><span className="text-gray-500">Deposit</span><span className="text-white font-mono">{depositAmount} USDT</span></div>
+                <div className="flex justify-between text-xs"><span className="text-gray-500">Yellow Card Fee (2%)</span><span className="text-[#D4AF37] font-mono">{(parseFloat(depositAmount) * YELLOW_CARD_FEE_RATE).toFixed(2)} USDT</span></div>
+                <div className="flex justify-between text-xs pt-1.5 border-t border-[#1F1F1F]"><span className="text-gray-500 font-bold">Total to Pay</span><span className="text-[#D4AF37] font-mono font-bold">{(parseFloat(depositAmount) * (1 + YELLOW_CARD_FEE_RATE)).toFixed(2)} USDT</span></div>
+              </div>
+            )}
+            <button onClick={handleDeposit} disabled={!depositAmount || parseFloat(depositAmount) <= 0} className="w-full bg-gradient-to-r from-[#D4AF37] to-[#F0D060] text-black font-bold py-3 rounded-xl text-sm uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition">
+              {depositAmount ? 'Pay ' + (parseFloat(depositAmount) * (1 + YELLOW_CARD_FEE_RATE)).toFixed(2) + ' USDT via Yellow Card' : 'Enter Amount'}
+            </button>
+            <p className="text-[9px] text-gray-600 text-center mt-3">Yellow Card Payments • M-Pesa, Visa, Bank Transfer</p>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Floating Bet Animations */}
       <AnimatePresence>
         {floatingBets.map(bet => (
           <motion.div key={bet.id} initial={{ opacity: 1, y: bet.y }} animate={{ opacity: 0, y: bet.y - 40 }} exit={{ opacity: 0 }} transition={{ duration: 1.2, ease: 'easeOut' }} className="fixed pointer-events-none z-50" style={{ left: bet.x - 30 }}>
-            <span className="text-sm font-bold text-green-400 font-mono">+{bet.amount} USDT</span>
+            <span className="text-sm font-bold text-[#D4AF37] font-mono">+{bet.amount} USDT</span>
           </motion.div>
         ))}
       </AnimatePresence>
