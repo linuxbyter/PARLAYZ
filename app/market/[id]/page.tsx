@@ -6,13 +6,13 @@ import { useMarketLogic, type MarketPhase } from '@/src/hooks/useMarketLogic'
 import { SentimentChart } from '@/src/components/SentimentChart'
 import { INSTRUMENTS, formatPrice } from '@/src/lib/instruments'
 import { format } from 'date-fns'
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   TrendingUp, TrendingDown, ArrowLeft, Zap, Info, Clock,
-  MessageSquare, ChevronDown, Star, Crown, Send, Wallet,
+  MessageSquare, Star, Crown, Send, Wallet,
   ArrowUpRight, ArrowDownLeft, BarChart3, Users, Shield,
-  AlertTriangle, CheckCircle, XCircle, Copy, Swords,
+  AlertTriangle, CheckCircle, XCircle, Copy, Swords, ChevronDown,
 } from 'lucide-react'
 import { useWallet, useCurrency } from '@/src/hooks/useWallet'
 
@@ -42,6 +42,8 @@ const MOCK_COMMENTS: Comment[] = [
   { id: 'c3', user: 'AmadGotHoes', avatar: 'A', message: 'Just loaded 500 USDT. Going heavy on YES', time: Date.now() - 60000, likes: 23, isPremium: true },
 ]
 
+type Timeframe = '1m' | '5m' | '15m' | '1h' | 'all'
+
 export default function MarketDetailPage() {
   const params = useParams()
   const router = useRouter()
@@ -55,6 +57,7 @@ export default function MarketDetailPage() {
   const [floatingBets, setFloatingBets] = useState<FloatingBet[]>([])
   const [stakeAmount, setStakeAmount] = useState('10')
   const [activeTab, setActiveTab] = useState<'chart' | 'orders' | 'comments'>('chart')
+  const [timeframe, setTimeframe] = useState<Timeframe>('5m')
   const [commentInput, setCommentInput] = useState('')
   const [comments, setComments] = useState<Comment[]>(MOCK_COMMENTS)
   const [orders] = useState<OrderBookEntry[]>(MOCK_ORDERS)
@@ -63,6 +66,7 @@ export default function MarketDetailPage() {
   const [noPrice, setNoPrice] = useState(33)
   const [showDeposit, setShowDeposit] = useState(false)
   const [depositAmount, setDepositAmount] = useState('')
+  const [sellAmount, setSellAmount] = useState<string>('')
 
   useEffect(() => {
     if (!inst) return
@@ -103,6 +107,25 @@ export default function MarketDetailPage() {
     setTimeout(() => setFloatingBets(prev => prev.filter(b => b.id !== bid)), 1500)
   }, [market, wallet])
 
+  const handleSell = useCallback((side: 'UP' | 'DOWN', amount: number) => {
+    const currentStake = side === 'UP' ? market.userUpStake : market.userDownStake
+    if (amount <= 0 || amount > currentStake) return
+
+    const remaining = currentStake - amount
+    const refundRate = market.phase === 'OPEN' ? 1.0 : 0.8
+    const refund = amount * refundRate
+
+    if (side === 'UP') {
+      market.placeBet('DOWN', amount - refund)
+    } else {
+      market.placeBet('UP', amount - refund)
+    }
+
+    wallet.addBalance(refund)
+    wallet.decrementActiveBets()
+    setSellAmount('')
+  }, [market, wallet])
+
   const sendComment = useCallback(() => {
     if (!commentInput.trim()) return
     setComments(prev => [...prev, {
@@ -117,13 +140,21 @@ export default function MarketDetailPage() {
     setCommentInput('')
   }, [commentInput])
 
+  const filteredHistory = useMemo(() => {
+    if (timeframe === 'all') return market.poolHistory
+    const now = Date.now()
+    const limits: Record<Timeframe, number> = { '1m': 60000, '5m': 300000, '15m': 900000, '1h': 3600000, 'all': Infinity }
+    const cutoff = now - (limits[timeframe] || Infinity)
+    return market.poolHistory.filter(p => p.time >= cutoff)
+  }, [market.poolHistory, timeframe])
+
   if (!inst) {
     return (
       <div className="min-h-screen bg-[#000000] text-white">
         <Header />
         <main className="max-w-4xl mx-auto px-4 py-20 text-center">
           <h2 className="text-2xl font-black text-white mb-2">Market not found</h2>
-          <button onClick={() => router.push('/')} className="text-[#D4AF37] hover:underline mt-4 inline-block">Back to Markets</button>
+          <button onClick={() => router.push('/')} className="text-[#C5A059] hover:underline mt-4 inline-block">Back to Markets</button>
         </main>
       </div>
     )
@@ -137,13 +168,24 @@ export default function MarketDetailPage() {
   const remainingSecs = Math.floor((market.timeRemaining % 60000) / 1000)
   const timeStr = remainingMins + ':' + String(remainingSecs).padStart(2, '0')
 
+  // Calculate specific time range
+  const openStart = new Date(market.openStartMs)
+  const openEnd = new Date(market.lockAtMs)
+  const startMin = openStart.getMinutes()
+  const endMin = openEnd.getMinutes()
+  const timeRange = `${String(startMin).padStart(2, '0')} to ${String(endMin).padStart(2, '0')}`
+
   const phaseConfig: Record<MarketPhase, { badge: string; color: string; dot: string; border: string }> = {
-    OPEN: { badge: 'OPEN', color: 'gold', dot: 'bg-[#D4AF37] animate-pulse', border: 'border border-[#D4AF37]/20' },
-    LOCKED: { badge: 'LOCKED', color: 'gold', dot: 'bg-[#D4AF37] animate-pulse', border: 'border-2 border-[#D4AF37]/60' },
-    GRACE: { badge: 'GRACE', color: 'gold', dot: 'bg-[#D4AF37] animate-pulse', border: 'border-2 border-[#D4AF37]/80' },
-    RESOLVED: { badge: 'RESOLVED', color: 'brass', dot: 'bg-yellow-700', border: 'border border-yellow-700/30' },
+    OPEN: { badge: 'OPEN', color: 'gold', dot: 'bg-[#C5A059] animate-pulse', border: 'border border-[#C5A059]/20' },
+    LOCKED: { badge: 'LOCKED', color: 'gold', dot: 'bg-[#B8860B] animate-pulse', border: 'border-2 border-[#B8860B]/60' },
+    GRACE: { badge: 'GRACE', color: 'gold', dot: 'bg-[#B8860B] animate-pulse', border: 'border-2 border-[#B8860B]/80' },
+    RESOLVED: { badge: 'RESOLVED', color: 'brass', dot: 'bg-[#B8860B]', border: 'border border-[#B8860B]/30' },
   }
   const pc = phaseConfig[market.phase]
+
+  // Can sell during OPEN (100%) or GRACE (80%)
+  const canSell = market.phase === 'OPEN' || market.phase === 'GRACE'
+  const sellRefundRate = market.phase === 'OPEN' ? 1.0 : 0.8
 
   return (
     <div className="min-h-screen bg-[#000000] text-white">
@@ -158,16 +200,19 @@ export default function MarketDetailPage() {
             </button>
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <Zap className="w-3.5 h-3.5 text-[#D4AF37]" />
+                <Zap className="w-3.5 h-3.5 text-[#C5A059]" />
                 <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">{inst.label}</span>
-                <div className={'flex items-center gap-1.5 px-2 py-0.5 rounded-full ' + (pc.color === 'gold' ? 'bg-[#D4AF37]/10 border border-[#D4AF37]/30' : 'bg-yellow-700/10 border border-yellow-700/30')}>
+                <div className={'flex items-center gap-1.5 px-2 py-0.5 rounded-full ' + (pc.color === 'gold' ? 'bg-[#C5A059]/10 border border-[#C5A059]/30' : 'bg-[#B8860B]/10 border border-[#B8860B]/30')}>
                   <div className={'w-1.5 h-1.5 rounded-full ' + pc.dot} />
-                  <span className={'text-[10px] font-bold uppercase ' + (pc.color === 'gold' ? 'text-[#D4AF37]' : 'text-yellow-700')}>{pc.badge}</span>
+                  <span className={'text-[10px] font-bold uppercase ' + (pc.color === 'gold' ? 'text-[#C5A059]' : 'text-[#B8860B]')}>{pc.badge}</span>
                 </div>
               </div>
               <h1 className="text-lg font-black text-white leading-tight">
-                Will {inst.label} close above ${formatPrice(livePrice, inst.id)} in the next 5 minutes?
+                Will {inst.label} go UP or DOWN in the next 5 minutes?
               </h1>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Market {timeRange} • Locks at {lockTime} • Resolves at {resolveTime}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -177,7 +222,7 @@ export default function MarketDetailPage() {
             </div>
             <div className="text-right">
               <p className="text-[9px] text-gray-600 uppercase font-bold">Time Left</p>
-              <p className="text-xs font-mono font-bold text-[#D4AF37]">{timeStr}</p>
+              <p className="text-xs font-mono font-bold text-[#C5A059]">{timeStr}</p>
             </div>
           </div>
         </div>
@@ -220,7 +265,7 @@ export default function MarketDetailPage() {
                 { id: 'orders' as const, label: 'Order Book', icon: Users },
                 { id: 'comments' as const, label: 'Comments', icon: MessageSquare },
               ].map(tab => (
-                <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={'flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition flex items-center justify-center gap-1.5 ' + (activeTab === tab.id ? 'bg-[#D4AF37] text-black' : 'text-gray-500 hover:text-white')}>
+                <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={'flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition flex items-center justify-center gap-1.5 ' + (activeTab === tab.id ? 'bg-[#C5A059] text-black' : 'text-gray-500 hover:text-white')}>
                   <tab.icon className="w-3.5 h-3.5" />
                   {tab.label}
                 </button>
@@ -233,6 +278,14 @@ export default function MarketDetailPage() {
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Probability Chart</h3>
                   <div className="flex items-center gap-3">
+                    {/* Timeframe Selector */}
+                    <div className="flex bg-[#0a0a0a] rounded-lg p-0.5 gap-0.5">
+                      {(['1m', '5m', '15m', '1h', 'all'] as Timeframe[]).map(tf => (
+                        <button key={tf} onClick={() => setTimeframe(tf)} className={'px-2 py-1 rounded text-[10px] font-bold transition ' + (timeframe === tf ? 'bg-[#C5A059] text-black' : 'text-gray-500 hover:text-white')}>
+                          {tf}
+                        </button>
+                      ))}
+                    </div>
                     <div className="flex items-center gap-1.5">
                       <div className="w-2 h-2 rounded-full bg-green-500" />
                       <span className="text-[10px] text-gray-500">YES {yesPrice}%</span>
@@ -243,7 +296,7 @@ export default function MarketDetailPage() {
                     </div>
                   </div>
                 </div>
-                <SentimentChart data={market.poolHistory} height={280} frozen={market.phase !== 'OPEN'} />
+                <SentimentChart data={filteredHistory} height={280} frozen={market.phase !== 'OPEN'} />
               </div>
             )}
 
@@ -266,7 +319,7 @@ export default function MarketDetailPage() {
                           <span className="text-right text-gray-500 relative z-10">{(o.price * o.shares / 100).toFixed(0)}</span>
                         </div>
                       ))}
-                      <div className="py-1.5 text-center text-sm font-black text-[#D4AF37] font-mono border-y border-[#1F1F1F] my-1">
+                      <div className="py-1.5 text-center text-sm font-black text-[#C5A059] font-mono border-y border-[#1F1F1F] my-1">
                         {yesPrice}¢
                       </div>
                       {orders.filter(o => o.type === 'bid').map((o, i) => (
@@ -302,21 +355,21 @@ export default function MarketDetailPage() {
                   <AnimatePresence>
                     {comments.map(c => (
                       <motion.div key={c.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex items-start gap-3">
-                        <div className={'w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ' + (c.isPremium ? 'bg-gradient-to-br from-[#D4AF37] to-[#B8960C] text-black' : 'bg-[#1a1a1a] text-gray-400')}>
+                        <div className={'w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ' + (c.isPremium ? 'bg-gradient-to-br from-[#C5A059] to-[#B8860B] text-black' : 'bg-[#1a1a1a] text-gray-400')}>
                           {c.isPremium ? <Crown className="w-3.5 h-3.5" /> : c.avatar}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-0.5">
-                            <span className={'text-xs font-bold ' + (c.isPremium ? 'text-[#D4AF37]' : 'text-white')}>{c.user}</span>
-                            {c.isPremium && <Star className="w-3 h-3 text-[#D4AF37] fill-[#D4AF37]" />}
+                            <span className={'text-xs font-bold ' + (c.isPremium ? 'text-[#C5A059]' : 'text-white')}>{c.user}</span>
+                            {c.isPremium && <Star className="w-3 h-3 text-[#C5A059] fill-[#C5A059]" />}
                             <span className="text-[9px] text-gray-600">{Math.floor((Date.now() - c.time) / 1000)}s ago</span>
                           </div>
                           <p className="text-sm text-gray-300">{c.message}</p>
                           <div className="flex items-center gap-3 mt-1.5">
-                            <button className="text-[10px] text-gray-500 hover:text-[#D4AF37] transition flex items-center gap-1">
+                            <button className="text-[10px] text-gray-500 hover:text-[#C5A059] transition flex items-center gap-1">
                               <ArrowUpRight className="w-3 h-3" /> {c.likes}
                             </button>
-                            <button className="text-[10px] text-gray-500 hover:text-[#D4AF37] transition">Reply</button>
+                            <button className="text-[10px] text-gray-500 hover:text-[#C5A059] transition">Reply</button>
                           </div>
                         </div>
                       </motion.div>
@@ -325,8 +378,8 @@ export default function MarketDetailPage() {
                 </div>
                 <div className="p-3 border-t border-[#1F1F1F]">
                   <div className="flex items-center gap-2">
-                    <input value={commentInput} onChange={e => setCommentInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendComment()} placeholder="Share your analysis..." className="flex-1 bg-[#0a0a0a] border border-[#1F1F1F] text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#D4AF37] placeholder:text-gray-600" />
-                    <button onClick={sendComment} className="p-2 rounded-lg bg-[#D4AF37] text-black hover:bg-[#c4a030] transition">
+                    <input value={commentInput} onChange={e => setCommentInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendComment()} placeholder="Share your analysis..." className="flex-1 bg-[#0a0a0a] border border-[#1F1F1F] text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#C5A059] placeholder:text-gray-600" />
+                    <button onClick={sendComment} className="p-2 rounded-lg bg-[#C5A059] text-black hover:bg-[#B8860B] transition">
                       <Send className="w-4 h-4" />
                     </button>
                   </div>
@@ -346,7 +399,7 @@ export default function MarketDetailPage() {
                 </div>
                 <div className="text-center">
                   <p className="text-[9px] text-gray-600 uppercase font-bold">Locks</p>
-                  <p className="text-sm font-mono font-bold text-[#D4AF37]">{lockTime}</p>
+                  <p className="text-sm font-mono font-bold text-[#C5A059]">{lockTime}</p>
                 </div>
                 <div className="text-center">
                   <p className="text-[9px] text-gray-600 uppercase font-bold">Resolves</p>
@@ -367,55 +420,84 @@ export default function MarketDetailPage() {
                 <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2 block">Stake Amount</label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-mono text-sm">$</span>
-                  <input type="number" value={stakeAmount} onChange={e => setStakeAmount(e.target.value)} className="w-full bg-[#0a0a0a] border border-[#1F1F1F] text-white rounded-lg pl-7 pr-3 py-2.5 text-sm font-mono focus:outline-none focus:border-[#D4AF37]" />
+                  <input type="number" value={stakeAmount} onChange={e => setStakeAmount(e.target.value)} className="w-full bg-[#0a0a0a] border border-[#1F1F1F] text-white rounded-lg pl-7 pr-3 py-2.5 text-sm font-mono focus:outline-none focus:border-[#C5A059]" />
                 </div>
                 <div className="grid grid-cols-4 gap-1.5 mt-2">
                   {[5, 10, 25, 50].map(amt => (
-                    <button key={amt} onClick={() => setStakeAmount(String(amt))} className={'py-1.5 rounded text-[10px] font-bold transition border ' + (stakeAmount === String(amt) ? 'bg-[#D4AF37] border-[#D4AF37] text-black' : 'border-[#1F1F1F] bg-[#1a1a1a] text-gray-400 hover:border-[#D4AF37]/50')}>{amt}</button>
+                    <button key={amt} onClick={() => setStakeAmount(String(amt))} className={'py-1.5 rounded text-[10px] font-bold transition border ' + (stakeAmount === String(amt) ? 'bg-[#C5A059] border-[#C5A059] text-black' : 'border-[#1F1F1F] bg-[#1a1a1a] text-gray-400 hover:border-[#C5A059]/50')}>{amt}</button>
                   ))}
                 </div>
               </div>
 
+              {/* Position Management */}
               {(market.userUpStake > 0 || market.userDownStake > 0) && (
-                <div className="bg-[#0a0a0a] rounded-lg p-3 space-y-2">
+                <div className="bg-[#0a0a0a] rounded-lg p-3 space-y-3">
                   <h4 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
-                    <Shield className="w-3.5 h-3.5" /> Your Position
+                    <Shield className="w-3.5 h-3.5" /> Your Positions
                   </h4>
                   {market.userUpStake > 0 && (
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-green-500" />
-                        <span className="text-xs font-bold text-green-400">YES</span>
-                        <span className="text-xs text-gray-400 font-mono">{market.userUpStake.toFixed(2)} USDT</span>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-green-500" />
+                          <span className="text-xs font-bold text-green-400">YES</span>
+                          <span className="text-xs text-gray-400 font-mono">{market.userUpStake.toFixed(2)} USDT</span>
+                        </div>
                       </div>
-                      {market.canChickenOut && (
-                        <button onClick={() => market.withdrawStake('UP')} className="text-[9px] text-[#D4AF37] hover:underline">Sell</button>
+                      {canSell && (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            placeholder="Sell amount"
+                            value={sellAmount}
+                            onChange={e => setSellAmount(e.target.value)}
+                            className="flex-1 bg-[#111] border border-[#1F1F1F] text-white rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-[#C5A059]"
+                          />
+                          <button
+                            onClick={() => handleSell('UP', parseFloat(sellAmount) || market.userUpStake)}
+                            className="px-3 py-1 rounded bg-[#C5A059]/20 border border-[#C5A059]/40 text-[#C5A059] text-[10px] font-bold uppercase hover:bg-[#C5A059]/30 transition whitespace-nowrap"
+                          >
+                            Sell ({sellRefundRate * 100}%)
+                          </button>
+                        </div>
                       )}
                     </div>
                   )}
                   {market.userDownStake > 0 && (
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-red-500" />
-                        <span className="text-xs font-bold text-red-400">NO</span>
-                        <span className="text-xs text-gray-400 font-mono">{market.userDownStake.toFixed(2)} USDT</span>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-red-500" />
+                          <span className="text-xs font-bold text-red-400">NO</span>
+                          <span className="text-xs text-gray-400 font-mono">{market.userDownStake.toFixed(2)} USDT</span>
+                        </div>
                       </div>
-                      {market.canChickenOut && (
-                        <button onClick={() => market.withdrawStake('DOWN')} className="text-[9px] text-[#D4AF37] hover:underline">Sell</button>
+                      {canSell && (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            placeholder="Sell amount"
+                            value={sellAmount}
+                            onChange={e => setSellAmount(e.target.value)}
+                            className="flex-1 bg-[#111] border border-[#1F1F1F] text-white rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-[#C5A059]"
+                          />
+                          <button
+                            onClick={() => handleSell('DOWN', parseFloat(sellAmount) || market.userDownStake)}
+                            className="px-3 py-1 rounded bg-[#C5A059]/20 border border-[#C5A059]/40 text-[#C5A059] text-[10px] font-bold uppercase hover:bg-[#C5A059]/30 transition whitespace-nowrap"
+                          >
+                            Sell ({sellRefundRate * 100}%)
+                          </button>
+                        </div>
                       )}
                     </div>
+                  )}
+                  {!canSell && market.phase !== 'RESOLVED' && (
+                    <p className="text-[10px] text-gray-500 text-center">Position locked — cannot sell</p>
                   )}
                 </div>
               )}
 
-              {market.canChickenOut && (
-                <button onClick={() => { market.withdrawStake('UP'); if (market.userDownStake > 0) market.withdrawStake('DOWN') }} className="w-full py-2 rounded-lg border border-[#D4AF37]/40 bg-[#D4AF37]/10 text-[#D4AF37] text-xs font-bold uppercase hover:bg-[#D4AF37]/20 transition flex items-center justify-center gap-2">
-                  <AlertTriangle className="w-3.5 h-3.5" />
-                  Sell Position ({market.chickenOutRefund.toFixed(2)} USDT)
-                </button>
-              )}
-
-              <button onClick={() => setShowDeposit(true)} className="w-full py-2.5 rounded-lg border border-[#D4AF37]/40 bg-[#D4AF37]/10 text-[#D4AF37] text-xs font-bold uppercase hover:bg-[#D4AF37]/20 transition flex items-center justify-center gap-2">
+              <button onClick={() => setShowDeposit(true)} className="w-full py-2.5 rounded-lg border border-[#C5A059]/40 bg-[#C5A059]/10 text-[#C5A059] text-xs font-bold uppercase hover:bg-[#C5A059]/20 transition flex items-center justify-center gap-2">
                 <Wallet className="w-4 h-4" />
                 Deposit
               </button>
@@ -441,9 +523,9 @@ export default function MarketDetailPage() {
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-[#111] border border-[#1F1F1F] rounded-2xl w-full max-w-md p-6 relative" onClick={e => e.stopPropagation()}>
             <button onClick={() => setShowDeposit(false)} className="absolute top-4 right-4 text-gray-500 hover:text-white">✕</button>
             <h3 className="text-lg font-black text-white mb-1">Deposit USDT</h3>
-            <p className="text-sm text-gray-400 mb-4">Powered by Yellow Card</p>
-            <input type="number" value={depositAmount} onChange={e => setDepositAmount(e.target.value)} placeholder="Amount (USDT)" className="w-full bg-[#0a0a0a] border border-[#1F1F1F] text-white rounded-xl p-3 mb-4 font-mono focus:outline-none focus:border-[#D4AF37]" />
-            <button onClick={() => { wallet.addBalance(parseFloat(depositAmount) || 0); setShowDeposit(false); setDepositAmount('') }} className="w-full bg-gradient-to-r from-[#D4AF37] to-[#F0D060] text-black font-bold py-3 rounded-xl text-sm uppercase hover:opacity-90 transition">
+            <p className="text-sm text-gray-400 mb-4">Powered by Yellow Card • 2% processing fee</p>
+            <input type="number" value={depositAmount} onChange={e => setDepositAmount(e.target.value)} placeholder="Amount (USDT)" className="w-full bg-[#0a0a0a] border border-[#1F1F1F] text-white rounded-xl p-3 mb-4 font-mono focus:outline-none focus:border-[#C5A059]" />
+            <button onClick={() => { wallet.addBalance(parseFloat(depositAmount) || 0); setShowDeposit(false); setDepositAmount('') }} className="w-full bg-gradient-to-r from-[#C5A059] to-[#B8860B] text-black font-bold py-3 rounded-xl text-sm uppercase hover:opacity-90 transition">
               Deposit
             </button>
           </motion.div>
@@ -454,7 +536,7 @@ export default function MarketDetailPage() {
       <AnimatePresence>
         {floatingBets.map(bet => (
           <motion.div key={bet.id} initial={{ opacity: 1, y: bet.y }} animate={{ opacity: 0, y: bet.y - 40 }} exit={{ opacity: 0 }} transition={{ duration: 1.2, ease: 'easeOut' }} className="fixed pointer-events-none z-50" style={{ left: bet.x - 30 }}>
-            <span className="text-sm font-bold text-[#D4AF37] font-mono">+{bet.amount} USDT</span>
+            <span className="text-sm font-bold text-[#C5A059] font-mono">+{bet.amount} USDT</span>
           </motion.div>
         ))}
       </AnimatePresence>

@@ -36,12 +36,12 @@ export const SentimentChart: React.FC<SentimentChartProps> = ({ data, height = 2
       <div className="flex items-center justify-between mb-2">
         <div>
           <h4 className="text-[10px] font-bold uppercase tracking-wider text-gray-500">UP Probability</h4>
-          <p className="text-2xl font-black font-mono text-[#D4AF37]">
+          <p className="text-2xl font-black font-mono text-[#C5A059]">
             {currentProb.toFixed(1)}%
           </p>
         </div>
         {frozen && (
-          <span className="text-[10px] font-bold uppercase tracking-widest text-amber-400 bg-amber-500/10 px-2 py-1 rounded">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-[#B8860B] bg-[#B8860B]/10 px-2 py-1 rounded">
             Locked
           </span>
         )}
@@ -50,8 +50,8 @@ export const SentimentChart: React.FC<SentimentChartProps> = ({ data, height = 2
         <AreaChart data={chartData}>
           <defs>
             <linearGradient id="goldGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#D4AF37" stopOpacity="0.3" />
-              <stop offset="100%" stopColor="#D4AF37" stopOpacity="0" />
+              <stop offset="0%" stopColor="#C5A059" stopOpacity="0.3" />
+              <stop offset="100%" stopColor="#C5A059" stopOpacity="0" />
             </linearGradient>
           </defs>
           <XAxis
@@ -72,7 +72,7 @@ export const SentimentChart: React.FC<SentimentChartProps> = ({ data, height = 2
           <Area
             type="monotone"
             dataKey="probability"
-            stroke="#D4AF37"
+            stroke="#C5A059"
             strokeWidth={2}
             fill="url(#goldGradient)"
             isAnimationActive={false}
