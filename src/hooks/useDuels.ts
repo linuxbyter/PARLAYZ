@@ -1,10 +1,11 @@
 'use client'
 
 import { useCallback } from 'react'
-import { supabase } from '@/src/lib/supabase'
+import { supabase, isSupabaseReady } from '@/src/lib/supabase'
 
 export function useDuels() {
   const createChallenge = useCallback(async (marketId: string, side: 'UP' | 'DOWN', stake: number, durationMinutes: number = 10) => {
+    if (!isSupabaseReady || !supabase) throw new Error('Supabase not configured')
     const { data, error } = await supabase.rpc('create_duel_challenge', {
       p_market_id: marketId,
       p_side: side,
@@ -16,6 +17,7 @@ export function useDuels() {
   }, [])
 
   const acceptChallenge = useCallback(async (duelId: string, stake: number) => {
+    if (!isSupabaseReady || !supabase) throw new Error('Supabase not configured')
     const { data, error } = await supabase.rpc('accept_duel', {
       p_duel_id: duelId,
       p_stake: stake,
@@ -25,6 +27,7 @@ export function useDuels() {
   }, [])
 
   const getOpenChallenges = useCallback(async (marketId: string) => {
+    if (!isSupabaseReady || !supabase) return []
     const { data, error } = await supabase
       .from('duel_challenges')
       .select('*')
