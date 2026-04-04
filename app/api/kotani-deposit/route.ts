@@ -13,40 +13,46 @@ const supabase = createClient(
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { amount, phone, userId, username } = body
+    const { amount, phone, userId, username, method } = body
 
     if (!amount || amount < 1) {
       return NextResponse.json({ error: 'Minimum deposit is 1 USDT' }, { status: 400 })
-    }
-
-    if (!phone) {
-      return NextResponse.json({ error: 'Phone number required' }, { status: 400 })
     }
 
     if (!userId) {
       return NextResponse.json({ error: 'User ID required' }, { status: 400 })
     }
 
-    // Kotani deposit via bank checkout (mobile money)
+    // Build payload based on method
+    const payload: Record<string, any> = {
+      amount: parseFloat(amount),
+      currency: 'USDT',
+      network: 'base',
+      user_id: userId,
+      callback_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/webhook/kotani`,
+      metadata: { username: username || 'Parlayz User', platform: 'parlayz' },
+    }
+
+    if (method === 'mpesa') {
+      payload.phone = phone
+    } else if (method === 'card') {
+      payload.card_number = body.cardNumber
+      payload.card_expiry = body.cardExpiry
+      payload.card_cvv = body.cardCvv
+    } else if (method === 'bank') {
+      payload.account_number = body.accountNumber
+      payload.bank_name = body.bankName
+    }
+
+    // Kotani API v3 with Bearer auth
     const kotaniRes = await fetch(`${KOTANI_BASE_URL}/deposit/bank/checkout`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': KOTANI_API_KEY!,
+        'Authorization': `Bearer ${KOTANI_API_KEY}`,
         'x-api-secret': KOTANI_API_SECRET!,
       },
-      body: JSON.stringify({
-        amount: parseFloat(amount),
-        currency: 'USDT',
-        network: 'base',
-        phone: phone,
-        user_id: userId,
-        callback_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/webhook/kotani`,
-        metadata: {
-          username: username || 'Parlayz User',
-          platform: 'parlayz',
-        },
-      }),
+      body: JSON.stringify(payload),
     })
 
     const kotaniData = await kotaniRes.json()
@@ -59,7 +65,6 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Log deposit in Supabase
     await supabase.from('deposits').insert({
       user_id: userId,
       amount: parseFloat(amount),
@@ -76,13 +81,10 @@ export async function POST(req: NextRequest) {
       success: true,
       checkout_url: kotaniData.data?.checkout_url || kotaniData.data?.url,
       checkout_id: kotaniData.data?.checkout_id || kotaniData.data?.id,
-      message: 'Checkout created. User will receive M-Pesa prompt.',
+      message: 'Checkout created.',
     })
   } catch (error) {
     console.error('Kotani deposit error:', error)
-    return NextResponse.json(
-      { error: 'Failed to create checkout' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to create checkout' }, { status: 500 })
   }
 }

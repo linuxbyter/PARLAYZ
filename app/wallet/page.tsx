@@ -8,124 +8,6 @@ import { useWallet, useCurrency } from '@/src/hooks/useWallet'
 import { ArrowUpRight, ArrowDownToLine, Wallet, Smartphone, CreditCard, Building2, Copy, CheckCircle, Loader2, AlertCircle, RefreshCw } from 'lucide-react'
 import { useState, useCallback } from 'react'
 
-function WithdrawForm({ balance, userId, onClose }: { balance: number; userId?: string; onClose: () => void }) {
-  const [amount, setAmount] = useState('')
-  const [phone, setPhone] = useState('')
-  const [status, setStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle')
-  const [message, setMessage] = useState('')
-
-  const handleWithdraw = async () => {
-    const amt = parseFloat(amount)
-    if (!amt || amt < 1) {
-      setMessage('Minimum withdrawal is 1 USDT')
-      setStatus('error')
-      return
-    }
-    if (!phone) {
-      setMessage('Enter your M-Pesa phone number')
-      setStatus('error')
-      return
-    }
-    if (amt > balance) {
-      setMessage('Insufficient balance')
-      setStatus('error')
-      return
-    }
-
-    setStatus('processing')
-    setMessage('Processing withdrawal...')
-
-    try {
-      const res = await fetch('/api/kotani-withdraw', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: amt, phone, userId }),
-      })
-      const data = await res.json()
-      if (data.success) {
-        setStatus('success')
-        setMessage(`${amt} USDT withdrawal initiated. Funds will arrive in M-Pesa shortly.`)
-        setAmount('')
-        setPhone('')
-      } else {
-        setStatus('error')
-        setMessage(data.error || 'Withdrawal failed')
-      }
-    } catch (error) {
-      console.error('Withdraw error:', error)
-      setStatus('error')
-      setMessage('Network error. Try again.')
-    }
-  }
-
-  if (status === 'success') {
-    return (
-      <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-6 text-center">
-        <CheckCircle className="w-8 h-8 text-green-400 mx-auto mb-3" />
-        <p className="text-sm font-bold text-green-400 mb-1">Withdrawal Initiated</p>
-        <p className="text-xs text-gray-400">{message}</p>
-      </div>
-    )
-  }
-
-  if (status === 'error') {
-    return (
-      <div className="space-y-4">
-        <div className="bg-yellow-600/10 border border-yellow-600/30 rounded-xl p-4 text-center">
-          <AlertCircle className="w-8 h-8 text-yellow-600 mx-auto mb-2" />
-          <p className="text-sm font-bold text-yellow-600 mb-1">Error</p>
-          <p className="text-xs text-gray-400">{message}</p>
-        </div>
-        <button onClick={() => setStatus('idle')} className="w-full bg-[#111] border border-[#1F1F1F] text-white font-bold py-3 rounded-xl text-sm hover:border-[#C5A059]/50 transition">Try Again</button>
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-4">
-      <div>
-        <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">M-Pesa Phone</label>
-        <input type="tel" placeholder="0712345678" value={phone} onChange={e => setPhone(e.target.value)} className="w-full bg-[#0a0a0a] border border-[#1F1F1F] text-white rounded-xl p-3 focus:outline-none focus:border-[#C5A059] transition font-mono text-sm" />
-      </div>
-      <div>
-        <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Amount (USDT)</label>
-        <div className="grid grid-cols-3 gap-2 mb-2">
-          {[5, 10, 25].map(amt => (
-            <button key={amt} onClick={() => setAmount(String(amt))} className={`rounded-lg py-2 text-xs font-bold transition border ${amount === String(amt) ? 'bg-[#C5A059] border-[#C5A059] text-black' : 'border-[#1F1F1F] bg-[#1a1a1a] text-gray-400 hover:border-[#C5A059]/50'}`}>{amt}</button>
-          ))}
-        </div>
-        <input type="number" placeholder="Custom amount" value={amount} onChange={e => setAmount(e.target.value)} step="0.1" className="w-full bg-[#0a0a0a] border border-[#1F1F1F] text-white rounded-xl p-3 focus:outline-none focus:border-[#C5A059] transition font-mono text-sm" />
-        <p className="text-[10px] text-gray-600 mt-1">Available: {balance.toFixed(2)} USDT</p>
-      </div>
-      <div className="grid grid-cols-3 gap-2">
-        <div className="flex flex-col items-center gap-1.5 bg-[#0a0a0a] border border-[#1F1F1F] rounded-xl p-3">
-          <Smartphone className="w-5 h-5 text-[#C5A059]" />
-          <span className="text-[9px] text-gray-400 font-bold">M-Pesa</span>
-        </div>
-        <div className="flex flex-col items-center gap-1.5 bg-[#0a0a0a] border border-[#1F1F1F] rounded-xl p-3 opacity-50">
-          <Building2 className="w-5 h-5 text-[#C5A059]" />
-          <span className="text-[9px] text-gray-400 font-bold">Bank</span>
-        </div>
-        <div className="flex flex-col items-center gap-1.5 bg-[#0a0a0a] border border-[#1F1F1F] rounded-xl p-3 opacity-50">
-          <CreditCard className="w-5 h-5 text-[#C5A059]" />
-          <span className="text-[9px] text-gray-400 font-bold">Card</span>
-        </div>
-      </div>
-      {status === 'processing' ? (
-        <div className="bg-[#C5A059]/10 border border-[#C5A059]/30 rounded-xl p-4 text-center">
-          <Loader2 className="w-6 h-6 text-[#C5A059] animate-spin mx-auto mb-2" />
-          <p className="text-sm font-bold text-[#C5A059]">{message}</p>
-        </div>
-      ) : (
-        <button onClick={handleWithdraw} disabled={!amount || !phone} className="w-full bg-gradient-to-r from-[#C5A059] to-[#B8860B] text-black font-bold py-3 rounded-xl text-sm uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition">
-          <ArrowDownToLine className="w-4 h-4 inline mr-1" />
-          Withdraw to M-Pesa
-        </button>
-      )}
-    </div>
-  )
-}
-
 export const dynamic = 'force-dynamic'
 
 const USDT_CONTRACT = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
@@ -147,7 +29,13 @@ export default function WalletPage() {
   const [depositStatus, setDepositStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle')
   const [depositMessage, setDepositMessage] = useState('')
   const [depositAmount, setDepositAmount] = useState('')
+  const [depositMethod, setDepositMethod] = useState<'mpesa' | 'card' | 'bank'>('mpesa')
   const [depositPhone, setDepositPhone] = useState('')
+  const [cardNumber, setCardNumber] = useState('')
+  const [cardExpiry, setCardExpiry] = useState('')
+  const [cardCvv, setCardCvv] = useState('')
+  const [bankAccount, setBankAccount] = useState('')
+  const [bankName, setBankName] = useState('')
   const [copied, setCopied] = useState(false)
 
   const onChainBalance = parseFloat(balance?.formatted || '0')
@@ -167,8 +55,19 @@ export default function WalletPage() {
       setDepositStatus('error')
       return
     }
-    if (!depositPhone) {
+
+    if (depositMethod === 'mpesa' && !depositPhone) {
       setDepositMessage('Enter your M-Pesa phone number')
+      setDepositStatus('error')
+      return
+    }
+    if (depositMethod === 'card' && (!cardNumber || !cardExpiry || !cardCvv)) {
+      setDepositMessage('Enter all card details')
+      setDepositStatus('error')
+      return
+    }
+    if (depositMethod === 'bank' && (!bankAccount || !bankName)) {
+      setDepositMessage('Enter bank account details')
       setDepositStatus('error')
       return
     }
@@ -185,6 +84,12 @@ export default function WalletPage() {
           phone: depositPhone,
           userId: user?.id,
           username: user?.username || user?.emailAddresses?.[0]?.emailAddress?.split('@')[0] || 'Parlayz User',
+          method: depositMethod,
+          cardNumber,
+          cardExpiry,
+          cardCvv,
+          accountNumber: bankAccount,
+          bankName,
         }),
       })
 
@@ -192,12 +97,16 @@ export default function WalletPage() {
 
       if (data.success) {
         setDepositStatus('success')
-        setDepositMessage(`${amount} USDT checkout created! Check your phone for M-Pesa prompt.`)
+        setDepositMessage(`${amount} USDT checkout created! Check your phone for prompt.`)
         setDepositAmount('')
         setDepositPhone('')
+        setCardNumber('')
+        setCardExpiry('')
+        setCardCvv('')
+        setBankAccount('')
+        setBankName('')
         appWallet.addBalance(amount)
 
-        // Open Kotani checkout URL if provided
         if (data.checkout_url) {
           window.open(data.checkout_url, '_blank', 'width=480,height=640')
         }
@@ -302,73 +211,80 @@ export default function WalletPage() {
             <button onClick={() => setShowDepositModal(false)} className="absolute top-4 right-4 text-gray-500 hover:text-white transition">✕</button>
 
             <h3 className="text-lg font-black text-white mb-1">Deposit USDT</h3>
-            <p className="text-sm text-gray-400 mb-4">Powered by Kotani Pay • M-Pesa, Card, Bank</p>
+            <p className="text-sm text-gray-400 mb-4">Powered by Kotani Pay</p>
 
             {depositStatus === 'idle' && (
               <div className="space-y-4">
-                {/* Phone Input */}
-                <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">M-Pesa Phone</label>
-                  <input
-                    type="tel"
-                    placeholder="0712345678"
-                    value={depositPhone}
-                    onChange={e => setDepositPhone(e.target.value)}
-                    className="w-full bg-[#0a0a0a] border border-[#1F1F1F] text-white rounded-xl p-3 focus:outline-none focus:border-[#C5A059] transition font-mono text-sm"
-                  />
+                {/* Payment Method Selection */}
+                <div className="grid grid-cols-3 gap-2">
+                  <button onClick={() => setDepositMethod('mpesa')} className={`flex flex-col items-center gap-1.5 rounded-xl p-3 border transition ${depositMethod === 'mpesa' ? 'bg-[#C5A059]/20 border-[#C5A059] text-[#C5A059]' : 'bg-[#0a0a0a] border-[#1F1F1F] text-gray-400 hover:border-[#C5A059]/50'}`}>
+                    <Smartphone className="w-5 h-5" />
+                    <span className="text-[9px] font-bold">M-Pesa</span>
+                  </button>
+                  <button onClick={() => setDepositMethod('card')} className={`flex flex-col items-center gap-1.5 rounded-xl p-3 border transition ${depositMethod === 'card' ? 'bg-[#C5A059]/20 border-[#C5A059] text-[#C5A059]' : 'bg-[#0a0a0a] border-[#1F1F1F] text-gray-400 hover:border-[#C5A059]/50'}`}>
+                    <CreditCard className="w-5 h-5" />
+                    <span className="text-[9px] font-bold">Card</span>
+                  </button>
+                  <button onClick={() => setDepositMethod('bank')} className={`flex flex-col items-center gap-1.5 rounded-xl p-3 border transition ${depositMethod === 'bank' ? 'bg-[#C5A059]/20 border-[#C5A059] text-[#C5A059]' : 'bg-[#0a0a0a] border-[#1F1F1F] text-gray-400 hover:border-[#C5A059]/50'}`}>
+                    <Building2 className="w-5 h-5" />
+                    <span className="text-[9px] font-bold">Bank</span>
+                  </button>
                 </div>
+
+                {/* Method-Specific Inputs */}
+                {depositMethod === 'mpesa' && (
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">M-Pesa Phone Number</label>
+                    <input type="tel" placeholder="0712345678" value={depositPhone} onChange={e => setDepositPhone(e.target.value)} className="w-full bg-[#0a0a0a] border border-[#1F1F1F] text-white rounded-xl p-3 focus:outline-none focus:border-[#C5A059] transition font-mono text-sm" />
+                  </div>
+                )}
+
+                {depositMethod === 'card' && (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Card Number</label>
+                      <input type="text" placeholder="1234 5678 9012 3456" value={cardNumber} onChange={e => setCardNumber(e.target.value)} className="w-full bg-[#0a0a0a] border border-[#1F1F1F] text-white rounded-xl p-3 focus:outline-none focus:border-[#C5A059] transition font-mono text-sm" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Expiry</label>
+                        <input type="text" placeholder="MM/YY" value={cardExpiry} onChange={e => setCardExpiry(e.target.value)} className="w-full bg-[#0a0a0a] border border-[#1F1F1F] text-white rounded-xl p-3 focus:outline-none focus:border-[#C5A059] transition font-mono text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">CVV</label>
+                        <input type="text" placeholder="123" value={cardCvv} onChange={e => setCardCvv(e.target.value)} className="w-full bg-[#0a0a0a] border border-[#1F1F1F] text-white rounded-xl p-3 focus:outline-none focus:border-[#C5A059] transition font-mono text-sm" />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {depositMethod === 'bank' && (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Bank Name</label>
+                      <input type="text" placeholder="Equity Bank" value={bankName} onChange={e => setBankName(e.target.value)} className="w-full bg-[#0a0a0a] border border-[#1F1F1F] text-white rounded-xl p-3 focus:outline-none focus:border-[#C5A059] transition text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Account Number</label>
+                      <input type="text" placeholder="1234567890" value={bankAccount} onChange={e => setBankAccount(e.target.value)} className="w-full bg-[#0a0a0a] border border-[#1F1F1F] text-white rounded-xl p-3 focus:outline-none focus:border-[#C5A059] transition font-mono text-sm" />
+                    </div>
+                  </div>
+                )}
 
                 {/* Amount Input */}
                 <div>
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Amount (USDT)</label>
                   <div className="grid grid-cols-3 gap-2 mb-2">
                     {[10, 50, 100].map(amt => (
-                      <button
-                        key={amt}
-                        onClick={() => setDepositAmount(String(amt))}
-                        className={`rounded-lg py-2 text-xs font-bold transition border ${
-                          depositAmount === String(amt)
-                            ? 'bg-[#C5A059] border-[#C5A059] text-black'
-                            : 'border-[#1F1F1F] bg-[#1a1a1a] text-gray-400 hover:border-[#C5A059]/50'
-                        }`}
-                      >
-                        {amt}
-                      </button>
+                      <button key={amt} onClick={() => setDepositAmount(String(amt))} className={`rounded-lg py-2 text-xs font-bold transition border ${depositAmount === String(amt) ? 'bg-[#C5A059] border-[#C5A059] text-black' : 'border-[#1F1F1F] bg-[#1a1a1a] text-gray-400 hover:border-[#C5A059]/50'}`}>{amt}</button>
                     ))}
                   </div>
-                  <input
-                    type="number"
-                    placeholder="Custom amount"
-                    value={depositAmount}
-                    onChange={e => setDepositAmount(e.target.value)}
-                    step="0.1"
-                    className="w-full bg-[#0a0a0a] border border-[#1F1F1F] text-white rounded-xl p-3 focus:outline-none focus:border-[#C5A059] transition font-mono text-sm"
-                  />
+                  <input type="number" placeholder="Custom amount" value={depositAmount} onChange={e => setDepositAmount(e.target.value)} step="0.1" className="w-full bg-[#0a0a0a] border border-[#1F1F1F] text-white rounded-xl p-3 focus:outline-none focus:border-[#C5A059] transition font-mono text-sm" />
                 </div>
 
-                {/* Payment Methods */}
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="flex flex-col items-center gap-1.5 bg-[#0a0a0a] border border-[#1F1F1F] rounded-xl p-3">
-                    <Smartphone className="w-5 h-5 text-[#C5A059]" />
-                    <span className="text-[9px] text-gray-400 font-bold">M-Pesa</span>
-                  </div>
-                  <div className="flex flex-col items-center gap-1.5 bg-[#0a0a0a] border border-[#1F1F1F] rounded-xl p-3">
-                    <CreditCard className="w-5 h-5 text-[#C5A059]" />
-                    <span className="text-[9px] text-gray-400 font-bold">Card</span>
-                  </div>
-                  <div className="flex flex-col items-center gap-1.5 bg-[#0a0a0a] border border-[#1F1F1F] rounded-xl p-3">
-                    <Building2 className="w-5 h-5 text-[#C5A059]" />
-                    <span className="text-[9px] text-gray-400 font-bold">Bank</span>
-                  </div>
-                </div>
-
-                <button
-                  onClick={handleDeposit}
-                  disabled={!depositAmount || !depositPhone}
-                  className="w-full bg-gradient-to-r from-[#C5A059] to-[#B8860B] text-black font-bold py-3 rounded-xl text-sm uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition"
-                >
+                <button onClick={handleDeposit} disabled={!depositAmount} className="w-full bg-gradient-to-r from-[#C5A059] to-[#B8860B] text-black font-bold py-3 rounded-xl text-sm uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition">
                   <ArrowUpRight className="w-4 h-4 inline mr-1" />
-                  Deposit USDT
+                  Deposit {depositAmount ? depositAmount + ' USDT' : ''}
                 </button>
               </div>
             )}
@@ -390,10 +306,13 @@ export default function WalletPage() {
             )}
 
             {depositStatus === 'error' && (
-              <div className="bg-yellow-600/10 border border-yellow-600/30 rounded-xl p-6 text-center">
-                <AlertCircle className="w-8 h-8 text-yellow-600 mx-auto mb-3" />
-                <p className="text-sm font-bold text-yellow-600 mb-1">Error</p>
-                <p className="text-xs text-gray-400">{depositMessage}</p>
+              <div className="space-y-4">
+                <div className="bg-yellow-600/10 border border-yellow-600/30 rounded-xl p-6 text-center">
+                  <AlertCircle className="w-8 h-8 text-yellow-600 mx-auto mb-3" />
+                  <p className="text-sm font-bold text-yellow-600 mb-1">Error</p>
+                  <p className="text-xs text-gray-400">{depositMessage}</p>
+                </div>
+                <button onClick={() => setDepositStatus('idle')} className="w-full bg-[#111] border border-[#1F1F1F] text-white font-bold py-3 rounded-xl text-sm hover:border-[#C5A059]/50 transition">Try Again</button>
               </div>
             )}
 
@@ -409,13 +328,103 @@ export default function WalletPage() {
         <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={() => setShowWithdrawModal(false)}>
           <div className="bg-[#111] border border-[#1F1F1F] rounded-2xl w-full max-w-md p-6 relative" onClick={e => e.stopPropagation()}>
             <button onClick={() => setShowWithdrawModal(false)} className="absolute top-4 right-4 text-gray-500 hover:text-white transition">✕</button>
-
             <h3 className="text-lg font-black text-white mb-1">Withdraw to M-Pesa</h3>
             <p className="text-sm text-gray-400 mb-4">Powered by Kotani Pay • USDT → KSh</p>
-
             <WithdrawForm balance={appWallet.balance} userId={user?.id} onClose={() => setShowWithdrawModal(false)} />
           </div>
         </div>
+      )}
+    </div>
+  )
+}
+
+function WithdrawForm({ balance, userId, onClose }: { balance: number; userId?: string; onClose: () => void }) {
+  const [amount, setAmount] = useState('')
+  const [phone, setPhone] = useState('')
+  const [status, setStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle')
+  const [message, setMessage] = useState('')
+
+  const handleWithdraw = async () => {
+    const amt = parseFloat(amount)
+    if (!amt || amt < 1) { setMessage('Minimum withdrawal is 1 USDT'); setStatus('error'); return }
+    if (!phone) { setMessage('Enter your M-Pesa phone number'); setStatus('error'); return }
+    if (amt > balance) { setMessage('Insufficient balance'); setStatus('error'); return }
+
+    setStatus('processing')
+    setMessage('Processing withdrawal...')
+
+    try {
+      const res = await fetch('/api/kotani-withdraw', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: amt, phone, userId }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setStatus('success')
+        setMessage(`${amt} USDT withdrawal initiated. Funds will arrive in M-Pesa shortly.`)
+        setAmount('')
+        setPhone('')
+      } else {
+        setStatus('error')
+        setMessage(data.error || 'Withdrawal failed')
+      }
+    } catch (error) {
+      console.error('Withdraw error:', error)
+      setStatus('error')
+      setMessage('Network error. Try again.')
+    }
+  }
+
+  if (status === 'success') {
+    return (
+      <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-6 text-center">
+        <CheckCircle className="w-8 h-8 text-green-400 mx-auto mb-3" />
+        <p className="text-sm font-bold text-green-400 mb-1">Withdrawal Initiated</p>
+        <p className="text-xs text-gray-400">{message}</p>
+      </div>
+    )
+  }
+
+  if (status === 'error') {
+    return (
+      <div className="space-y-4">
+        <div className="bg-yellow-600/10 border border-yellow-600/30 rounded-xl p-4 text-center">
+          <AlertCircle className="w-8 h-8 text-yellow-600 mx-auto mb-2" />
+          <p className="text-sm font-bold text-yellow-600 mb-1">Error</p>
+          <p className="text-xs text-gray-400">{message}</p>
+        </div>
+        <button onClick={() => setStatus('idle')} className="w-full bg-[#111] border border-[#1F1F1F] text-white font-bold py-3 rounded-xl text-sm hover:border-[#C5A059]/50 transition">Try Again</button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">M-Pesa Phone</label>
+        <input type="tel" placeholder="0712345678" value={phone} onChange={e => setPhone(e.target.value)} className="w-full bg-[#0a0a0a] border border-[#1F1F1F] text-white rounded-xl p-3 focus:outline-none focus:border-[#C5A059] transition font-mono text-sm" />
+      </div>
+      <div>
+        <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Amount (USDT)</label>
+        <div className="grid grid-cols-3 gap-2 mb-2">
+          {[5, 10, 25].map(amt => (
+            <button key={amt} onClick={() => setAmount(String(amt))} className={`rounded-lg py-2 text-xs font-bold transition border ${amount === String(amt) ? 'bg-[#C5A059] border-[#C5A059] text-black' : 'border-[#1F1F1F] bg-[#1a1a1a] text-gray-400 hover:border-[#C5A059]/50'}`}>{amt}</button>
+          ))}
+        </div>
+        <input type="number" placeholder="Custom amount" value={amount} onChange={e => setAmount(e.target.value)} step="0.1" className="w-full bg-[#0a0a0a] border border-[#1F1F1F] text-white rounded-xl p-3 focus:outline-none focus:border-[#C5A059] transition font-mono text-sm" />
+        <p className="text-[10px] text-gray-600 mt-1">Available: {balance.toFixed(2)} USDT</p>
+      </div>
+      {status === 'processing' ? (
+        <div className="bg-[#C5A059]/10 border border-[#C5A059]/30 rounded-xl p-4 text-center">
+          <Loader2 className="w-6 h-6 text-[#C5A059] animate-spin mx-auto mb-2" />
+          <p className="text-sm font-bold text-[#C5A059]">{message}</p>
+        </div>
+      ) : (
+        <button onClick={handleWithdraw} disabled={!amount || !phone} className="w-full bg-gradient-to-r from-[#C5A059] to-[#B8860B] text-black font-bold py-3 rounded-xl text-sm uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition">
+          <ArrowDownToLine className="w-4 h-4 inline mr-1" />
+          Withdraw to M-Pesa
+        </button>
       )}
     </div>
   )

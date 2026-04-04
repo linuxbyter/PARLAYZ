@@ -13,13 +13,15 @@ import {
   MessageSquare, Star, Crown, Send, Wallet,
   ArrowUpRight, ArrowDownLeft, BarChart3, Users, Shield,
   AlertTriangle, CheckCircle, XCircle, Copy, Swords, ChevronDown,
+  DollarSign, Target, Flame,
 } from 'lucide-react'
 import { useWallet, useCurrency } from '@/src/hooks/useWallet'
 
-interface FloatingBet { id: string; amount: number; x: number; y: number }
+interface FloatingBet { id: string; amount: number; x: number; y: number; side: 'YES' | 'NO' }
 interface OrderBookEntry { price: number; shares: number; type: 'bid' | 'ask' }
 interface Trade { id: string; side: 'YES' | 'NO'; price: number; shares: number; time: number }
 interface Comment { id: string; user: string; avatar: string; message: string; time: number; likes: number; isPremium: boolean }
+interface UserBet { id: string; side: 'YES' | 'NO'; amount: number; estPayout: number; time: number }
 
 const MOCK_ORDERS: OrderBookEntry[] = [
   { price: 72, shares: 150, type: 'ask' },
@@ -67,6 +69,7 @@ export default function MarketDetailPage() {
   const [showDeposit, setShowDeposit] = useState(false)
   const [depositAmount, setDepositAmount] = useState('')
   const [sellAmount, setSellAmount] = useState<string>('')
+  const [userBets, setUserBets] = useState<UserBet[]>([])
 
   useEffect(() => {
     if (!inst) return
@@ -101,17 +104,27 @@ export default function MarketDetailPage() {
     market.placeBet(poolSide, amount)
     wallet.subtractBalance(amount)
     wallet.incrementActiveBets()
+
+    const price = side === 'YES' ? yesPrice : noPrice
+    const estPayout = amount * (100 / price)
+    setUserBets(prev => [...prev, {
+      id: crypto.randomUUID(),
+      side,
+      amount,
+      estPayout,
+      time: Date.now(),
+    }])
+
     const rect = (e.target as HTMLElement).getBoundingClientRect()
     const bid = crypto.randomUUID()
-    setFloatingBets(prev => [...prev, { id: bid, amount, x: rect.left + rect.width / 2, y: rect.top }])
+    setFloatingBets(prev => [...prev, { id: bid, amount, x: rect.left + rect.width / 2, y: rect.top, side }])
     setTimeout(() => setFloatingBets(prev => prev.filter(b => b.id !== bid)), 1500)
-  }, [market, wallet])
+  }, [market, wallet, yesPrice, noPrice])
 
   const handleSell = useCallback((side: 'UP' | 'DOWN', amount: number) => {
     const currentStake = side === 'UP' ? market.userUpStake : market.userDownStake
     if (amount <= 0 || amount > currentStake) return
 
-    const remaining = currentStake - amount
     const refundRate = market.phase === 'OPEN' ? 1.0 : 0.8
     const refund = amount * refundRate
 
@@ -148,6 +161,10 @@ export default function MarketDetailPage() {
     return market.poolHistory.filter(p => p.time >= cutoff)
   }, [market.poolHistory, timeframe])
 
+  const totalActiveStake = userBets.reduce((s, b) => s + b.amount, 0)
+  const totalEstPayout = userBets.reduce((s, b) => s + b.estPayout, 0)
+  const totalEstProfit = totalEstPayout - totalActiveStake
+
   if (!inst) {
     return (
       <div className="min-h-screen bg-[#000000] text-white">
@@ -168,7 +185,6 @@ export default function MarketDetailPage() {
   const remainingSecs = Math.floor((market.timeRemaining % 60000) / 1000)
   const timeStr = remainingMins + ':' + String(remainingSecs).padStart(2, '0')
 
-  // Calculate specific time range
   const openStart = new Date(market.openStartMs)
   const openEnd = new Date(market.lockAtMs)
   const startMin = openStart.getMinutes()
@@ -183,7 +199,6 @@ export default function MarketDetailPage() {
   }
   const pc = phaseConfig[market.phase]
 
-  // Can sell during OPEN (100%) or GRACE (80%)
   const canSell = market.phase === 'OPEN' || market.phase === 'GRACE'
   const sellRefundRate = market.phase === 'OPEN' ? 1.0 : 0.8
 
@@ -226,6 +241,48 @@ export default function MarketDetailPage() {
             </div>
           </div>
         </div>
+
+        {/* My Bets - Dopamine Section */}
+        {userBets.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-gradient-to-r from-green-500/10 via-[#C5A059]/10 to-green-500/10 border border-green-500/20 rounded-xl p-4 mb-4"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-black uppercase tracking-wider text-green-400 flex items-center gap-2">
+                <Flame className="w-4 h-4 text-green-400" />
+                My Bets
+              </h3>
+              <div className="flex items-center gap-4">
+                <div className="text-right">
+                  <p className="text-[9px] text-gray-500 uppercase font-bold">Active Stake</p>
+                  <p className="text-lg font-black font-mono text-white">{totalActiveStake.toFixed(2)} USDT</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[9px] text-green-500 uppercase font-bold">Est. Payout</p>
+                  <p className="text-lg font-black font-mono text-green-400">{totalEstPayout.toFixed(2)} USDT</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[9px] text-green-500 uppercase font-bold">Est. Profit</p>
+                  <p className="text-lg font-black font-mono text-green-400">+{totalEstProfit.toFixed(2)}</p>
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {userBets.map(bet => (
+                <div key={bet.id} className="bg-[#0a0a0a] border border-[#1F1F1F] rounded-lg px-3 py-2 min-w-[140px] shrink-0">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className={'text-[10px] font-bold ' + (bet.side === 'YES' ? 'text-green-400' : 'text-red-400')}>{bet.side}</span>
+                    <span className="text-[9px] text-gray-500">{Math.floor((Date.now() - bet.time) / 1000)}s ago</span>
+                  </div>
+                  <p className="text-xs font-mono font-bold text-white">{bet.amount.toFixed(2)} USDT</p>
+                  <p className="text-[10px] font-mono text-green-400">→ {bet.estPayout.toFixed(2)} USDT</p>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* LEFT: Chart + Order Book + Comments */}
@@ -278,7 +335,6 @@ export default function MarketDetailPage() {
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Probability Chart</h3>
                   <div className="flex items-center gap-3">
-                    {/* Timeframe Selector */}
                     <div className="flex bg-[#0a0a0a] rounded-lg p-0.5 gap-0.5">
                       {(['1m', '5m', '15m', '1h', 'all'] as Timeframe[]).map(tf => (
                         <button key={tf} onClick={() => setTimeframe(tf)} className={'px-2 py-1 rounded text-[10px] font-bold transition ' + (timeframe === tf ? 'bg-[#C5A059] text-black' : 'text-gray-500 hover:text-white')}>
@@ -523,7 +579,7 @@ export default function MarketDetailPage() {
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-[#111] border border-[#1F1F1F] rounded-2xl w-full max-w-md p-6 relative" onClick={e => e.stopPropagation()}>
             <button onClick={() => setShowDeposit(false)} className="absolute top-4 right-4 text-gray-500 hover:text-white">✕</button>
             <h3 className="text-lg font-black text-white mb-1">Deposit USDT</h3>
-            <p className="text-sm text-gray-400 mb-4">Powered by Yellow Card • 2% processing fee</p>
+            <p className="text-sm text-gray-400 mb-4">Powered by Kotani Pay</p>
             <input type="number" value={depositAmount} onChange={e => setDepositAmount(e.target.value)} placeholder="Amount (USDT)" className="w-full bg-[#0a0a0a] border border-[#1F1F1F] text-white rounded-xl p-3 mb-4 font-mono focus:outline-none focus:border-[#C5A059]" />
             <button onClick={() => { wallet.addBalance(parseFloat(depositAmount) || 0); setShowDeposit(false); setDepositAmount('') }} className="w-full bg-gradient-to-r from-[#C5A059] to-[#B8860B] text-black font-bold py-3 rounded-xl text-sm uppercase hover:opacity-90 transition">
               Deposit
