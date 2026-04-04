@@ -76,7 +76,7 @@ export default function WalletPage() {
     setDepositMessage('Creating checkout...')
 
     try {
-      const res = await fetch('/api/kotani-deposit', {
+      const res = await fetch('/api/kotani/deposit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -354,7 +354,7 @@ function WithdrawForm({ balance, userId, onClose }: { balance: number; userId?: 
     setMessage('Processing withdrawal...')
 
     try {
-      const res = await fetch('/api/kotani-withdraw', {
+      const res = await fetch('/api/kotani/withdraw', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ amount: amt, phone, userId }),
