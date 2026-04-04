@@ -8,6 +8,124 @@ import { useWallet, useCurrency } from '@/src/hooks/useWallet'
 import { ArrowUpRight, ArrowDownToLine, Wallet, Smartphone, CreditCard, Building2, Copy, CheckCircle, Loader2, AlertCircle, RefreshCw } from 'lucide-react'
 import { useState, useCallback } from 'react'
 
+function WithdrawForm({ balance, userId, onClose }: { balance: number; userId?: string; onClose: () => void }) {
+  const [amount, setAmount] = useState('')
+  const [phone, setPhone] = useState('')
+  const [status, setStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle')
+  const [message, setMessage] = useState('')
+
+  const handleWithdraw = async () => {
+    const amt = parseFloat(amount)
+    if (!amt || amt < 1) {
+      setMessage('Minimum withdrawal is 1 USDT')
+      setStatus('error')
+      return
+    }
+    if (!phone) {
+      setMessage('Enter your M-Pesa phone number')
+      setStatus('error')
+      return
+    }
+    if (amt > balance) {
+      setMessage('Insufficient balance')
+      setStatus('error')
+      return
+    }
+
+    setStatus('processing')
+    setMessage('Processing withdrawal...')
+
+    try {
+      const res = await fetch('/api/kotani-withdraw', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: amt, phone, userId }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        setStatus('success')
+        setMessage(`${amt} USDT withdrawal initiated. Funds will arrive in M-Pesa shortly.`)
+        setAmount('')
+        setPhone('')
+      } else {
+        setStatus('error')
+        setMessage(data.error || 'Withdrawal failed')
+      }
+    } catch (error) {
+      console.error('Withdraw error:', error)
+      setStatus('error')
+      setMessage('Network error. Try again.')
+    }
+  }
+
+  if (status === 'success') {
+    return (
+      <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-6 text-center">
+        <CheckCircle className="w-8 h-8 text-green-400 mx-auto mb-3" />
+        <p className="text-sm font-bold text-green-400 mb-1">Withdrawal Initiated</p>
+        <p className="text-xs text-gray-400">{message}</p>
+      </div>
+    )
+  }
+
+  if (status === 'error') {
+    return (
+      <div className="space-y-4">
+        <div className="bg-yellow-600/10 border border-yellow-600/30 rounded-xl p-4 text-center">
+          <AlertCircle className="w-8 h-8 text-yellow-600 mx-auto mb-2" />
+          <p className="text-sm font-bold text-yellow-600 mb-1">Error</p>
+          <p className="text-xs text-gray-400">{message}</p>
+        </div>
+        <button onClick={() => setStatus('idle')} className="w-full bg-[#111] border border-[#1F1F1F] text-white font-bold py-3 rounded-xl text-sm hover:border-[#C5A059]/50 transition">Try Again</button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">M-Pesa Phone</label>
+        <input type="tel" placeholder="0712345678" value={phone} onChange={e => setPhone(e.target.value)} className="w-full bg-[#0a0a0a] border border-[#1F1F1F] text-white rounded-xl p-3 focus:outline-none focus:border-[#C5A059] transition font-mono text-sm" />
+      </div>
+      <div>
+        <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1.5">Amount (USDT)</label>
+        <div className="grid grid-cols-3 gap-2 mb-2">
+          {[5, 10, 25].map(amt => (
+            <button key={amt} onClick={() => setAmount(String(amt))} className={`rounded-lg py-2 text-xs font-bold transition border ${amount === String(amt) ? 'bg-[#C5A059] border-[#C5A059] text-black' : 'border-[#1F1F1F] bg-[#1a1a1a] text-gray-400 hover:border-[#C5A059]/50'}`}>{amt}</button>
+          ))}
+        </div>
+        <input type="number" placeholder="Custom amount" value={amount} onChange={e => setAmount(e.target.value)} step="0.1" className="w-full bg-[#0a0a0a] border border-[#1F1F1F] text-white rounded-xl p-3 focus:outline-none focus:border-[#C5A059] transition font-mono text-sm" />
+        <p className="text-[10px] text-gray-600 mt-1">Available: {balance.toFixed(2)} USDT</p>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        <div className="flex flex-col items-center gap-1.5 bg-[#0a0a0a] border border-[#1F1F1F] rounded-xl p-3">
+          <Smartphone className="w-5 h-5 text-[#C5A059]" />
+          <span className="text-[9px] text-gray-400 font-bold">M-Pesa</span>
+        </div>
+        <div className="flex flex-col items-center gap-1.5 bg-[#0a0a0a] border border-[#1F1F1F] rounded-xl p-3 opacity-50">
+          <Building2 className="w-5 h-5 text-[#C5A059]" />
+          <span className="text-[9px] text-gray-400 font-bold">Bank</span>
+        </div>
+        <div className="flex flex-col items-center gap-1.5 bg-[#0a0a0a] border border-[#1F1F1F] rounded-xl p-3 opacity-50">
+          <CreditCard className="w-5 h-5 text-[#C5A059]" />
+          <span className="text-[9px] text-gray-400 font-bold">Card</span>
+        </div>
+      </div>
+      {status === 'processing' ? (
+        <div className="bg-[#C5A059]/10 border border-[#C5A059]/30 rounded-xl p-4 text-center">
+          <Loader2 className="w-6 h-6 text-[#C5A059] animate-spin mx-auto mb-2" />
+          <p className="text-sm font-bold text-[#C5A059]">{message}</p>
+        </div>
+      ) : (
+        <button onClick={handleWithdraw} disabled={!amount || !phone} className="w-full bg-gradient-to-r from-[#C5A059] to-[#B8860B] text-black font-bold py-3 rounded-xl text-sm uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition">
+          <ArrowDownToLine className="w-4 h-4 inline mr-1" />
+          Withdraw to M-Pesa
+        </button>
+      )}
+    </div>
+  )
+}
+
 export const dynamic = 'force-dynamic'
 
 const USDT_CONTRACT = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
@@ -292,22 +410,10 @@ export default function WalletPage() {
           <div className="bg-[#111] border border-[#1F1F1F] rounded-2xl w-full max-w-md p-6 relative" onClick={e => e.stopPropagation()}>
             <button onClick={() => setShowWithdrawModal(false)} className="absolute top-4 right-4 text-gray-500 hover:text-white transition">✕</button>
 
-            <h3 className="text-lg font-black text-white mb-1">Withdraw USDT</h3>
-            <p className="text-sm text-gray-400 mb-4">Cash out to M-Pesa via Kotani off-ramp.</p>
+            <h3 className="text-lg font-black text-white mb-1">Withdraw to M-Pesa</h3>
+            <p className="text-sm text-gray-400 mb-4">Powered by Kotani Pay • USDT → KSh</p>
 
-            <div className="bg-[#C5A059]/10 border border-[#C5A059]/30 rounded-xl p-4 mb-4">
-              <p className="text-xs text-[#C5A059] font-bold">Coming Soon</p>
-              <p className="text-xs text-gray-400 mt-1">Off-ramp integration is in progress. You can withdraw USDT directly to an external wallet for now.</p>
-            </div>
-
-            <button
-              onClick={() => {
-                window.open(`https://basescan.org/address/${address}`, '_blank')
-              }}
-              className="w-full bg-[#111] border border-[#1F1F1F] hover:border-[#C5A059]/50 text-white font-bold py-3 rounded-xl transition text-sm"
-            >
-              View on BaseScan
-            </button>
+            <WithdrawForm balance={appWallet.balance} userId={user?.id} onClose={() => setShowWithdrawModal(false)} />
           </div>
         </div>
       )}

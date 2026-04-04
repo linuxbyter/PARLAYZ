@@ -13,10 +13,10 @@ const supabase = createClient(
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { amount, phone, userId, username } = body
+    const { amount, phone, userId } = body
 
     if (!amount || amount < 1) {
-      return NextResponse.json({ error: 'Minimum deposit is 1 USDT' }, { status: 400 })
+      return NextResponse.json({ error: 'Minimum withdrawal is 1 USDT' }, { status: 400 })
     }
 
     if (!phone) {
@@ -27,8 +27,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'User ID required' }, { status: 400 })
     }
 
-    // Kotani deposit via bank checkout (mobile money)
-    const kotaniRes = await fetch(`${KOTANI_BASE_URL}/deposit/bank/checkout`, {
+    // Check user balance
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('usdt_balance')
+      .eq('id', userId)
+      .single()
+
+    if (!profile || profile.usdt_balance < amount) {
+      return NextResponse.json(
+        { error: 'Insufficient balance' },
+        { status: 400 }
+      )
+    }
+
+    // Kotani withdrawal via M-Pesa
+    const kotaniRes = await fetch(`${KOTANI_BASE_URL}/withdraw`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -42,46 +56,46 @@ export async function POST(req: NextRequest) {
         phone: phone,
         user_id: userId,
         callback_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/webhook/kotani`,
-        metadata: {
-          username: username || 'Parlayz User',
-          platform: 'parlayz',
-        },
       }),
     })
 
     const kotaniData = await kotaniRes.json()
 
     if (!kotaniRes.ok) {
-      console.error('Kotani API error:', kotaniData)
+      console.error('Kotani withdraw error:', kotaniData)
       return NextResponse.json(
-        { error: kotaniData.message || kotaniData.error || 'Kotani API error' },
+        { error: kotaniData.message || kotaniData.error || 'Withdrawal failed' },
         { status: kotaniRes.status }
       )
     }
 
-    // Log deposit in Supabase
+    // Deduct from user balance
+    await supabase
+      .from('profiles')
+      .update({ usdt_balance: profile.usdt_balance - amount })
+      .eq('id', userId)
+
+    // Log withdrawal
     await supabase.from('deposits').insert({
       user_id: userId,
       amount: parseFloat(amount),
       currency: 'USDT',
       network: 'base',
       gateway: 'kotani',
-      gateway_ref: kotaniData.data?.checkout_id || kotaniData.data?.id || kotaniData.data?.reference,
+      gateway_ref: kotaniData.data?.id || kotaniData.data?.reference,
       status: 'pending',
-      type: 'onramp',
+      type: 'withdrawal',
       created_at: new Date().toISOString(),
     })
 
     return NextResponse.json({
       success: true,
-      checkout_url: kotaniData.data?.checkout_url || kotaniData.data?.url,
-      checkout_id: kotaniData.data?.checkout_id || kotaniData.data?.id,
-      message: 'Checkout created. User will receive M-Pesa prompt.',
+      message: 'Withdrawal initiated. Funds will arrive in M-Pesa shortly.',
     })
   } catch (error) {
-    console.error('Kotani deposit error:', error)
+    console.error('Kotani withdraw error:', error)
     return NextResponse.json(
-      { error: 'Failed to create checkout' },
+      { error: 'Failed to process withdrawal' },
       { status: 500 }
     )
   }
