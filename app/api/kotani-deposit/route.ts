@@ -18,12 +18,10 @@ export async function POST(req: NextRequest) {
     if (!amount || amount < 1) {
       return NextResponse.json({ error: 'Minimum deposit is 1 USDT' }, { status: 400 })
     }
-
     if (!userId) {
       return NextResponse.json({ error: 'User ID required' }, { status: 400 })
     }
 
-    // Build payload based on method
     const payload: Record<string, any> = {
       amount: parseFloat(amount),
       currency: 'USDT',
@@ -33,9 +31,8 @@ export async function POST(req: NextRequest) {
       metadata: { username: username || 'Parlayz User', platform: 'parlayz' },
     }
 
-    if (method === 'mpesa') {
-      payload.phone = phone
-    } else if (method === 'card') {
+    if (method === 'mpesa') payload.phone = phone
+    else if (method === 'card') {
       payload.card_number = body.cardNumber
       payload.card_expiry = body.cardExpiry
       payload.card_cvv = body.cardCvv
@@ -44,21 +41,39 @@ export async function POST(req: NextRequest) {
       payload.bank_name = body.bankName
     }
 
-    // Kotani API v3 with Bearer auth
+    // Try x-api-key header first
     const kotaniRes = await fetch(`${KOTANI_BASE_URL}/deposit/bank/checkout`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${KOTANI_API_KEY}`,
+        'x-api-key': KOTANI_API_KEY!,
         'x-api-secret': KOTANI_API_SECRET!,
       },
       body: JSON.stringify(payload),
     })
 
-    const kotaniData = await kotaniRes.json()
-
-    if (!kotaniRes.ok) {
-      console.error('Kotani API error:', kotaniData)
+    // If 401, try Bearer token
+    let kotaniData = await kotaniRes.json()
+    if (kotaniRes.status === 401) {
+      const retryRes = await fetch(`${KOTANI_BASE_URL}/deposit/bank/checkout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${KOTANI_API_KEY}`,
+          'x-api-secret': KOTANI_API_SECRET!,
+        },
+        body: JSON.stringify(payload),
+      })
+      kotaniData = await retryRes.json()
+      if (!retryRes.ok) {
+        console.error('Kotani API error (Bearer):', kotaniData)
+        return NextResponse.json(
+          { error: kotaniData.message || kotaniData.error || 'Kotani API error' },
+          { status: retryRes.status }
+        )
+      }
+    } else if (!kotaniRes.ok) {
+      console.error('Kotani API error (x-api-key):', kotaniData)
       return NextResponse.json(
         { error: kotaniData.message || kotaniData.error || 'Kotani API error' },
         { status: kotaniRes.status }

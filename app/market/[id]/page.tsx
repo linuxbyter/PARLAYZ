@@ -98,6 +98,18 @@ export default function MarketDetailPage() {
 
   const market = useMarketLogic(inst?.id ?? 'BTC', inst?.initialPrice ?? 0, livePrice)
 
+  // Derive user bets from market state
+  useEffect(() => {
+    const bets: UserBet[] = []
+    if (market.userUpStake > 0) {
+      bets.push({ id: 'up-bet', side: 'YES', amount: market.userUpStake, estPayout: market.userUpStake * (100 / yesPrice), time: Date.now() })
+    }
+    if (market.userDownStake > 0) {
+      bets.push({ id: 'down-bet', side: 'NO', amount: market.userDownStake, estPayout: market.userDownStake * (100 / noPrice), time: Date.now() })
+    }
+    if (bets.length > 0) setUserBets(bets)
+  }, [market.userUpStake, market.userDownStake, yesPrice, noPrice])
+
   const handleBet = useCallback((side: 'YES' | 'NO', amount: number, e: React.MouseEvent) => {
     if (!market.canBet) return
     const poolSide = side === 'YES' ? 'UP' as const : 'DOWN' as const

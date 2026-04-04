@@ -2,6 +2,7 @@
 
 import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, ReferenceLine } from 'recharts'
 import { format } from 'date-fns'
+import { motion } from 'framer-motion'
 
 interface PoolWeightData {
   time: number
@@ -17,8 +18,29 @@ interface SentimentChartProps {
 export const SentimentChart: React.FC<SentimentChartProps> = ({ data, height = 240, frozen = false }) => {
   if (data.length === 0) {
     return (
-      <div className="flex items-center justify-center bg-[#111] rounded-2xl border border-[#1F1F1F]" style={{ height }}>
-        <p className="text-xs text-gray-600">No pool data yet</p>
+      <div className="flex flex-col items-center justify-center bg-[#111] rounded-2xl border border-[#1F1F1F]" style={{ height }}>
+        {/* Web3 Orb Loading Animation */}
+        <div className="relative w-16 h-16 mb-3">
+          <motion.div
+            className="absolute inset-0 rounded-full border-2 border-[#C5A059]/30"
+            animate={{ rotate: 360 }}
+            transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+          />
+          <motion.div
+            className="absolute inset-2 rounded-full border-2 border-t-[#C5A059] border-r-transparent border-b-[#C5A059]/50 border-l-transparent"
+            animate={{ rotate: -360 }}
+            transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
+          />
+          <motion.div
+            className="absolute inset-4 rounded-full bg-[#C5A059]/20"
+            animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.6, 0.3] }}
+            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+          />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-2 h-2 rounded-full bg-[#C5A059] animate-pulse" />
+          </div>
+        </div>
+        <p className="text-xs text-gray-500 font-mono">Collecting pool data...</p>
       </div>
     )
   }
