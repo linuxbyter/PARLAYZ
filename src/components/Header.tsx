@@ -53,7 +53,7 @@ export default function Header() {
             </Link>
           ))}
           <SignedIn>
-            {(user?.publicMetadata as any)?.role === 'admin' && (
+            {(user?.publicMetadata as { role?: string })?.role === 'admin' && (
               <Link href="/admin/resolution" className={`text-sm font-semibold transition-colors ${pathname === '/admin/resolution' ? 'text-[#C5A059]' : 'text-gray-400 hover:text-gray-200'}`}>Admin</Link>
             )}
           </SignedIn>

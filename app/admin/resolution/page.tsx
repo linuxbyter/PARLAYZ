@@ -133,7 +133,7 @@ export default function AdminResolutionPage() {
       }
 
       // Request signature from MetaMask
-      const signature = await (window as any).ethereum.request({
+      const signature = await window.ethereum.request({
         method: 'eth_signTypedData_v4',
         params: [address, JSON.stringify({ domain, types, primaryType: 'Settlement', message: value })],
       })
@@ -144,9 +144,9 @@ export default function AdminResolutionPage() {
       setSuccess(`Market resolved: ${outcomes[outcomeIndex]} won! Tx: ${txHash.slice(0, 10)}...`)
       setResolvingMarket(null)
       loadMarkets()
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('Resolution failed:', e)
-      setError(e.message || 'Resolution failed. Check wallet.')
+      setError((e as Error).message || 'Resolution failed. Check wallet.')
       setResolvingMarket(null)
     }
   }
