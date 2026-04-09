@@ -4,8 +4,10 @@ import Header from '@/src/components/Header'
 import { SignedIn, SignedOut, SignInButton } from '@clerk/nextjs'
 import { useAccount } from 'wagmi'
 import { Clock, ChevronRight, Zap } from 'lucide-react'
+import { motion } from 'framer-motion'
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
+import { Skeleton } from '@/src/components/Skeleton'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,6 +37,7 @@ const MARKETS: Market[] = [
 export default function Home() {
   const { isConnected } = useAccount()
   const [btcPrice, setBtcPrice] = useState<number | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'Crypto_Majors' | 'Crypto_Meme' | 'Finance_Futures'>('all')
 
   useEffect(() => {
@@ -43,7 +46,10 @@ export default function Home() {
         const res = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT')
         const data = await res.json()
         setBtcPrice(parseFloat(data.price))
-      } catch (e) {}
+        setIsLoading(false)
+      } catch (e) {
+        setIsLoading(false)
+      }
     }
     fetchPrice()
     const interval = setInterval(fetchPrice, 5000)
@@ -57,108 +63,134 @@ export default function Home() {
       <Header />
 
       <main className="max-w-7xl mx-auto px-4 py-6">
-        {/* BTC Price Banner */}
-        <div className="bg-[#111] border border-[#1F1F1F] rounded-xl p-4 mb-6 flex items-center justify-between">
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-[#111] border border-[#1F1F1F] rounded-xl p-4 mb-6 flex items-center justify-between"
+        >
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-[#D4AF37]/20 flex items-center justify-center">
               <span className="text-lg font-black text-[#D4AF37]">₿</span>
             </div>
             <div>
               <p className="text-[10px] text-gray-500 uppercase font-bold tracking-widest">BTC/USDT Live</p>
-              <p className="text-xl font-black font-mono text-white">
-                {btcPrice ? '$' + btcPrice.toLocaleString(undefined, { minimumFractionDigits: 2 }) : 'Loading...'}
-              </p>
+              {isLoading ? (
+                <Skeleton className="w-32 h-8 mt-1" />
+              ) : (
+                <p className="text-xl font-black font-mono text-white">
+                  ${btcPrice?.toLocaleString(undefined, { minimumFractionDigits: 2 }) || '--'}
+                </p>
+              )}
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-[#D4AF37] animate-pulse" />
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            className="flex items-center gap-2"
+          >
+            <div className="w-2 h-2 rounded-full bg-[#D4AF37]" />
             <span className="text-xs text-[#D4AF37] font-bold">LIVE</span>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
 
-        {/* Filter Tabs */}
         <div className="flex items-center gap-2 mb-6 overflow-x-auto pb-2">
           {[
             { id: 'all', label: 'All Markets' },
             { id: 'Crypto_Majors', label: 'Majors' },
             { id: 'Crypto_Meme', label: 'Meme' },
             { id: 'Finance_Futures', label: 'Futures' },
-          ].map(f => (
-            <button
+          ].map((f, i) => (
+            <motion.button
               key={f.id}
               onClick={() => setFilter(f.id as typeof filter)}
-              className={`px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wider transition whitespace-nowrap ${
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.05 }}
+              className={`px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wider transition-all duration-200 whitespace-nowrap ${
                 filter === f.id
-                  ? 'bg-[#D4AF37] text-black'
+                  ? 'bg-[#D4AF37] text-black shadow-[0_0_20px_rgba(212,175,55,0.3)]'
                   : 'bg-[#111] border border-[#1F1F1F] text-gray-400 hover:text-white hover:border-[#D4AF37]/50'
               }`}
             >
               {f.label}
-            </button>
+            </motion.button>
           ))}
         </div>
 
-        {/* Markets Grid - EVERY card is a Link to /market/[id] */}
         <SignedIn>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-            {filteredMarkets.map(market => (
-              <Link
+            {filteredMarkets.map((market, i) => (
+              <motion.div
                 key={market.id}
-                href={`/market/${market.id}`}
-                className="group bg-[#111] border border-[#1F1F1F] hover:border-[#D4AF37]/50 rounded-xl p-4 transition-all duration-200 hover:shadow-[0_0_20px_rgba(212,175,55,0.15)] block"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.05 }}
               >
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <Zap className="w-3.5 h-3.5 text-[#D4AF37]" />
-                    <span className="text-xs font-bold text-gray-400 uppercase">{market.label}</span>
+                <Link
+                  href={`/market/${market.id}`}
+                  className="group bg-[#111] border border-[#1F1F1F] hover:border-[#D4AF37]/50 rounded-xl p-4 transition-all duration-200 hover:shadow-[0_0_20px_rgba(212,175,55,0.15)] block"
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Zap className="w-3.5 h-3.5 text-[#D4AF37]" />
+                      <span className="text-xs font-bold text-gray-400 uppercase">{market.label}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-1.5 h-1.5 rounded-full bg-[#D4AF37]" />
+                      <span className="text-[9px] text-[#D4AF37] font-bold uppercase">Live</span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <div className="w-1.5 h-1.5 rounded-full bg-[#D4AF37] animate-pulse" />
-                    <span className="text-[9px] text-[#D4AF37] font-bold uppercase">Live</span>
-                  </div>
-                </div>
 
-                <h3 className="text-sm font-bold text-white mb-3 leading-snug group-hover:text-[#D4AF37] transition-colors">
-                  Will {market.label} go UP or DOWN in 5 min?
-                </h3>
+                  <h3 className="text-sm font-bold text-white mb-3 leading-snug group-hover:text-[#D4AF37] transition-colors">
+                    Will {market.label} go UP or DOWN in 5 min?
+                  </h3>
 
-                <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
-                  <div className="flex items-center gap-1.5">
-                    <Clock className="w-3 h-3" />
-                    <span>5 min cycle</span>
+                  <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
+                    <div className="flex items-center gap-1.5">
+                      <Clock className="w-3 h-3" />
+                      <span>5 min cycle</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-[#D4AF37] font-mono font-bold">{market.poolSize}</span>
+                      <span>USDT</span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-[#D4AF37] font-mono font-bold">{market.poolSize}</span>
-                    <span>USDT</span>
-                  </div>
-                </div>
 
-                <div className="flex items-center justify-between pt-3 border-t border-[#1F1F1F]">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-green-500" />
-                    <span className="text-[10px] text-green-400 font-bold">YES {market.yesPrice}¢</span>
+                  <div className="flex items-center justify-between pt-3 border-t border-[#1F1F1F]">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-green-500" />
+                      <span className="text-[10px] text-green-400 font-bold">YES {market.yesPrice}¢</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-red-500" />
+                      <span className="text-[10px] text-red-400 font-bold">NO {market.noPrice}¢</span>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-gray-600 group-hover:text-[#D4AF37] transition-colors" />
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-red-500" />
-                    <span className="text-[10px] text-red-400 font-bold">NO {market.noPrice}¢</span>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-gray-600 group-hover:text-[#D4AF37] transition-colors" />
-                </div>
-              </Link>
+                </Link>
+              </motion.div>
             ))}
           </div>
         </SignedIn>
 
         <SignedOut>
-          <div className="text-center py-20">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center py-20"
+          >
             <h2 className="text-3xl font-black text-white mb-4">Sign in to trade markets</h2>
             <p className="text-gray-400 mb-8">Connect your wallet and Clerk account to start betting.</p>
             <SignInButton mode="modal">
-              <button className="bg-gradient-to-r from-[#D4AF37] to-[#F0D060] text-black font-bold px-8 py-3 rounded-xl text-sm hover:opacity-90 transition">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="bg-gradient-to-r from-[#D4AF37] to-[#F0D060] text-black font-bold px-8 py-3 rounded-xl text-sm hover:opacity-90 transition"
+              >
                 Get Started
-              </button>
+              </motion.button>
             </SignInButton>
-          </div>
+          </motion.div>
         </SignedOut>
       </main>
     </div>

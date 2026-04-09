@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { motion } from 'framer-motion'
 import { CryptoMarketCard } from './CryptoMarketCard'
+import { MarketGridSkeleton } from './Skeleton'
 import { INSTRUMENTS, INSTRUMENT_TABS, VOLATILITY, type InstrumentCategory } from '@/src/lib/instruments'
 
 interface InstrumentFeed {
@@ -16,6 +18,7 @@ interface CryptoMarketSectionProps {
 export const CryptoMarketSection: React.FC<CryptoMarketSectionProps> = ({ category = 'all' }) => {
   const [feeds, setFeeds] = useState<Record<string, InstrumentFeed>>({})
   const [activeTab, setActiveTab] = useState<string>(category === 'all' ? 'all' : category)
+  const [isLoading, setIsLoading] = useState(true)
   const wsRefs = useRef<Record<string, WebSocket>>({})
 
   const visibleInstruments = INSTRUMENTS.filter(inst =>
@@ -28,6 +31,9 @@ export const CryptoMarketSection: React.FC<CryptoMarketSectionProps> = ({ catego
       initial[inst.id] = { livePrice: inst.initialPrice, priceHistory: [] }
     })
     setFeeds(initial)
+    setIsLoading(true)
+    const timer = setTimeout(() => setIsLoading(false), 800)
+    return () => clearTimeout(timer)
   }, [])
 
   useEffect(() => {
@@ -103,39 +109,56 @@ export const CryptoMarketSection: React.FC<CryptoMarketSectionProps> = ({ catego
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center gap-2 overflow-x-auto pb-2">
-        {INSTRUMENT_TABS.map(tab => (
-          <button
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="flex items-center gap-2 overflow-x-auto pb-2"
+      >
+        {INSTRUMENT_TABS.map((tab, i) => (
+          <motion.button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`px-4 py-2 rounded-xl text-sm font-bold uppercase tracking-wider transition whitespace-nowrap ${
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.05 }}
+            className={`px-4 py-2 rounded-xl text-sm font-bold uppercase tracking-wider transition-all duration-200 whitespace-nowrap ${
               activeTab === tab.id
-                ? 'bg-[#D9C5A0] text-black'
-                : 'bg-[#111] border border-[#1F1F1F] text-gray-400 hover:text-white'
+                ? 'bg-[#D9C5A0] text-black shadow-[0_0_20px_rgba(217,197,160,0.3)]'
+                : 'bg-[#111] border border-[#1F1F1F] text-gray-400 hover:text-white hover:border-[#D9C5A0]/50'
             }`}
           >
             {tab.label}
-          </button>
+          </motion.button>
         ))}
-      </div>
+      </motion.div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {visibleInstruments.map(inst => {
-          const feed = feeds[inst.id]
-          if (!feed) return null
+      {isLoading ? (
+        <MarketGridSkeleton count={visibleInstruments.length} />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {visibleInstruments.map((inst, i) => {
+            const feed = feeds[inst.id]
+            if (!feed) return null
 
-          return (
-            <CryptoMarketCard
-              key={inst.id}
-              instrumentId={inst.id}
-              coin={inst.label}
-              initialPrice={inst.initialPrice}
-              livePrice={feed.livePrice}
-              priceHistory={feed.priceHistory}
-            />
-          )
-        })}
-      </div>
+            return (
+              <motion.div
+                key={inst.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.05, duration: 0.3 }}
+              >
+                <CryptoMarketCard
+                  instrumentId={inst.id}
+                  coin={inst.label}
+                  initialPrice={inst.initialPrice}
+                  livePrice={feed.livePrice}
+                  priceHistory={feed.priceHistory}
+                />
+              </motion.div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

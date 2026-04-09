@@ -285,7 +285,13 @@ export const CryptoMarketCard: React.FC<CryptoMarketCardProps> = ({
   }
 
   return (
-    <div ref={cardRef} onClick={onClick || (() => setShowDetail(true))} className={'bg-[#111] rounded-2xl overflow-hidden cursor-pointer transition-all duration-300 hover:border-[#D9C5A0]/40 relative ' + pc.border}>
+    <motion.div
+      ref={cardRef}
+      onClick={onClick || (() => setShowDetail(true))}
+      whileHover={{ scale: 1.02, transition: { duration: 0.2 } }}
+      whileTap={{ scale: 0.98 }}
+      className={'bg-[#111] rounded-2xl overflow-hidden cursor-pointer transition-all duration-300 hover:border-[#D9C5A0]/40 relative ' + pc.border}
+    >
       <div className="flex items-center justify-between px-4 py-2 bg-[#0a0a0a] border-b border-[#1F1F1F]">
         <div className="flex items-center gap-2">
           <Zap className="w-3.5 h-3.5 text-orange-400" />
@@ -360,6 +366,6 @@ export const CryptoMarketCard: React.FC<CryptoMarketCardProps> = ({
           </motion.div>
         ))}
       </AnimatePresence>
-    </div>
+    </motion.div>
   )
 }

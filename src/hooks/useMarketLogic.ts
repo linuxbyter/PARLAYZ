@@ -5,6 +5,9 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 const CYCLE_MS = 10 * 60 * 1000
 const LOCK_MS = 5 * 60 * 1000
 const GRACE_END_MS = 6 * 60 * 1000
+const HOUSE_BUDGET = 100
+const HEDGE_INTERVAL = 5000
+const HEDGE_DROPS = [0.05, 0.10]
 
 export type MarketPhase = 'OPEN' | 'LOCKED' | 'GRACE' | 'RESOLVED'
 
@@ -22,6 +25,7 @@ export interface MarketState {
   userDownStake: number
   resolution: 'UP' | 'DOWN' | null
   poolHistory: { time: number; upPct: number }[]
+  houseHedge: { upHedge: number; downHedge: number }
 }
 
 function getCycleBoundary(): number {
@@ -58,6 +62,10 @@ export function useMarketLogic(
   const resolvedRef = useRef(false)
   const strikeCaptured = useRef(false)
   const houseSeeded = useRef(false)
+  const hedgeIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const lastHedgeTimeRef = useRef(0)
+  const hedgeIndexRef = useRef(0)
+  const totalHedgedRef = useRef(0)
 
   const [state, setState] = useState<MarketState>({
     phase: 'OPEN',
@@ -73,6 +81,7 @@ export function useMarketLogic(
     userDownStake: 0,
     resolution: null,
     poolHistory: [{ time: Date.now(), upPct: 50 }],
+    houseHedge: { upHedge: 0, downHedge: 0 },
   })
 
   const [timeRemaining, setTimeRemaining] = useState(LOCK_MS)
@@ -93,6 +102,60 @@ export function useMarketLogic(
       }))
     }
   }, [])
+
+  const performHouseHedge = useCallback(() => {
+    setState(prev => {
+      if (prev.phase !== 'OPEN') return prev
+      if (totalHedgedRef.current >= HOUSE_BUDGET) return prev
+
+      const total = prev.upPool + prev.downPool
+      if (total === 0) return prev
+
+      const upPct = prev.upPool / total
+      const hedgeDrop = HEDGE_DROPS[hedgeIndexRef.current % HEDGE_DROPS.length]
+      const hedgeAmount = Math.min(HOUSE_BUDGET * hedgeDrop, HOUSE_BUDGET - totalHedgedRef.current)
+
+      if (hedgeAmount <= 0) return prev
+
+      totalHedgedRef.current += hedgeAmount
+      hedgeIndexRef.current++
+
+      const side = upPct > 0.5 ? 'DOWN' : 'UP'
+      const newUpPool = side === 'UP' ? prev.upPool + hedgeAmount : prev.upPool
+      const newDownPool = side === 'DOWN' ? prev.downPool + hedgeAmount : prev.downPool
+      const newTotal = newUpPool + newDownPool
+      const newUpPct = newTotal > 0 ? (newUpPool / newTotal) * 100 : 50
+
+      return {
+        ...prev,
+        upPool: newUpPool,
+        downPool: newDownPool,
+        houseHedge: {
+          upHedge: side === 'UP' ? prev.houseHedge.upHedge + hedgeAmount : prev.houseHedge.upHedge,
+          downHedge: side === 'DOWN' ? prev.houseHedge.downHedge + hedgeAmount : prev.houseHedge.downHedge,
+        },
+        poolHistory: [...prev.poolHistory.slice(-119), { time: Date.now(), upPct: newUpPct }],
+      }
+    })
+  }, [])
+
+  useEffect(() => {
+    if (state.phase === 'OPEN') {
+      hedgeIntervalRef.current = setInterval(() => {
+        const now = Date.now()
+        if (now - lastHedgeTimeRef.current >= HEDGE_INTERVAL) {
+          lastHedgeTimeRef.current = now
+          performHouseHedge()
+        }
+      }, HEDGE_INTERVAL)
+    }
+
+    return () => {
+      if (hedgeIntervalRef.current) {
+        clearInterval(hedgeIntervalRef.current)
+      }
+    }
+  }, [state.phase, performHouseHedge])
 
   useEffect(() => {
     const tick = setInterval(() => {
