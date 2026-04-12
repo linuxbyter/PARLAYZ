@@ -14,7 +14,7 @@ import {
   ArrowUpRight, BarChart3, Users, Shield,
   Flame,
 } from 'lucide-react'
-import { useWallet, useCurrency } from '@/src/hooks/useWallet'
+import { useWallet } from '@/src/hooks/useWallet'
 
 interface FloatingBet { id: string; amount: number; x: number; y: number; side: 'YES' | 'NO' }
 interface OrderBookEntry { price: number; shares: number; type: 'bid' | 'ask' }

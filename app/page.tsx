@@ -2,7 +2,6 @@
 
 import Header from '@/src/components/Header'
 import { SignedIn, SignedOut, SignInButton } from '@clerk/nextjs'
-import { useAccount } from 'wagmi'
 import { Clock, ChevronRight, Zap } from 'lucide-react'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
@@ -35,7 +34,6 @@ const MARKETS: Market[] = [
 ]
 
 export default function Home() {
-  const { isConnected } = useAccount()
   const [btcPrice, setBtcPrice] = useState<number | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'Crypto_Majors' | 'Crypto_Meme' | 'Finance_Futures'>('all')
@@ -47,7 +45,7 @@ export default function Home() {
         const data = await res.json()
         setBtcPrice(parseFloat(data.price))
         setIsLoading(false)
-      } catch (e) {
+      } catch {
         setIsLoading(false)
       }
     }

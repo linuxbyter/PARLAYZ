@@ -1,7 +1,6 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
 
 export default function Footer() {
   return (
@@ -10,7 +9,7 @@ export default function Footer() {
         <div className="flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <span className="text-[#C9A84C] font-black text-lg">PARLAYZ</span>
-            <span className="text-[#555555] text-sm">Kenya's Prediction Market</span>
+            <span className="text-[#555555] text-sm">Kenya&apos;s Prediction Market</span>
           </div>
 
           <div className="flex flex-wrap items-center justify-center gap-4 text-sm">

@@ -1,6 +1,6 @@
 'use client'
 
-import { SignedIn, SignedOut, SignInButton, UserButton, useUser } from '@clerk/nextjs'
+import { SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/nextjs'
 import { useWallet } from '@/src/hooks/useWallet'
 import { Wallet, Bell, TrendingUp, Trophy, Search, History, Sparkles, Globe, Cpu, Zap } from 'lucide-react'
 import Link from 'next/link'
@@ -18,7 +18,6 @@ const NAV_TABS = [
 ]
 
 export default function Header() {
-  const { user } = useUser()
   const pathname = usePathname()
   const wallet = useWallet()
   const [showBalanceModal, setShowBalanceModal] = useState(false)
