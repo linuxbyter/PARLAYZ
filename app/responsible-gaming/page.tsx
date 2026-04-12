@@ -10,7 +10,7 @@ export default function ResponsibleGamingPage() {
       
       <main className="max-w-3xl mx-auto px-4 py-8">
         <div className="flex items-center gap-2 mb-8">
-          <Heart className="w-6 h-6 text-[#C9A84C]" />
+          <Heart className="w-6 h-6 text-[#F0A500]" />
           <h1 className="text-2xl font-bold">Responsible Gaming</h1>
         </div>
 

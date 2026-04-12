@@ -225,11 +225,11 @@ export default function MarketDetailPage() {
             </button>
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <Zap className="w-3.5 h-3.5 text-[#C9A84C]" />
+                <Zap className="w-3.5 h-3.5 text-[#F0A500]" />
                 <span className="text-xs font-bold text-[#555555] uppercase tracking-widest">{inst.label}</span>
-                <div className={'flex items-center gap-1.5 px-2 py-0.5 rounded-full ' + (pc.color === 'gold' ? 'bg-[#1E1A0F] border border-[#C9A84C]/30' : 'bg-[#1E1A0F] border border-[#C9A84C]/30')}>
+                <div className={'flex items-center gap-1.5 px-2 py-0.5 rounded-full ' + (pc.color === 'gold' ? 'bg-[#2A1F00] border border-[#F0A500]/30' : 'bg-[#2A1F00] border border-[#F0A500]/30')}>
                   <div className={'w-1.5 h-1.5 rounded-full ' + pc.dot} />
-                  <span className={'text-[10px] font-bold uppercase ' + (pc.color === 'gold' ? 'text-[#C9A84C]' : 'text-[#C9A84C]')}>{pc.badge}</span>
+                  <span className={'text-[10px] font-bold uppercase ' + (pc.color === 'gold' ? 'text-[#F0A500]' : 'text-[#F0A500]')}>{pc.badge}</span>
                 </div>
               </div>
               <h1 className="text-lg font-black text-white leading-tight">
@@ -247,7 +247,7 @@ export default function MarketDetailPage() {
             </div>
             <div className="text-right">
               <p className="text-[9px] text-[#555555] uppercase font-bold">Time Left</p>
-              <p className="text-xs font-mono font-bold text-[#C9A84C]">{timeStr}</p>
+              <p className="text-xs font-mono font-bold text-[#F0A500]">{timeStr}</p>
             </div>
           </div>
         </div>
@@ -257,7 +257,7 @@ export default function MarketDetailPage() {
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-gradient-to-r from-[#1E3D2F]/30 via-[#C9A84C]/10 to-[#1E3D2F]/30 border border-[#4CAF7D]/20 rounded-xl p-4 mb-4"
+            className="bg-gradient-to-r from-[#1E3D2F]/30 via-[#F0A500]/10 to-[#1E3D2F]/30 border border-[#4CAF7D]/20 rounded-xl p-4 mb-4"
           >
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-black uppercase tracking-wider text-[#4CAF7D] flex items-center gap-2">
@@ -297,31 +297,25 @@ export default function MarketDetailPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* LEFT: Chart + Order Book + Comments */}
           <div className="lg:col-span-2 space-y-4">
-            {/* YES/NO Price Bar */}
+            {/* YES/NO Price Bar - Polymarket Style */}
             <div className="grid grid-cols-2 gap-3">
               <motion.button
                 whileTap={{ scale: 0.98 }}
-                onClick={(e) => handleBet('YES', parseFloat(stakeAmount) || 10, e)}
+                onClick={(e) => handleBet('YES', parseFloat(stakeAmount) || 100, e)}
                 disabled={!market.canBet}
-                className="bg-[#1E3D2F] border border-[#4CAF7D]/30 rounded-xl p-4 text-left hover:border-[#4CAF7D]/60 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                className="h-20 bg-[#4CAF7D] rounded-xl flex flex-col items-center justify-center text-white hover:brightness-110 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-bold text-[#4CAF7D] uppercase tracking-widest">YES</span>
-                  <span className="text-2xl font-black font-mono text-[#4CAF7D]">{yesPrice}¢</span>
-                </div>
-                <p className="text-[10px] text-[#8B8B8B]">Potential return: KSh {(parseFloat(stakeAmount) * (100 / yesPrice)).toFixed(0)}</p>
+                <span className="text-lg font-black">YES {yesPrice}%</span>
+                <span className="text-xs text-white/80">KSh {stakeAmount} → KSh {Math.round(parseFloat(stakeAmount) || 100 * (100 / yesPrice)).toLocaleString()}</span>
               </motion.button>
               <motion.button
                 whileTap={{ scale: 0.98 }}
-                onClick={(e) => handleBet('NO', parseFloat(stakeAmount) || 10, e)}
+                onClick={(e) => handleBet('NO', parseFloat(stakeAmount) || 100, e)}
                 disabled={!market.canBet}
-                className="bg-[#3D1E1E] border border-[#E05252]/30 rounded-xl p-4 text-left hover:border-[#E05252]/60 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                className="h-20 bg-[#E05252] rounded-xl flex flex-col items-center justify-center text-white hover:brightness-110 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-bold text-[#E05252] uppercase tracking-widest">NO</span>
-                  <span className="text-2xl font-black font-mono text-[#E05252]">{noPrice}¢</span>
-                </div>
-                <p className="text-[10px] text-[#8B8B8B]">Potential return: KSh {(parseFloat(stakeAmount) * (100 / noPrice)).toFixed(0)}</p>
+                <span className="text-lg font-black">NO {noPrice}%</span>
+                <span className="text-xs text-white/80">KSh {stakeAmount} → KSh {Math.round(parseFloat(stakeAmount) || 100 * (100 / noPrice)).toLocaleString()}</span>
               </motion.button>
             </div>
 
@@ -332,7 +326,7 @@ export default function MarketDetailPage() {
                 { id: 'orders' as const, label: 'ORDER BOOK', icon: Users },
                 { id: 'comments' as const, label: 'COMMENTS', icon: MessageSquare },
               ].map(tab => (
-                <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={'flex-1 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition flex items-center justify-center gap-1.5 ' + (activeTab === tab.id ? 'bg-[#C9A84C] text-black' : 'text-[#8B8B8B] hover:text-white')}>
+                <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={'flex-1 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition flex items-center justify-center gap-1.5 ' + (activeTab === tab.id ? 'bg-[#F0A500] text-black' : 'text-[#8B8B8B] hover:text-white')}>
                   <tab.icon className="w-3.5 h-3.5" />
                   {tab.label}
                 </button>
@@ -347,7 +341,7 @@ export default function MarketDetailPage() {
                   <div className="flex items-center gap-3">
                     <div className="flex bg-[#0a0a0a] rounded-lg p-0.5 gap-0.5">
                       {(['1m', '5m', '15m', '1h', 'all'] as Timeframe[]).map(tf => (
-                        <button key={tf} onClick={() => setTimeframe(tf)} className={'px-2 py-1 rounded text-[10px] font-bold transition ' + (timeframe === tf ? 'bg-[#C9A84C] text-black' : 'text-[#8B8B8B] hover:text-white')}>
+                        <button key={tf} onClick={() => setTimeframe(tf)} className={'px-2 py-1 rounded text-[10px] font-bold transition ' + (timeframe === tf ? 'bg-[#F0A500] text-black' : 'text-[#8B8B8B] hover:text-white')}>
                           {tf}
                         </button>
                       ))}
@@ -385,7 +379,7 @@ export default function MarketDetailPage() {
                           <span className="text-right text-[#555555] relative z-10">KSh {(o.price * o.shares).toFixed(0)}</span>
                         </div>
                       ))}
-                      <div className="py-1.5 text-center text-sm font-black text-[#C9A84C] font-mono border-y border-[#222222] my-1">
+                      <div className="py-1.5 text-center text-sm font-black text-[#F0A500] font-mono border-y border-[#222222] my-1">
                         {yesPrice}¢
                       </div>
                       {orders.filter(o => o.type === 'bid').map((o, i) => (
@@ -421,21 +415,21 @@ export default function MarketDetailPage() {
                   <AnimatePresence>
                     {comments.map(c => (
                       <motion.div key={c.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex items-start gap-3">
-                        <div className={'w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ' + (c.isPremium ? 'bg-gradient-to-br from-[#C9A84C] to-[#B8860B] text-black' : 'bg-[#1a1a1a] text-[#8B8B8B]')}>
+                        <div className={'w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ' + (c.isPremium ? 'bg-gradient-to-br from-[#F0A500] to-[#B8860B] text-black' : 'bg-[#1a1a1a] text-[#8B8B8B]')}>
                           {c.isPremium ? <Crown className="w-3.5 h-3.5" /> : c.avatar}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-0.5">
-                            <span className={'text-xs font-bold ' + (c.isPremium ? 'text-[#C9A84C]' : 'text-white')}>{c.user}</span>
-                            {c.isPremium && <Star className="w-3 h-3 text-[#C9A84C] fill-[#C9A84C]" />}
+                            <span className={'text-xs font-bold ' + (c.isPremium ? 'text-[#F0A500]' : 'text-white')}>{c.user}</span>
+                            {c.isPremium && <Star className="w-3 h-3 text-[#F0A500] fill-[#F0A500]" />}
                             <span className="text-[9px] text-[#555555]">{Math.floor((Date.now() - c.time) / 1000)}s ago</span>
                           </div>
                           <p className="text-sm text-[#8B8B8B]">{c.message}</p>
                           <div className="flex items-center gap-3 mt-1.5">
-                            <button className="text-[10px] text-[#555555] hover:text-[#C9A84C] transition flex items-center gap-1">
+                            <button className="text-[10px] text-[#555555] hover:text-[#F0A500] transition flex items-center gap-1">
                               <ArrowUpRight className="w-3 h-3" /> {c.likes}
                             </button>
-                            <button className="text-[10px] text-[#555555] hover:text-[#C9A84C] transition">Reply</button>
+                            <button className="text-[10px] text-[#555555] hover:text-[#F0A500] transition">Reply</button>
                           </div>
                         </div>
                       </motion.div>
@@ -444,8 +438,8 @@ export default function MarketDetailPage() {
                 </div>
                 <div className="p-3 border-t border-[#222222]">
                   <div className="flex items-center gap-2">
-                    <input value={commentInput} onChange={e => setCommentInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendComment()} placeholder="Share your analysis..." className="flex-1 bg-[#0a0a0a] border border-[#222222] text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#C9A84C] placeholder:text-[#555555]" />
-                    <button onClick={sendComment} className="p-2 rounded-lg bg-[#C9A84C] text-black hover:bg-[#D4A843] transition">
+                    <input value={commentInput} onChange={e => setCommentInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendComment()} placeholder="Share your analysis..." className="flex-1 bg-[#0a0a0a] border border-[#222222] text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#F0A500] placeholder:text-[#555555]" />
+                    <button onClick={sendComment} className="p-2 rounded-lg bg-[#F0A500] text-black hover:bg-[#D4A843] transition">
                       <Send className="w-4 h-4" />
                     </button>
                   </div>
@@ -465,7 +459,7 @@ export default function MarketDetailPage() {
                 </div>
                 <div className="text-center">
                   <p className="text-[9px] text-[#555555] uppercase font-bold">Locks</p>
-                  <p className="text-sm font-mono font-bold text-[#C9A84C]">{lockTime}</p>
+                  <p className="text-sm font-mono font-bold text-[#F0A500]">{lockTime}</p>
                 </div>
                 <div className="text-center">
                   <p className="text-[9px] text-[#555555] uppercase font-bold">Resolves</p>
@@ -486,11 +480,11 @@ export default function MarketDetailPage() {
                 <label className="text-[10px] font-bold text-[#8B8B8B] uppercase tracking-wider mb-2 block">Stake Amount</label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8B8B8B] font-mono text-sm">KSh</span>
-                  <input type="number" value={stakeAmount} onChange={e => setStakeAmount(e.target.value)} className="w-full bg-[#0a0a0a] border border-[#222222] text-white rounded-lg pl-10 pr-3 py-2.5 text-sm font-mono focus:outline-none focus:border-[#C9A84C]" />
+                  <input type="number" value={stakeAmount} onChange={e => setStakeAmount(e.target.value)} className="w-full bg-[#0a0a0a] border border-[#222222] text-white rounded-lg pl-10 pr-3 py-2.5 text-sm font-mono focus:outline-none focus:border-[#F0A500]" />
                 </div>
                 <div className="grid grid-cols-4 gap-1.5 mt-2">
                   {[100, 500, 1000, 5000].map(amt => (
-                    <button key={amt} onClick={() => setStakeAmount(String(amt))} className={'py-1.5 rounded text-[10px] font-bold transition border ' + (stakeAmount === String(amt) ? 'bg-[#C9A84C] border-[#C9A84C] text-black' : 'border-[#222222] bg-[#1a1a1a] text-[#8B8B8B] hover:border-[#C9A84C]/50')}>KSh {amt}</button>
+                    <button key={amt} onClick={() => setStakeAmount(String(amt))} className={'py-1.5 rounded text-[10px] font-bold transition border ' + (stakeAmount === String(amt) ? 'bg-[#F0A500] border-[#F0A500] text-black' : 'border-[#222222] bg-[#1a1a1a] text-[#8B8B8B] hover:border-[#F0A500]/50')}>KSh {amt}</button>
                   ))}
                 </div>
               </div>
@@ -517,11 +511,11 @@ export default function MarketDetailPage() {
                             placeholder="Sell amount"
                             value={sellAmount}
                             onChange={e => setSellAmount(e.target.value)}
-                            className="flex-1 bg-[#141414] border border-[#222222] text-white rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-[#C9A84C]"
+                            className="flex-1 bg-[#141414] border border-[#222222] text-white rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-[#F0A500]"
                           />
                           <button
                             onClick={() => handleSell('UP', parseFloat(sellAmount) || market.userUpStake)}
-                            className="px-3 py-1 rounded bg-[#C9A84C]/20 border border-[#C9A84C]/40 text-[#C9A84C] text-[10px] font-bold uppercase hover:bg-[#C9A84C]/30 transition whitespace-nowrap"
+                            className="px-3 py-1 rounded bg-[#F0A500]/20 border border-[#F0A500]/40 text-[#F0A500] text-[10px] font-bold uppercase hover:bg-[#F0A500]/30 transition whitespace-nowrap"
                           >
                             Sell ({sellRefundRate * 100}%)
                           </button>
@@ -545,11 +539,11 @@ export default function MarketDetailPage() {
                             placeholder="Sell amount"
                             value={sellAmount}
                             onChange={e => setSellAmount(e.target.value)}
-                            className="flex-1 bg-[#141414] border border-[#222222] text-white rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-[#C9A84C]"
+                            className="flex-1 bg-[#141414] border border-[#222222] text-white rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-[#F0A500]"
                           />
                           <button
                             onClick={() => handleSell('DOWN', parseFloat(sellAmount) || market.userDownStake)}
-                            className="px-3 py-1 rounded bg-[#C9A84C]/20 border border-[#C9A84C]/40 text-[#C9A84C] text-[10px] font-bold uppercase hover:bg-[#C9A84C]/30 transition whitespace-nowrap"
+                            className="px-3 py-1 rounded bg-[#F0A500]/20 border border-[#F0A500]/40 text-[#F0A500] text-[10px] font-bold uppercase hover:bg-[#F0A500]/30 transition whitespace-nowrap"
                           >
                             Sell ({sellRefundRate * 100}%)
                           </button>
@@ -563,7 +557,7 @@ export default function MarketDetailPage() {
                 </div>
               )}
 
-              <button onClick={() => setShowDeposit(true)} className="w-full py-2.5 rounded-lg border border-[#C9A84C]/40 bg-[#C9A84C]/10 text-[#C9A84C] text-xs font-bold uppercase hover:bg-[#C9A84C]/20 transition flex items-center justify-center gap-2">
+              <button onClick={() => setShowDeposit(true)} className="w-full py-2.5 rounded-lg border border-[#F0A500]/40 bg-[#F0A500]/10 text-[#F0A500] text-xs font-bold uppercase hover:bg-[#F0A500]/20 transition flex items-center justify-center gap-2">
                 <Wallet className="w-4 h-4" />
                 Deposit
               </button>
@@ -590,8 +584,8 @@ export default function MarketDetailPage() {
             <button onClick={() => setShowDeposit(false)} className="absolute top-4 right-4 text-[#8B8B8B] hover:text-white">✕</button>
             <h3 className="text-lg font-black text-white mb-1">Deposit KSh</h3>
             <p className="text-sm text-[#8B8B8B] mb-4">Powered by M-Pesa STK Push</p>
-            <input type="number" value={depositAmount} onChange={e => setDepositAmount(e.target.value)} placeholder="Amount (KSh)" className="w-full bg-[#0a0a0a] border border-[#222222] text-white rounded-xl p-3 mb-4 font-mono focus:outline-none focus:border-[#C9A84C]" />
-            <button onClick={() => { wallet.addBalance(parseFloat(depositAmount) || 0); setShowDeposit(false); setDepositAmount('') }} className="w-full bg-gradient-to-r from-[#C9A84C] to-[#B8860B] text-black font-bold py-3 rounded-xl text-sm uppercase hover:opacity-90 transition">
+            <input type="number" value={depositAmount} onChange={e => setDepositAmount(e.target.value)} placeholder="Amount (KSh)" className="w-full bg-[#0a0a0a] border border-[#222222] text-white rounded-xl p-3 mb-4 font-mono focus:outline-none focus:border-[#F0A500]" />
+            <button onClick={() => { wallet.addBalance(parseFloat(depositAmount) || 0); setShowDeposit(false); setDepositAmount('') }} className="w-full bg-gradient-to-r from-[#F0A500] to-[#B8860B] text-black font-bold py-3 rounded-xl text-sm uppercase hover:opacity-90 transition">
               Deposit via M-Pesa
             </button>
           </motion.div>

@@ -17,10 +17,10 @@ export default {
       },
       colors: {
         gold: {
-          primary: '#C9A84C',
-          bright: '#D4A843',
+          primary: '#F0A500',
+          bright: '#FFB800',
           dark: '#B8860B',
-          tint: '#1E1A0F',
+          tint: '#2A1F00',
         },
         green: {
           primary: '#4CAF7D',
@@ -42,11 +42,9 @@ export default {
           muted: '#555555',
         },
         badge: {
-          tech: '#1E1A0F',
+          tech: '#2A1F00',
           pool: '#1A1A1A',
-        }
-      }
-    },
+        },
   },
   plugins: [],
 }

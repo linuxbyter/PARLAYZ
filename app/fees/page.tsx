@@ -10,7 +10,7 @@ export default function FeesPage() {
       
       <main className="max-w-3xl mx-auto px-4 py-8">
         <div className="flex items-center gap-2 mb-8">
-          <DollarSign className="w-6 h-6 text-[#C9A84C]" />
+          <DollarSign className="w-6 h-6 text-[#F0A500]" />
           <h1 className="text-2xl font-bold">Fees</h1>
         </div>
 
@@ -22,7 +22,7 @@ export default function FeesPage() {
             </h2>
             <p className="mb-3">Parlayz charges a small platform fee on winning bets:</p>
             <div className="bg-[#0a0a0a] rounded-lg p-4 text-center">
-              <div className="text-3xl font-black text-[#C9A84C]">5%</div>
+              <div className="text-3xl font-black text-[#F0A500]">5%</div>
               <div className="text-sm mt-1">of winnings</div>
             </div>
             <p className="mt-3 text-sm">Example: KSh 1,000 bet at 2x odds wins KSh 2,000. Platform fee = KSh 50. You receive KSh 1,950.</p>
@@ -41,7 +41,7 @@ export default function FeesPage() {
               </div>
               <div className="flex items-center justify-between p-2 bg-[#0a0a0a] rounded-lg">
                 <span className="text-white">LOCKED phase</span>
-                <span className="text-[#C9A84C] font-bold">2%</span>
+                <span className="text-[#F0A500] font-bold">2%</span>
               </div>
               <div className="flex items-center justify-between p-2 bg-[#0a0a0a] rounded-lg">
                 <span className="text-white">GRACE period</span>
@@ -52,7 +52,7 @@ export default function FeesPage() {
 
           <section className="bg-[#141414] border border-[#222222] rounded-xl p-5">
             <h2 className="text-white font-bold text-lg mb-4 flex items-center gap-2">
-              <ArrowDownLeft className="w-5 h-5 text-[#C9A84C]" />
+              <ArrowDownLeft className="w-5 h-5 text-[#F0A500]" />
               M-Pesa Transactions
             </h2>
             <div className="space-y-3">

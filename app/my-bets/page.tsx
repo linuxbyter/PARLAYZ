@@ -44,7 +44,7 @@ export default function MyBetsPage() {
       
       <main className="max-w-2xl mx-auto px-4 py-4">
         <div className="flex items-center gap-2 mb-6">
-          <Ticket className="w-5 h-5 text-[#C9A84C]" />
+          <Ticket className="w-5 h-5 text-[#F0A500]" />
           <h1 className="text-xl font-bold">My Wagers</h1>
         </div>
 
@@ -56,7 +56,7 @@ export default function MyBetsPage() {
           </div>
           <div className="bg-[#141414] border border-[#222222] rounded-xl p-3 text-center">
             <div className="text-[10px] text-[#8B8B8B] mb-1">MAX RETURN</div>
-            <div className="text-lg font-bold text-[#C9A84C]">KSh {maxEstReturn.toLocaleString()}</div>
+            <div className="text-lg font-bold text-[#F0A500]">KSh {maxEstReturn.toLocaleString()}</div>
           </div>
           <div className="bg-[#141414] border border-[#222222] rounded-xl p-3 text-center">
             <div className="text-[10px] text-[#8B8B8B] mb-1">WINNINGS</div>
@@ -72,7 +72,7 @@ export default function MyBetsPage() {
               onClick={() => setFilter(f as typeof filter)}
               className={`px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition ${
                 filter === f 
-                  ? 'bg-[#1E1A0F] text-[#C9A84C] border border-[#C9A84C]/30' 
+                  ? 'bg-[#2A1F00] text-[#F0A500] border border-[#F0A500]/30' 
                   : 'bg-[#141414] border border-[#222222] text-[#8B8B8B] hover:text-white'
               }`}
             >
@@ -130,7 +130,7 @@ export default function MyBetsPage() {
           <div className="text-center py-12">
             <Ticket className="w-12 h-12 text-[#8B8B8B] mx-auto mb-4" />
             <p className="text-[#8B8B8B] mb-4">No wagers yet</p>
-            <Link href="/" className="inline-block bg-[#C9A84C] text-black font-bold px-4 py-2 rounded-lg text-sm">
+            <Link href="/" className="inline-block bg-[#F0A500] text-black font-bold px-4 py-2 rounded-lg text-sm">
               Browse Markets
             </Link>
           </div>
@@ -149,7 +149,7 @@ function BetCard({ bet }: { bet: Bet }) {
     <div className="bg-[#141414] border border-[#222222] rounded-xl p-4">
       <div className="flex items-start justify-between mb-2">
         <div className="flex items-center gap-2">
-          <span className="bg-[#1E1A0F] text-[#C9A84C] text-[10px] font-bold px-2 py-0.5 rounded border border-[#C9A84C]/30">
+          <span className="bg-[#2A1F00] text-[#F0A500] text-[10px] font-bold px-2 py-0.5 rounded border border-[#F0A500]/30">
             {bet.category}
           </span>
           {bet.status === 'ACTIVE' && (
@@ -159,7 +159,7 @@ function BetCard({ bet }: { bet: Bet }) {
             </span>
           )}
           {bet.status === 'LOCKED' && (
-            <span className="text-[10px] text-[#C9A84C] flex items-center gap-1">
+            <span className="text-[10px] text-[#F0A500] flex items-center gap-1">
               <Clock className="w-3 h-3" />
               LOCKED
             </span>

@@ -10,14 +10,14 @@ export default function RulesPage() {
       
       <main className="max-w-3xl mx-auto px-4 py-8">
         <div className="flex items-center gap-2 mb-8">
-          <BookOpen className="w-6 h-6 text-[#C9A84C]" />
+          <BookOpen className="w-6 h-6 text-[#F0A500]" />
           <h1 className="text-2xl font-bold">Market Rules</h1>
         </div>
 
         <div className="space-y-8 text-[#8B8B8B]">
           <section>
             <h2 className="text-white font-bold text-lg mb-3 flex items-center gap-2">
-              <Trophy className="w-5 h-5 text-[#C9A84C]" />
+              <Trophy className="w-5 h-5 text-[#F0A500]" />
               How Markets Resolve
             </h2>
             <p className="mb-3">Each market has a clear YES/NO question and a specific resolution time. Markets resolve based on the stated data source:</p>
@@ -43,7 +43,7 @@ export default function RulesPage() {
 
           <section>
             <h2 className="text-white font-bold text-lg mb-3 flex items-center gap-2">
-              <Clock className="w-5 h-5 text-[#C9A84C]" />
+              <Clock className="w-5 h-5 text-[#F0A500]" />
               Market Phases
             </h2>
             <div className="bg-[#141414] border border-[#222222] rounded-xl p-4 space-y-3">
@@ -64,7 +64,7 @@ export default function RulesPage() {
 
           <section>
             <h2 className="text-white font-bold text-lg mb-3 flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 text-[#C9A84C]" />
+              <AlertCircle className="w-5 h-5 text-[#F0A500]" />
               Cancellation & Postponement
             </h2>
             <p className="mb-3">If an event is cancelled or postponed:</p>
@@ -90,15 +90,15 @@ export default function RulesPage() {
             <div className="mt-3 bg-[#141414] border border-[#222222] rounded-xl p-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-white">During OPEN phase</span>
-                <span className="text-[#C9A84C] font-bold">0% fee</span>
+                <span className="text-[#F0A500] font-bold">0% fee</span>
               </div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-white">During LOCKED phase</span>
-                <span className="text-[#C9A84C] font-bold">2% fee</span>
+                <span className="text-[#F0A500] font-bold">2% fee</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-white">During GRACE period</span>
-                <span className="text-[#C9A84C] font-bold">5% fee</span>
+                <span className="text-[#F0A500] font-bold">5% fee</span>
               </div>
             </div>
           </section>

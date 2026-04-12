@@ -34,7 +34,7 @@ export default function BottomNav() {
               key={item.href}
               href={item.href}
               className={`flex flex-col items-center justify-center gap-1 px-4 py-2 transition-all relative min-w-[64px] ${
-                isActive ? 'text-[#C9A84C]' : 'text-[#8B8B8B]'
+                isActive ? 'text-[#F0A500]' : 'text-[#8B8B8B]'
               }`}
             >
               <div className="relative">
@@ -45,7 +45,7 @@ export default function BottomNav() {
               </div>
               <span className="text-[10px] font-medium">{item.label}</span>
               {isActive && (
-                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-[#C9A84C] rounded-full" />
+                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-[#F0A500] rounded-full" />
               )}
             </Link>
           )

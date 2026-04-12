@@ -23,7 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <CurrencyProvider>
               <div className="min-h-screen bg-[#0a0a0a] text-white flex items-center justify-center p-4">
                 <div className="text-center max-w-md">
-                  <h1 className="text-4xl font-black text-[#C9A84C] mb-4">PARLAYZ</h1>
+                  <h1 className="text-4xl font-black text-[#F0A500] mb-4">PARLAYZ</h1>
                   <p className="text-[#8B8B8B] mb-2">Clerk authentication not configured.</p>
                   <p className="text-xs text-[#555555] font-mono bg-[#141414] p-3 rounded-lg mt-4">
                     Add NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY to your Vercel environment variables.
@@ -47,7 +47,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             variables: {
               colorBackground: '#141414',
               colorInputBackground: '#141414',
-              colorPrimary: '#C9A84C',
+              colorPrimary: '#F0A500',
               colorText: '#ffffff',
               colorTextSecondary: '#8B8B8B',
               colorTextOnPrimaryBackground: '#0a0a0a',
@@ -59,11 +59,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               headerSubtitle: 'text-[#8B8B8B]',
               socialButtonsBlockButton: 'bg-[#141414] border border-[#222222] text-white hover:bg-[#1a1a1a]',
               socialButtonsBlockButtonText: 'text-white',
-              formButtonPrimary: 'bg-[#C9A84C] hover:bg-[#D4A843] text-black',
-              formFieldInput: 'bg-[#141414] border border-[#222222] text-white focus:border-[#C9A84C]',
-              footerActionLink: 'text-[#C9A84C] hover:text-[#D4A843]',
+              formButtonPrimary: 'bg-[#F0A500] hover:bg-[#D4A843] text-black',
+              formFieldInput: 'bg-[#141414] border border-[#222222] text-white focus:border-[#F0A500]',
+              footerActionLink: 'text-[#F0A500] hover:text-[#D4A843]',
               identityPreviewText: 'text-white',
-              identityPreviewEditButton: 'text-[#C9A84C]',
+              identityPreviewEditButton: 'text-[#F0A500]',
               dividerLine: 'bg-[#222222]',
               dividerText: 'text-[#8B8B8B]',
               formFieldLabel: 'text-[#8B8B8B]',

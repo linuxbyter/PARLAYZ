@@ -52,7 +52,7 @@ export default function SearchPage() {
             placeholder="Search markets..."
             value={query}
             onChange={(e) => handleSearch(e.target.value)}
-            className="w-full bg-[#141414] border border-[#222222] rounded-xl py-3 pl-12 pr-10 text-white placeholder-[#8B8B8B] focus:border-[#C9A84C] focus:outline-none"
+            className="w-full bg-[#141414] border border-[#222222] rounded-xl py-3 pl-12 pr-10 text-white placeholder-[#8B8B8B] focus:border-[#F0A500] focus:outline-none"
             autoFocus
           />
           {query && (
@@ -75,14 +75,14 @@ export default function SearchPage() {
           <div className="space-y-3">
             {results.map(result => (
               <Link key={result.id} href={`/market/${result.id}`}>
-                <div className="bg-[#141414] border border-[#222222] rounded-xl p-4 hover:border-[#C9A84C]/50 transition">
+                <div className="bg-[#141414] border border-[#222222] rounded-xl p-4 hover:border-[#F0A500]/50 transition">
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="bg-[#1E1A0F] text-[#C9A84C] text-[10px] font-bold px-2 py-0.5 rounded border border-[#C9A84C]/30">
+                    <span className="bg-[#2A1F00] text-[#F0A500] text-[10px] font-bold px-2 py-0.5 rounded border border-[#F0A500]/30">
                       {result.category}
                     </span>
                     <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
                       result.status === 'OPEN' ? 'bg-[#1E3D2F] text-[#4CAF7D]' :
-                      result.status === 'LOCKED' ? 'bg-[#1E1A0F] text-[#C9A84C]' :
+                      result.status === 'LOCKED' ? 'bg-[#2A1F00] text-[#F0A500]' :
                       'bg-[#3D1E1E] text-[#E05252]'
                     }`}>
                       {result.status}

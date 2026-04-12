@@ -52,10 +52,10 @@ export default function LivePage() {
               transition={{ delay: i * 0.1 }}
             >
               <Link href={`/market/${market.id}`}>
-                <div className="bg-[#141414] border border-[#222222] rounded-xl p-4 hover:border-[#C9A84C]/50 transition">
+                <div className="bg-[#141414] border border-[#222222] rounded-xl p-4 hover:border-[#F0A500]/50 transition">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-2">
-                      <span className="bg-[#1E1A0F] text-[#C9A84C] text-[10px] font-bold px-2 py-0.5 rounded border border-[#C9A84C]/30">
+                      <span className="bg-[#2A1F00] text-[#F0A500] text-[10px] font-bold px-2 py-0.5 rounded border border-[#F0A500]/30">
                         {market.category}
                       </span>
                       <span className="flex items-center gap-1 text-[#4CAF7D] text-xs">
