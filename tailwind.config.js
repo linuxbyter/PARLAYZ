@@ -17,14 +17,33 @@ export default {
       },
       colors: {
         gold: {
-          400: '#fbbf24',
-          500: '#f59e0b',
-          600: '#d97706',
+          primary: '#C9A84C',
+          bright: '#D4A843',
+          dark: '#B8860B',
+          tint: '#1E1A0F',
         },
-        matte: {
-          900: '#0a0a0a',
-          800: '#171717',
-          700: '#262626',
+        green: {
+          primary: '#4CAF7D',
+          glow: '#1E3D2F',
+          muted: '#2D5A3D',
+        },
+        bg: {
+          primary: '#0a0a0a',
+          card: '#141414',
+          cardHover: '#1a1a1a',
+        },
+        border: {
+          default: '#222222',
+          subtle: '#1e1e1e',
+        },
+        text: {
+          primary: '#FFFFFF',
+          secondary: '#8B8B8B',
+          muted: '#555555',
+        },
+        badge: {
+          tech: '#1E1A0F',
+          pool: '#1A1A1A',
         }
       }
     },
