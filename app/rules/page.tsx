@@ -1,7 +1,7 @@
 'use client'
 
 import Header from '@/src/components/Header'
-import { BookOpen, Trophy, AlertCircle, CheckCircle, Clock, DollarSign } from 'lucide-react'
+import { BookOpen, Trophy, AlertCircle, CheckCircle, Clock } from 'lucide-react'
 
 export default function RulesPage() {
   return (

@@ -2,8 +2,7 @@
 
 import Header from '@/src/components/Header'
 import BottomNav from '@/src/components/BottomNav'
-import { SignedIn } from '@clerk/nextjs'
-import { Ticket, TrendingUp, TrendingDown, Clock, ChevronRight, CircleCheck, CircleX } from 'lucide-react'
+import { Ticket, TrendingUp, TrendingDown, Clock, CircleCheck, CircleX } from 'lucide-react'
 import Link from 'next/link'
 import { useState } from 'react'
 

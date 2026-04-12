@@ -4,9 +4,6 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
 export default function Footer() {
-  const pathname = usePathname()
-  const isAuthPage = pathname?.startsWith('/sign-') || pathname === '/'
-
   return (
     <footer className="bg-[#0a0a0a] border-t border-[#222222] py-8 mt-auto">
       <div className="max-w-6xl mx-auto px-4">

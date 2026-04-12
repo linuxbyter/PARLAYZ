@@ -1,7 +1,7 @@
 'use client'
 
 import Header from '@/src/components/Header'
-import { Heart, AlertTriangle, Shield, Clock } from 'lucide-react'
+import { Heart, AlertTriangle, Shield } from 'lucide-react'
 
 export default function ResponsibleGamingPage() {
   return (

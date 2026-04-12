@@ -4,16 +4,15 @@ import Header from '@/src/components/Header'
 import { useParams, useRouter } from 'next/navigation'
 import { useMarketLogic, type MarketPhase } from '@/src/hooks/useMarketLogic'
 import { SentimentChart } from '@/src/components/SentimentChart'
-import { INSTRUMENTS, formatPrice } from '@/src/lib/instruments'
+import { INSTRUMENTS } from '@/src/lib/instruments'
 import { format } from 'date-fns'
 import { useState, useCallback, useEffect, useMemo } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  TrendingUp, TrendingDown, ArrowLeft, Zap, Info, Clock,
+  ArrowLeft, Zap, Info,
   MessageSquare, Star, Crown, Send, Wallet,
-  ArrowUpRight, ArrowDownLeft, BarChart3, Users, Shield,
-  AlertTriangle, CheckCircle, XCircle, Copy, Swords, ChevronDown,
-  DollarSign, Target, Flame,
+  ArrowUpRight, BarChart3, Users, Shield,
+  Flame,
 } from 'lucide-react'
 import { useWallet, useCurrency } from '@/src/hooks/useWallet'
 
@@ -52,10 +51,8 @@ export default function MarketDetailPage() {
   const id = params?.id as string
   const inst = INSTRUMENTS.find(i => i.id === id)
   const wallet = useWallet()
-  const { currency, displaySymbol } = useCurrency()
 
   const [livePrice, setLivePrice] = useState(inst?.initialPrice ?? 0)
-  const [priceHistory, setPriceHistory] = useState<{ time: number; price: number }[]>([])
   const [floatingBets, setFloatingBets] = useState<FloatingBet[]>([])
   const [stakeAmount, setStakeAmount] = useState('10')
   const [activeTab, setActiveTab] = useState<'chart' | 'orders' | 'comments'>('chart')
@@ -64,8 +61,8 @@ export default function MarketDetailPage() {
   const [comments, setComments] = useState<Comment[]>(MOCK_COMMENTS)
   const [orders] = useState<OrderBookEntry[]>(MOCK_ORDERS)
   const [trades] = useState<Trade[]>(MOCK_TRADES)
-  const [yesPrice, setYesPrice] = useState(67)
-  const [noPrice, setNoPrice] = useState(33)
+  const [yesPrice] = useState(67)
+  const [noPrice] = useState(33)
   const [showDeposit, setShowDeposit] = useState(false)
   const [depositAmount, setDepositAmount] = useState('')
   const [sellAmount, setSellAmount] = useState<string>('')
