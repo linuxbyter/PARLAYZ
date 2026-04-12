@@ -53,6 +53,7 @@ export default function MarketDetailPage() {
   const wallet = useWallet()
 
   const [livePrice, setLivePrice] = useState(inst?.initialPrice ?? 0)
+  const [/* priceHistory */, setPriceHistory] = useState<{ time: number; price: number }[]>([])
   const [floatingBets, setFloatingBets] = useState<FloatingBet[]>([])
   const [stakeAmount, setStakeAmount] = useState('10')
   const [activeTab, setActiveTab] = useState<'chart' | 'orders' | 'comments'>('chart')
