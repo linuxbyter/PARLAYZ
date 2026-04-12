@@ -1,5 +1,5 @@
 import { ClerkProvider } from '@clerk/nextjs'
-import './globals.css'
+import styles from './styles.module.css'
 import { Providers } from './providers'
 import { CurrencyProvider } from '@/src/hooks/useWallet'
 import ClientLayout from '@/src/components/ClientLayout'
@@ -18,7 +18,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   if (!isValidKey) {
     return (
       <html lang="en">
-        <body className="bg-[#0a0a0a] text-white font-sans min-h-screen">
+        <body style={{ background: '#0a0a0a', color: '#ffffff', minHeight: '100vh' }}>
           <Providers>
             <CurrencyProvider>
               <div className="min-h-screen bg-[#0a0a0a] text-white flex items-center justify-center p-4">
@@ -39,7 +39,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
   return (
     <html lang="en">
-      <body className="bg-[#0a0a0a] text-white font-sans min-h-screen">
+      <body style={{ background: '#0a0a0a', color: '#ffffff', minHeight: '100vh' }}>
         <ClerkProvider
           publishableKey={publishableKey}
           appearance={{
