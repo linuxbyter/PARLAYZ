@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
       miniPool,
       shareUrl: `/duel/${duelId}?pool=${id}`,
     })
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Failed to create mini-pool' }, { status: 500 })
   }
 }
@@ -129,7 +129,7 @@ export async function PATCH(req: NextRequest) {
 
     miniPools.set(id, pool)
     return NextResponse.json({ success: true, miniPool: pool })
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Failed to update mini-pool' }, { status: 500 })
   }
 }

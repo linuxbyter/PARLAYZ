@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
       duel,
       shareUrl: `/duel/${id}`,
     })
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Failed to create duel' }, { status: 500 })
   }
 }
@@ -84,7 +84,7 @@ export async function GET(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json()
-    const { id, action, participant, message } = body
+    const { id, action, participant } = body
 
     const duel = duels.get(id)
     if (!duel) {
@@ -119,7 +119,7 @@ export async function PATCH(req: NextRequest) {
 
     duels.set(id, duel)
     return NextResponse.json({ success: true, duel })
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Failed to update duel' }, { status: 500 })
   }
 }

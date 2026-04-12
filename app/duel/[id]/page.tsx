@@ -45,13 +45,12 @@ export default function DuelPage() {
   const params = useParams()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { user, isLoaded } = useUser()
+  const { user } = useUser()
   const duelId = params?.id as string
   const poolId = searchParams?.get('pool')
 
   const [duel, setDuel] = useState<Duel | null>(null)
   const [miniPool, setMiniPool] = useState<MiniPool | null>(null)
-  const [isCreator, setIsCreator] = useState(false)
   const [hasJoined, setHasJoined] = useState(false)
   const [stakeAmount, setStakeAmount] = useState('5')
   const [chatMessage, setChatMessage] = useState('')
@@ -112,9 +111,7 @@ export default function DuelPage() {
 
   useEffect(() => {
     if (!duel || !userId) return
-    const joined = duel.participants.includes(userId)
-    setHasJoined(joined)
-    setIsCreator(duel.creator === userId)
+    setHasJoined(duel.participants.includes(userId))
   }, [duel, userId])
 
   const handleCreateMiniPool = async () => {
