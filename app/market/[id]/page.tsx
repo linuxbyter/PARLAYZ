@@ -448,29 +448,87 @@ export default function MarketDetailPage() {
               </div>
             )}
 
-            {/* Market Rules */}
+            {/* Market Rules / Context Toggle */}
             <div className="bg-[#141414] border border-[#222222] rounded-xl p-5">
-              <h4 className="text-[10px] font-bold uppercase tracking-wider text-[#8B8B8B] mb-3 flex items-center gap-1.5">
-                <Info className="w-3.5 h-3.5" /> Resolution Criteria
-              </h4>
-              <div className="grid grid-cols-3 gap-4 mb-3">
-                <div className="text-center">
-                  <p className="text-[9px] text-[#555555] uppercase font-bold">Opens</p>
-                  <p className="text-sm font-mono font-bold text-white">{startTime}</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-[9px] text-[#555555] uppercase font-bold">Locks</p>
-                  <p className="text-sm font-mono font-bold text-[#F0A500]">{lockTime}</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-[9px] text-[#555555] uppercase font-bold">Resolves</p>
-                  <p className="text-sm font-mono font-bold text-[#4CAF7D]">{resolveTime}</p>
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="text-[10px] font-bold uppercase tracking-wider text-[#8B8B8B] flex items-center gap-1.5">
+                  <Info className="w-3.5 h-3.5" /> Market Details
+                </h4>
+                <div className="flex bg-[#0a0a0a] rounded-lg p-0.5 gap-0.5">
+                  <button
+                    onClick={() => setRulesTab('rules')}
+                    className={`px-3 py-1.5 rounded text-[10px] font-bold uppercase transition ${
+                      rulesTab === 'rules' ? 'bg-[#F0A500] text-black' : 'text-[#8B8B8B] hover:text-white'
+                    }`}
+                  >
+                    Rules
+                  </button>
+                  <button
+                    onClick={() => setRulesTab('context')}
+                    className={`px-3 py-1.5 rounded text-[10px] font-bold uppercase transition ${
+                      rulesTab === 'context' ? 'bg-[#F0A500] text-black' : 'text-[#8B8B8B] hover:text-white'
+                    }`}
+                  >
+                    Context
+                  </button>
                 </div>
               </div>
-              <p className="text-xs text-[#8B8B8B] leading-relaxed">
-                This market resolves to YES if the {inst.label} price at resolution time is strictly above the strike price.
-                Otherwise it resolves to NO. Price data sourced from Binance API.
-              </p>
+
+              {rulesTab === 'rules' && (
+                <>
+                  <div className="grid grid-cols-3 gap-4 mb-3">
+                    <div className="text-center">
+                      <p className="text-[9px] text-[#555555] uppercase font-bold">Opens</p>
+                      <p className="text-sm font-mono font-bold text-white">{startTime}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-[9px] text-[#555555] uppercase font-bold">Locks</p>
+                      <p className="text-sm font-mono font-bold text-[#F0A500]">{lockTime}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-[9px] text-[#555555] uppercase font-bold">Resolves</p>
+                      <p className="text-sm font-mono font-bold text-[#4CAF7D]">{resolveTime}</p>
+                    </div>
+                  </div>
+                  <p className="text-xs text-[#8B8B8B] leading-relaxed">
+                    This market resolves to YES if the {inst.label} price at resolution time is strictly above the strike price.
+                    Otherwise it resolves to NO. Price data sourced from Binance API.
+                  </p>
+                </>
+              )}
+
+              {rulesTab === 'context' && (
+                <div className="space-y-3">
+                  <div className="flex items-start gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-[#F0A500] mt-1.5" />
+                    <div>
+                      <p className="text-xs text-white font-medium">Asset</p>
+                      <p className="text-[10px] text-[#8B8B8B]">{inst.label} (USDT)</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-[#F0A500] mt-1.5" />
+                    <div>
+                      <p className="text-xs text-white font-medium">Data Source</p>
+                      <p className="text-[10px] text-[#8B8B8B]">Binance WebSocket API</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-[#F0A500] mt-1.5" />
+                    <div>
+                      <p className="text-xs text-white font-medium">Market Type</p>
+                      <p className="text-[10px] text-[#8B8B8B]">5-minute price prediction</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-[#F0A500] mt-1.5" />
+                    <div>
+                      <p className="text-xs text-white font-medium">Settlement</p>
+                      <p className="text-[10px] text-[#8B8B8B]">Automatic at resolution time</p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

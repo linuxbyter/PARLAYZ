@@ -1,8 +1,7 @@
 'use client'
 
 import { SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/nextjs'
-import { useWallet } from '@/src/hooks/useWallet'
-import { Wallet, Bell, TrendingUp, Trophy, Search, History, Sparkles, Globe, Cpu, Zap } from 'lucide-react'
+import { Search, TrendingUp, Trophy, History, Sparkles, Globe, Cpu, Zap } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
@@ -19,8 +18,6 @@ const NAV_TABS = [
 
 export default function Header() {
   const pathname = usePathname()
-  const wallet = useWallet()
-  const [showBalanceModal, setShowBalanceModal] = useState(false)
   const [scrolled, setScrolled] = useState(false)
   const [activeTab, setActiveTab] = useState('Trending')
 
@@ -79,39 +76,6 @@ export default function Header() {
             <Link href="/search" className="md:hidden p-2 text-[#8B8B8B] hover:text-[#F0A500] transition">
               <Search className="w-5 h-5" />
             </Link>
-
-            {/* Balance */}
-            <SignedIn>
-              <button 
-                onClick={() => setShowBalanceModal(!showBalanceModal)}
-                className="flex items-center gap-2 bg-[#141414] border border-[#222222] rounded-lg px-3 py-1.5 hover:border-[#F0A500]/50 transition"
-              >
-                <Wallet className="w-4 h-4 text-[#F0A500]" />
-                <span className="text-sm font-bold text-white font-mono">KSh {wallet.displayBalance.toLocaleString()}</span>
-              </button>
-              {showBalanceModal && (
-                <>
-                  <div className="fixed inset-0 z-40" onClick={() => setShowBalanceModal(false)} />
-                  <div className="absolute right-2 top-full mt-2 w-64 bg-[#141414] border border-[#222222] rounded-xl shadow-2xl z-50 p-4">
-                    <div className="text-xs text-[#8B8B8B] mb-1">Total Balance</div>
-                    <div className="text-2xl font-bold text-white mb-3">KSh {wallet.displayBalance.toLocaleString()}</div>
-                    <div className="text-xs text-[#8B8B8B] mb-1">Active Bets</div>
-                    <div className="text-lg font-bold text-[#F0A500]">KSh {wallet.activeBets.toLocaleString()}</div>
-                    <Link href="/wallet" className="block mt-4 text-center bg-[#F0A500] text-black font-bold py-2 rounded-lg text-sm hover:bg-[#D4A843] transition">
-                      View Wallet
-                    </Link>
-                  </div>
-                </>
-              )}
-            </SignedIn>
-
-            {/* Notifications */}
-            <SignedIn>
-              <button className="p-2 text-[#8B8B8B] hover:text-[#F0A500] transition relative">
-                <Bell className="w-5 h-5" />
-                <span className="absolute top-1 right-1 w-2 h-2 bg-[#E05252] rounded-full" />
-              </button>
-            </SignedIn>
 
             {/* Auth */}
             <SignedOut>
