@@ -1,10 +1,11 @@
 'use client'
 
 import { SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/nextjs'
-import { Search, TrendingUp, Trophy, History, Sparkles, Globe, Cpu, Zap } from 'lucide-react'
+import { Search, TrendingUp, Trophy, History, Sparkles, Globe, Cpu, Zap, Menu } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
+import { SidebarMenu } from '@/src/components/SidebarMenu'
 
 const NAV_TABS = [
   { href: '/', label: 'Trending', icon: TrendingUp },
@@ -72,6 +73,9 @@ export default function Header() {
 
           {/* Right Section */}
           <div className="flex items-center gap-2">
+            {/* Hamburger Menu */}
+            <SidebarMenu />
+
             {/* Mobile Search */}
             <Link href="/search" className="md:hidden p-2 text-[#8B8B8B] hover:text-[#F0A500] transition">
               <Search className="w-5 h-5" />
