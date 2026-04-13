@@ -65,22 +65,22 @@ export default function Home() {
     <div className="min-h-screen bg-[#0a0a0a] text-white pb-20">
       <Header />
 
-      <main className="max-w-7xl mx-auto px-4 py-6">
+      <main className="max-w-7xl mx-auto px-3 py-4">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-[#141414] border border-[#222222] rounded-xl p-4 mb-6 flex items-center justify-between"
+          className="bg-[#141414] border border-[#222222] rounded-xl p-3 mb-4 flex items-center justify-between"
         >
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-[#F0A500]/20 flex items-center justify-center">
-              <span className="text-lg font-black text-[#F0A500]">₿</span>
+            <div className="w-8 h-8 rounded-full bg-[#F0A500]/20 flex items-center justify-center">
+              <span className="text-sm font-black text-[#F0A500]">₿</span>
             </div>
             <div>
-              <p className="text-[10px] text-[#555555] uppercase font-bold tracking-widest">BTC/USDT Live</p>
+              <p className="text-[9px] text-[#555555] uppercase font-bold tracking-widest">BTC/USDT Live</p>
               {isLoading ? (
-                <Skeleton className="w-32 h-8 mt-1" />
+                <Skeleton className="w-24 h-6 mt-0.5" />
               ) : (
-                <p className="text-xl font-black font-mono text-white">
+                <p className="text-lg font-black font-mono text-white">
                   ${btcPrice?.toLocaleString(undefined, { minimumFractionDigits: 2 }) || '--'}
                 </p>
               )}
@@ -89,18 +89,18 @@ export default function Home() {
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
-            className="flex items-center gap-2"
+            className="flex items-center gap-1.5"
           >
-            <div className="w-2 h-2 rounded-full bg-[#F0A500]" />
-            <span className="text-xs text-[#F0A500] font-bold">LIVE</span>
+            <div className="w-1.5 h-1.5 rounded-full bg-[#F0A500]" />
+            <span className="text-[9px] text-[#F0A500] font-bold">LIVE</span>
           </motion.div>
-          </motion.div>
+        </motion.div>
 
         {/* Five Minute Auto Markets */}
         <SignedIn>
-          <div className="mb-6">
-            <h2 className="text-sm font-bold text-[#C9A84C] uppercase tracking-wider mb-3 flex items-center gap-2">
-              <Zap className="w-4 h-4" />
+          <div className="mb-4">
+            <h2 className="text-xs font-bold text-[#C9A84C] uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <Zap className="w-3 h-3" />
               5-Minute Auto Markets
             </h2>
             <FiveMinMarkets onBet={(marketId, side) => {
@@ -110,7 +110,7 @@ export default function Home() {
         </SignedIn>
 
         <SignedIn>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
             {MARKETS.map((market, i) => (
               <motion.div
                 key={market.id}

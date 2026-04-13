@@ -108,18 +108,18 @@ export function FiveMinMarkets({ onBet }: FiveMinMarketProps) {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       {markets.map(market => (
         <motion.div
           key={market.id}
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-[#141414] border border-[#222222] rounded-xl p-4"
+          className="bg-[#141414] border border-[#222222] rounded-lg p-3"
         >
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-white">{market.name}</span>
-              <span className={`text-xs px-2 py-0.5 rounded-full ${
+              <span className="text-xs font-semibold text-white">{market.name}</span>
+              <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${
                 market.phase === 'open' 
                   ? 'bg-[#4CAF7D]/20 text-[#4CAF7D] animate-pulse' 
                   : 'bg-[#C9A84C]/20 text-[#C9A84C]'
@@ -128,34 +128,34 @@ export function FiveMinMarkets({ onBet }: FiveMinMarketProps) {
               </span>
             </div>
             <div className="text-right">
-              <span className="text-lg font-bold text-white font-mono">
+              <span className="text-sm font-bold text-white font-mono">
                 {formatTime(market.timeRemaining)}
               </span>
             </div>
           </div>
 
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-2">
             <div>
-              <span className="text-xs text-[#8B8B8B]">Probability</span>
-              <div className="text-2xl font-black text-[#C9A84C]">
+              <span className="text-[9px] text-[#8B8B8B]">Probability</span>
+              <div className="text-xl font-black text-[#C9A84C]">
                 {market.probability}% 
                 {market.direction === 'up' && <span className="text-green-500 ml-1">▲</span>}
                 {market.direction === 'down' && <span className="text-red-500 ml-1">▼</span>}
               </div>
             </div>
             <div className="text-right">
-              <span className="text-xs text-[#8B8B8B]">Pool</span>
-              <div className="text-sm font-semibold text-[#C9A84C]">
+              <span className="text-[9px] text-[#8B8B8B]">Pool</span>
+              <div className="text-xs font-semibold text-[#C9A84C]">
                 KSh {market.poolSize.toLocaleString()}
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2">
             <button
               onClick={() => onBet(market.id, 'up')}
               disabled={market.phase !== 'open'}
-              className={`py-3 px-4 rounded-xl font-semibold transition flex flex-col items-center ${
+              className={`py-2 px-3 rounded-lg font-semibold transition flex flex-col items-center text-xs ${
                 market.phase === 'open'
                   ? 'bg-[#4CAF7D]/20 border border-[#4CAF7D] text-[#4CAF7D] hover:bg-[#4CAF7D]/30'
                   : 'bg-[#222222] border border-[#333] text-[#555555] cursor-not-allowed'

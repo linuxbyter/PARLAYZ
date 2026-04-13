@@ -33,7 +33,7 @@ export function SidebarMenu() {
       </button>
 
       {isOpen && (
-        <div className="fixed inset-0 z-50">
+        <div className="fixed inset-0 z-[100]">
           {/* Backdrop */}
           <div 
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
@@ -41,11 +41,11 @@ export function SidebarMenu() {
           />
           
           {/* Sidebar */}
-          <div className="absolute right-0 top-0 bottom-0 w-80 bg-[#0a0a0a] border-l border-[#222222] overflow-y-auto">
-            <div className="p-4 border-b border-[#222222] flex items-center justify-between">
-              <span className="font-bold text-white">More</span>
-              <button onClick={() => setIsOpen(false)} className="text-[#8B8B8B] hover:text-white">
-                <X className="w-5 h-5" />
+          <div className="absolute right-0 top-0 bottom-0 w-72 bg-[#0a0a0a] border-l border-[#222222] overflow-y-auto">
+            <div className="p-3 border-b border-[#222222] flex items-center justify-between">
+              <span className="font-bold text-white text-sm">More</span>
+              <button onClick={() => setIsOpen(false)} className="text-[#8B8B8B] hover:text-white p-1">
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -57,39 +57,39 @@ export function SidebarMenu() {
                     key={item.label}
                     href={item.href}
                     onClick={() => setIsOpen(false)}
-                    className="flex items-center gap-3 px-4 py-3 text-[#8B8B8B] hover:text-white hover:bg-[#141414] rounded-lg transition"
+                    className="flex items-center gap-3 px-3 py-2.5 text-[#8B8B8B] hover:text-white hover:bg-[#141414] rounded-lg transition text-sm"
                   >
-                    <Icon className="w-5 h-5" />
+                    <Icon className="w-4 h-4" />
                     <span className="font-medium">{item.label}</span>
                   </Link>
                 )
               })}
             </div>
 
-            <div className="p-4 border-t border-[#222222]">
+            <div className="p-3 border-t border-[#222222]">
               <div className="flex items-center justify-between">
-                <span className="text-[#8B8B8B] text-sm">Language</span>
-                <div className="flex items-center gap-2 text-white">
-                  <Globe className="w-4 h-4" />
+                <span className="text-[#8B8B8B] text-xs">Language</span>
+                <div className="flex items-center gap-2 text-white text-xs">
+                  <Globe className="w-3 h-3" />
                   <span>English</span>
                 </div>
               </div>
             </div>
 
-            <div className="p-4 border-t border-[#222222]">
+            <div className="p-3 border-t border-[#222222]">
               <div className="flex items-center justify-between">
-                <span className="text-[#8B8B8B] text-sm">Dark Mode</span>
+                <span className="text-[#8B8B8B] text-xs">Dark Mode</span>
                 <button 
                   onClick={() => setDarkMode(!darkMode)}
-                  className={`w-12 h-6 rounded-full transition ${darkMode ? 'bg-[#C9A84C]' : 'bg-[#222222]'}`}
+                  className={`w-10 h-5 rounded-full transition ${darkMode ? 'bg-[#C9A84C]' : 'bg-[#222222]'}`}
                 >
-                  <div className={`w-5 h-5 rounded-full bg-white transition-transform ${darkMode ? 'translate-x-6' : 'translate-x-0.5'}`} />
+                  <div className={`w-4 h-4 rounded-full bg-white transition-transform ${darkMode ? 'translate-x-5' : 'translate-x-0.5'}`} />
                 </button>
               </div>
             </div>
 
-            <div className="p-4 border-t border-[#222222]">
-              <div className="flex items-center justify-center gap-4">
+            <div className="p-3 border-t border-[#222222]">
+              <div className="flex items-center justify-center gap-3">
                 {socialLinks.map((social) => {
                   const Icon = social.icon
                   return (
@@ -98,20 +98,20 @@ export function SidebarMenu() {
                       href={social.href}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="p-2 text-[#8B8B8B] hover:text-[#C9A84C] transition"
+                      className="p-1.5 text-[#8B8B8B] hover:text-[#C9A84C] transition"
                     >
-                      <Icon className="w-5 h-5" />
+                      <Icon className="w-4 h-4" />
                     </a>
                   )
                 })}
               </div>
             </div>
 
-            <div className="p-4 border-t border-[#222222]">
+            <div className="p-3 border-t border-[#222222]">
               <SignedOut>
                 <div className="space-y-2">
                   <SignInButton mode="modal">
-                    <button className="w-full bg-[#C9A84C] text-black font-bold py-3 rounded-lg hover:bg-[#B8860B] transition">
+                    <button className="w-full bg-[#C9A84C] text-black font-bold py-2.5 rounded-lg hover:bg-[#B8860B] transition text-sm">
                       Sign In
                     </button>
                   </SignInButton>
