@@ -57,6 +57,7 @@ export default function MarketDetailPage() {
   const [floatingBets, setFloatingBets] = useState<FloatingBet[]>([])
   const [stakeAmount, setStakeAmount] = useState('10')
   const [activeTab, setActiveTab] = useState<'chart' | 'orders' | 'comments'>('chart')
+  const [rulesTab, setRulesTab] = useState<'rules' | 'context'>('rules')
   const [timeframe, setTimeframe] = useState<Timeframe>('5m')
   const [commentInput, setCommentInput] = useState('')
   const [comments, setComments] = useState<Comment[]>(MOCK_COMMENTS)
