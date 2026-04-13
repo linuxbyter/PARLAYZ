@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { SidebarMenu } from '@/src/components/SidebarMenu'
+import { NotificationBell } from '@/src/components/NotificationBell'
 
 const NAV_TABS = [
   { href: '/', label: 'Trending', icon: TrendingUp },
@@ -80,6 +81,9 @@ export default function Header() {
             <Link href="/search" className="md:hidden p-2 text-[#8B8B8B] hover:text-[#F0A500] transition">
               <Search className="w-5 h-5" />
             </Link>
+
+            {/* Notifications */}
+            <NotificationBell />
 
             {/* Auth */}
             <SignedOut>
