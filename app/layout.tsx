@@ -3,10 +3,16 @@ import './styles.css'
 import { Providers } from './providers'
 import { CurrencyProvider } from '@/src/hooks/useWallet'
 import ClientLayout from '@/src/components/ClientLayout'
+import { Suspense } from 'react'
 
 export const metadata = {
   title: 'PARLAYZ - Kenya Prediction Market',
   description: 'Prediction markets on sports, crypto, politics & more. KSh only, M-Pesa native.',
+  manifest: '/manifest.json',
+  icons: {
+    icon: '/favicon.svg',
+    apple: '/icon-192.png',
+  },
 }
 
 export const dynamic = 'force-dynamic'
@@ -18,20 +24,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   if (!isValidKey) {
     return (
       <html lang="en">
-<body>
-          <Providers>
-            <CurrencyProvider>
-              <div className="min-h-screen bg-[#0a0a0a] text-white flex items-center justify-center p-4">
-                <div className="text-center max-w-md">
-                  <h1 className="text-4xl font-black text-[#F0A500] mb-4">PARLAYZ</h1>
-                  <p className="text-[#8B8B8B] mb-2">Clerk authentication not configured.</p>
-                  <p className="text-xs text-[#555555] font-mono bg-[#141414] p-3 rounded-lg mt-4">
-                    Add NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY to your Vercel environment variables.
-                  </p>
-                </div>
-              </div>
-            </CurrencyProvider>
-          </Providers>
+        <body>
+          <div className="min-h-screen bg-[#0a0a0a] text-white flex items-center justify-center p-4">
+            <div className="text-center max-w-md">
+              <h1 className="text-4xl font-black text-[#C9A84C] mb-4">PARLAYZ</h1>
+              <p className="text-[#8B8B8B] mb-2">Clerk authentication not configured.</p>
+              <p className="text-xs text-[#555555] font-mono bg-[#141414] p-3 rounded-lg mt-4">
+                Add NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY to your environment variables.
+              </p>
+            </div>
+          </div>
         </body>
       </html>
     )
@@ -39,6 +41,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
   return (
     <html lang="en">
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+      </head>
       <body>
         <ClerkProvider
           publishableKey={publishableKey}
@@ -47,7 +55,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             variables: {
               colorBackground: '#141414',
               colorInputBackground: '#141414',
-              colorPrimary: '#F0A500',
+              colorPrimary: '#B8860B',
               colorText: '#ffffff',
               colorTextSecondary: '#8B8B8B',
               colorTextOnPrimaryBackground: '#0a0a0a',
@@ -59,9 +67,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               headerSubtitle: 'text-[#8B8B8B]',
               socialButtonsBlockButton: 'bg-[#141414] border border-[#222222] text-white hover:bg-[#1a1a1a]',
               socialButtonsBlockButtonText: 'text-white',
-              formButtonPrimary: 'bg-[#F0A500] hover:bg-[#D4A843] text-black',
-              formFieldInput: 'bg-[#141414] border border-[#222222] text-white focus:border-[#F0A500]',
-              footerActionLink: 'text-[#F0A500] hover:text-[#D4A843]',
+              formButtonPrimary: 'bg-[#B8860B] hover:bg-[#C9A84C] text-black',
+              formFieldInput: 'bg-[#141414] border border-[#222222] text-white focus:border-[#B8860B]',
+              footerActionLink: 'text-[#B8860B] hover:text-[#C9A84C]',
               identityPreviewText: 'text-white',
               identityPreviewEditButton: 'text-[#F0A500]',
               dividerLine: 'bg-[#222222]',

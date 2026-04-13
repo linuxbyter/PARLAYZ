@@ -1,0 +1,30 @@
+{
+  "name": "PARLAYZ - Prediction Markets",
+  "short_name": "PARLAYZ",
+  "description": "Prediction markets on sports, crypto, politics & more",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#B8860B",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "categories": ["finance", "sports", "entertainment"],
+  "lang": "en"
+}
