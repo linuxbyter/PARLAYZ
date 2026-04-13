@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { ChevronRight, Clock, TrendingUp, Zap } from 'lucide-react'
 import Link from 'next/link'
-import { SignedIn, SignInButton } from '@clerk/nextjs'
+import { SignedIn, SignedOut, SignInButton } from '@clerk/nextjs'
 import { LoginPromptModal } from './LoginPromptModal'
 
 interface Market {
