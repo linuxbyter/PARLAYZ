@@ -45,37 +45,33 @@ export default function Header() {
       <div className="max-w-[1400px] mx-auto px-3 md:px-4">
         {/* Top Row */}
         <div className="flex items-center justify-between h-14">
-          {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 shrink-0">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#F0A500] to-[#B8860B] flex items-center justify-center">
+          {/* Logo - P icon only */}
+          <Link href="/" className="shrink-0">
+            <div className="w-8 h-8 rounded-lg bg-[#B8860B] flex items-center justify-center">
               <span className="text-black font-black text-sm">P</span>
             </div>
-            <span className="text-lg font-black tracking-wider text-[#F0A500]">PARLAYZ</span>
           </Link>
 
-          {/* Desktop Nav Tabs */}
-          <nav className="hidden md:flex items-center gap-1 ml-8">
-            {NAV_TABS.map(tab => {
-              const Icon = tab.icon
-              const isActive = activeTab === tab.label
-              return (
-                <Link
-                  key={tab.href}
-                  href={tab.href}
-                  onClick={() => setActiveTab(tab.label)}
-                  className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-all relative ${
-                    isActive ? 'text-[#F0A500]' : 'text-[#8B8B8B] hover:text-[#FFFFFF]'
-                  }`}
-                >
-                  <Icon className="w-4 h-4" />
-                  {tab.label}
-                  {isActive && (
-                    <div className="absolute bottom-0 left-2 right-2 h-0.5 bg-[#F0A500] rounded-full" />
-                  )}
-                </Link>
-              )
-            })}
-          </nav>
+        {/* Desktop Nav Tabs */}
+        <nav className="hidden md:flex items-center gap-6 px-4">
+          {NAV_TABS.map(tab => {
+            const isActive = activeTab === tab.label
+            return (
+              <Link
+                key={tab.href}
+                href={tab.href}
+                onClick={() => setActiveTab(tab.label)}
+                className={`text-sm font-medium whitespace-nowrap transition-colors ${
+                  isActive 
+                    ? 'text-[#C9A84C] font-semibold' 
+                    : 'text-[#555555] hover:text-white'
+                }`}
+              >
+                {tab.label}
+              </Link>
+            )
+          })}
+        </nav>
 
           {/* Right Section */}
           <div className="flex items-center gap-2">
@@ -130,22 +126,20 @@ export default function Header() {
         </div>
 
         {/* Mobile Nav Tabs - Horizontal Scroll */}
-        <nav className="md:hidden flex items-center gap-1 overflow-x-auto pb-2 -mx-3 px-3 scrollbar-hide">
+        <nav className="md:hidden flex items-center gap-6 overflow-x-auto pb-2 px-4 scrollbar-hide">
           {NAV_TABS.map(tab => {
-            const Icon = tab.icon
             const isActive = activeTab === tab.label
             return (
               <Link
                 key={tab.href}
                 href={tab.href}
                 onClick={() => setActiveTab(tab.label)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-all rounded-full ${
+                className={`text-sm font-medium whitespace-nowrap transition-colors ${
                   isActive 
-                    ? 'bg-[#1E1A0F] text-[#F0A500] border border-[#F0A500]/30' 
-                    : 'text-[#8B8B8B] border border-transparent'
+                    ? 'text-[#C9A84C] font-semibold' 
+                    : 'text-[#555555]'
                 }`}
               >
-                <Icon className="w-3.5 h-3.5" />
                 {tab.label}
               </Link>
             )
