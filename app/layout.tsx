@@ -20,18 +20,36 @@ export const dynamic = 'force-dynamic'
 const publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || ''
 const isValidKey = publishableKey.startsWith('pk_test_') || publishableKey.startsWith('pk_live_')
 
+// Force fallback for testing when key is invalid
+const useFallback = !isValidKey || publishableKey === 'pk_test_...'
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  if (!isValidKey) {
+  // Show simple fallback if Clerk key is invalid
+  if (useFallback) {
     return (
       <html lang="en">
+        <head>
+          <meta charSet="utf-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1" />
+          <title>PARLAYZ - Kenya Prediction Market</title>
+          <link rel="preconnect" href="https://fonts.googleapis.com" />
+          <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+          <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+          <style>{`
+            body { margin: 0; padding: 0; background: #0a0a0a; color: #ffffff; font-family: 'Geist', system-ui, sans-serif; }
+            .container { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+            .content { text-align: center; max-width: 400px; padding: 20px; }
+            h1 { color: #C9A84C; font-size: 48px; font-weight: 900; margin-bottom: 16px; }
+            p { color: #8B8B8B; margin-bottom: 8px; }
+            .code { background: #141414; padding: 12px; border-radius: 8px; font-family: monospace; font-size: 12px; color: #555555; }
+          `}</style>
+        </head>
         <body>
-          <div className="min-h-screen bg-[#0a0a0a] text-white flex items-center justify-center p-4">
-            <div className="text-center max-w-md">
-              <h1 className="text-4xl font-black text-[#C9A84C] mb-4">PARLAYZ</h1>
-              <p className="text-[#8B8B8B] mb-2">Clerk authentication not configured.</p>
-              <p className="text-xs text-[#555555] font-mono bg-[#141414] p-3 rounded-lg mt-4">
-                Add NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY to your environment variables.
-              </p>
+          <div className="container">
+            <div className="content">
+              <h1>PARLAYZ</h1>
+              <p>Clerk authentication not configured.</p>
+              <div className="code">NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY not set</div>
             </div>
           </div>
         </body>
