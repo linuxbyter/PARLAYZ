@@ -108,7 +108,7 @@ async function ensureWindowExists(asset: string, symbol: string): Promise<PoolWi
 }
 
 export function FiveMinMarkets({ onBet }: FiveMinMarketProps) {
-  const { user } = useUser()
+  const { user, isLoaded } = useUser()
   const [markets, setMarkets] = useState<AutoMarket[]>([])
   const [loading, setLoading] = useState(true)
   const wsRefs = useRef<Record<string, WebSocket>>({})
@@ -203,7 +203,7 @@ export function FiveMinMarkets({ onBet }: FiveMinMarketProps) {
   }, [])
 
   const handleBet = useCallback(async (asset: string, side: 'up' | 'down') => {
-    if (!user) {
+    if (!isLoaded || !user) {
       onBet(asset, side)
       return
     }
