@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Bell, X } from 'lucide-react'
 import { SignedIn } from '@clerk/nextjs'
 
@@ -23,6 +23,17 @@ export function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false)
   const [notifications] = useState<Notification[]>(mockNotifications)
   const unreadCount = notifications.filter(n => !n.read).length
+
+  // Prevent closing on scroll
+  useEffect(() => {
+    const handleScroll = () => {
+      // Don't close on scroll
+    }
+    if (isOpen) {
+      window.addEventListener('scroll', handleScroll, { passive: true })
+      return () => window.removeEventListener('scroll', handleScroll)
+    }
+  }, [isOpen])
 
   const getIcon = (type: string) => {
     switch (type) {
@@ -49,8 +60,8 @@ export function NotificationBell() {
 
         {isOpen && (
           <>
-            <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
-            <div className="absolute right-0 top-full mt-2 w-80 bg-[#141414] border border-[#222222] rounded-xl shadow-2xl z-50 overflow-hidden">
+            <div className="fixed inset-0 z-[150]" onClick={() => setIsOpen(false)} />
+            <div className="absolute right-0 top-full mt-2 w-80 bg-[#141414] border border-[#222222] rounded-xl shadow-2xl z-[200] overflow-hidden">
               <div className="flex items-center justify-between p-4 border-b border-[#222222]">
                 <h3 className="font-bold text-white">Notifications</h3>
                 <button onClick={() => setIsOpen(false)} className="text-[#8B8B8B] hover:text-white">

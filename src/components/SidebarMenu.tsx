@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Menu, X, Plug, BookOpen, HelpCircle, FileText, Globe, Github, MessageCircle, Instagram, Languages, Moon, Twitter } from 'lucide-react'
 import { SignedIn, SignedOut, SignInButton, UserButton } from '@clerk/nextjs'
 import Link from 'next/link'
@@ -23,6 +23,15 @@ export function SidebarMenu() {
   const [isOpen, setIsOpen] = useState(false)
   const [darkMode, setDarkMode] = useState(true)
 
+  // Prevent closing on scroll
+  useEffect(() => {
+    const handleScroll = () => {
+      // Don't close on scroll - only close via button or backdrop
+    }
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
+
   return (
     <>
       <button 
@@ -33,7 +42,7 @@ export function SidebarMenu() {
       </button>
 
       {isOpen && (
-        <div className="fixed inset-0 z-[100]">
+        <div className="fixed inset-0 z-[200]">
           {/* Backdrop */}
           <div 
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
