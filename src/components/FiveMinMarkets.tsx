@@ -1,7 +1,25 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion } from 'framer-motion'
+import { supabase, isSupabaseReady } from '@/src/lib/supabase'
+import { useUser } from '@clerk/nextjs'
+
+interface PoolWindow {
+  id: string
+  asset: string
+  window_id: string
+  opens_at: string
+  locks_at: string
+  resolves_at: string
+  open_price: number | null
+  close_price: number | null
+  outcome: string | null
+  total_up_stake: number
+  total_down_stake: number
+  total_pool: number
+  status: 'open' | 'locked' | 'resolved'
+}
 
 interface AutoMarket {
   id: string
@@ -14,6 +32,7 @@ interface AutoMarket {
   poolSize: number
   phase: 'open' | 'locked' | 'resolved'
   timeRemaining: number
+  windowId: string
 }
 
 interface FiveMinMarketProps {
@@ -26,85 +45,212 @@ const MARKETS = [
   { id: 'SOL', name: 'Solana', symbol: 'SOLUSDT' },
 ]
 
-function getWindowId(): string {
+function getWindowId(asset: string): string {
   const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  const hours = String(now.getHours()).padStart(2, '0')
   const minutes = Math.floor(now.getMinutes() / 5) * 5
-  return `${now.getHours()}${minutes}`
+  return `${asset}_${year}${month}${day}${hours}${String(minutes).padStart(2, '0')}`
+}
+
+async function ensureWindowExists(asset: string, symbol: string): Promise<PoolWindow | null> {
+  if (!isSupabaseReady || !supabase) return null
+  
+  const windowId = getWindowId(asset)
+  
+  // Check if window exists
+  const { data: existing } = await supabase
+    .from('pool_windows')
+    .select('*')
+    .eq('window_id', windowId)
+    .single()
+  
+  if (existing) return existing
+  
+  // Create new window
+  const now = new Date()
+  const opensAt = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), Math.floor(now.getMinutes() / 5) * 5)
+  const locksAt = new Date(opensAt.getTime() + 5 * 60 * 1000)
+  const resolvesAt = new Date(opensAt.getTime() + 10 * 60 * 1000)
+  
+  // Get open price from Binance
+  let openPrice = 0
+  try {
+    const res = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`)
+    const data = await res.json()
+    openPrice = parseFloat(data.price)
+  } catch (e) {
+    console.error('Failed to fetch open price:', e)
+  }
+  
+  const { data: newWindow, error } = await supabase
+    .from('pool_windows')
+    .insert({
+      asset,
+      window_id: windowId,
+      opens_at: opensAt.toISOString(),
+      locks_at: locksAt.toISOString(),
+      resolves_at: resolvesAt.toISOString(),
+      open_price: openPrice,
+      status: 'open',
+    })
+    .select()
+    .single()
+  
+  if (error) {
+    console.error('Failed to create window:', error)
+    return null
+  }
+  
+  return newWindow
 }
 
 export function FiveMinMarkets({ onBet }: FiveMinMarketProps) {
+  const { user } = useUser()
   const [markets, setMarkets] = useState<AutoMarket[]>([])
+  const [loading, setLoading] = useState(true)
   const wsRefs = useRef<Record<string, WebSocket>>({})
 
   useEffect(() => {
-    const now = new Date()
-    const windowMinutes = Math.floor(now.getMinutes() / 5) * 5
-    const windowEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), windowMinutes + 5)
-    const timeRemaining = Math.max(0, Math.floor((windowEnd.getTime() - now.getTime()) / 1000))
-    
-    const initialMarkets: AutoMarket[] = MARKETS.map(m => ({
-      id: m.id,
-      name: m.name,
-      symbol: m.symbol,
-      currentPrice: 0,
-      openPrice: 0,
-      direction: 'neutral' as const,
-      probability: 50,
-      poolSize: Math.random() * 10000 + 1000,
-      phase: timeRemaining > 120 ? 'open' : 'locked',
-      timeRemaining,
-    }))
-
-    setMarkets(initialMarkets)
-
-    MARKETS.forEach(m => {
-      if (wsRefs.current[m.id]) return
+    const init = async () => {
+      const marketData: AutoMarket[] = []
       
-      const ws = new WebSocket(`wss://stream.binance.com:9443/ws/${m.symbol.toLowerCase()}@trade`)
-      
-      ws.onmessage = (event) => {
-        const data = JSON.parse(event.data)
-        const price = parseFloat(data.p)
+      for (const m of MARKETS) {
+        const windowId = getWindowId(m.id)
         
-        setMarkets(prev => prev.map(market => {
-          if (market.id !== m.id) return market
-          
-          const openPrice = market.openPrice || price
-          const direction = price > openPrice ? 'up' : price < openPrice ? 'down' : 'neutral'
-          const change = openPrice ? ((price - openPrice) / openPrice) * 100 : 0
-          const probability = Math.max(5, Math.min(95, 50 + change * 10))
-          
-          return {
-            ...market,
-            currentPrice: price,
-            openPrice,
-            direction,
-            probability: Math.round(probability),
-          }
-        }))
+        // Try to get/fetch window from Supabase
+        let poolData: PoolWindow | null = null
+        if (isSupabaseReady && supabase) {
+          poolData = await ensureWindowExists(m.id, m.symbol)
+        }
+        
+        // Calculate time remaining
+        const now = new Date()
+        const windowMinutes = Math.floor(now.getMinutes() / 5) * 5
+        const windowEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), windowMinutes + 5)
+        const timeRemaining = Math.max(0, Math.floor((windowEnd.getTime() - now.getTime()) / 1000))
+        
+        marketData.push({
+          id: m.id,
+          name: m.name,
+          symbol: m.symbol,
+          currentPrice: 0,
+          openPrice: poolData?.open_price || 0,
+          direction: 'neutral' as const,
+          probability: 50,
+          poolSize: poolData?.total_pool || Math.random() * 10000 + 1000,
+          phase: timeRemaining > 120 ? 'open' : 'locked',
+          timeRemaining,
+          windowId,
+        })
       }
       
-      wsRefs.current[m.id] = ws
-    })
-
+      setMarkets(marketData)
+      setLoading(false)
+      
+      // Connect WebSocket for live prices
+      MARKETS.forEach(m => {
+        if (wsRefs.current[m.id]) return
+        
+        const ws = new WebSocket(`wss://stream.binance.com:9443/ws/${m.symbol.toLowerCase()}@trade`)
+        
+        ws.onmessage = (event) => {
+          const data = JSON.parse(event.data)
+          const price = parseFloat(data.p)
+          
+          setMarkets(prev => prev.map(market => {
+            if (market.id !== m.id) return market
+            
+            const openPrice = market.openPrice || price
+            const direction = price > openPrice ? 'up' : price < openPrice ? 'down' : 'neutral'
+            const change = openPrice ? ((price - openPrice) / openPrice) * 100 : 0
+            const probability = Math.max(5, Math.min(95, 50 + change * 10))
+            
+            return {
+              ...market,
+              currentPrice: price,
+              openPrice,
+              direction,
+              probability: Math.round(probability),
+            }
+          }))
+        }
+        
+        wsRefs.current[m.id] = ws
+      })
+    }
+    
+    init()
+    
+    // Update timer every second
     const timer = setInterval(() => {
-      setMarkets(prev => prev.map(m => ({
-        ...m,
-        timeRemaining: Math.max(0, m.timeRemaining - 1),
-        phase: m.timeRemaining <= 120 ? 'locked' : 'open',
-      })))
+      setMarkets(prev => prev.map(m => {
+        const newTime = Math.max(0, m.timeRemaining - 1)
+        return {
+          ...m,
+          timeRemaining: newTime,
+          phase: newTime > 120 ? 'open' : newTime > 0 ? 'locked' : 'resolved',
+        }
+      }))
     }, 1000)
-
+    
     return () => {
       clearInterval(timer)
       Object.values(wsRefs.current).forEach(ws => ws.close())
     }
   }, [])
 
+  const handleBet = useCallback(async (asset: string, side: 'up' | 'down') => {
+    if (!user) {
+      onBet(asset, side)
+      return
+    }
+    
+    const market = markets.find(m => m.id === asset)
+    if (!market || market.phase !== 'open') return
+    
+    // TODO: Get stake from UI
+    const stake = 100 // This should come from the stake input
+    
+    if (isSupabaseReady && supabase) {
+      const { error } = await supabase
+        .from('pool_bets')
+        .insert({
+          user_id: user.id,
+          window_id: market.windowId,
+          asset: asset,
+          side: side,
+          stake: stake,
+          status: 'pending',
+        })
+      
+      if (error) {
+        console.error('Failed to place bet:', error)
+      }
+    }
+    
+    onBet(asset, side)
+  }, [user, markets, onBet])
+
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60)
     const secs = seconds % 60
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+  }
+
+  if (loading) {
+    return (
+      <div className="space-y-2">
+        {MARKETS.map(m => (
+          <div key={m.id} className="bg-[#141414] border border-[#222222] rounded-lg p-3 animate-pulse">
+            <div className="h-4 bg-[#222222] rounded w-1/3 mb-2"></div>
+            <div className="h-8 bg-[#222222] rounded w-1/2"></div>
+          </div>
+        ))}
+      </div>
+    )
   }
 
   return (
@@ -153,7 +299,7 @@ export function FiveMinMarkets({ onBet }: FiveMinMarketProps) {
 
           <div className="grid grid-cols-2 gap-2">
             <button
-              onClick={() => onBet(market.id, 'up')}
+              onClick={() => handleBet(market.id, 'up')}
               disabled={market.phase !== 'open'}
               className={`py-2 px-3 rounded-lg font-semibold transition flex flex-col items-center text-xs ${
                 market.phase === 'open'
@@ -165,9 +311,9 @@ export function FiveMinMarkets({ onBet }: FiveMinMarketProps) {
               <span className="text-xs opacity-70">{market.probability}%</span>
             </button>
             <button
-              onClick={() => onBet(market.id, 'down')}
+              onClick={() => handleBet(market.id, 'down')}
               disabled={market.phase !== 'open'}
-              className={`py-3 px-4 rounded-xl font-semibold transition flex flex-col items-center ${
+              className={`py-2 px-3 rounded-lg font-semibold transition flex flex-col items-center text-xs ${
                 market.phase === 'open'
                   ? 'bg-[#E05252]/20 border border-[#E05252] text-[#E05252] hover:bg-[#E05252]/30'
                   : 'bg-[#222222] border border-[#333] text-[#555555] cursor-not-allowed'
