@@ -243,11 +243,63 @@ export function FiveMinMarkets({ onBet }: FiveMinMarketProps) {
   if (loading) {
     return (
       <div className="space-y-2">
-        {MARKETS.map(m => (
-          <div key={m.id} className="bg-[#141414] border border-[#222222] rounded-lg p-3 animate-pulse">
-            <div className="h-4 bg-[#222222] rounded w-1/3 mb-2"></div>
-            <div className="h-8 bg-[#222222] rounded w-1/2"></div>
-          </div>
+        {MARKETS.map((m, i) => (
+          <motion.div
+            key={m.id}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: i * 0.1 }}
+            className="bg-[#141414] border border-[#222222] rounded-lg p-3"
+          >
+            {/* Header skeleton */}
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <motion.div 
+                  animate={{ scale: [1, 1.2, 1] }}
+                  transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                  className="w-6 h-6 rounded-full bg-[#C9A84C]/20 flex items-center justify-center"
+                >
+                  <motion.div 
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                    className="w-3 h-3 rounded-full border border-[#C9A84C] border-t-transparent"
+                  />
+                </motion.div>
+                <div className="h-3 bg-[#222222] rounded w-16"></div>
+              </div>
+              <div className="h-4 bg-[#222222] rounded w-12"></div>
+            </div>
+            
+            {/* Probability skeleton */}
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <div className="h-2 bg-[#222222] rounded w-16 mb-1"></div>
+                <motion.div 
+                  animate={{ opacity: [0.5, 1, 0.5] }}
+                  transition={{ duration: 1.5, repeat: Infinity }}
+                  className="h-6 bg-gradient-to-r from-[#222222] via-[#C9A84C]/30 to-[#222222] rounded w-20"
+                />
+              </div>
+              <div className="text-right">
+                <div className="h-2 bg-[#222222] rounded w-10 mb-1"></div>
+                <div className="h-4 bg-[#222222] rounded w-16"></div>
+              </div>
+            </div>
+            
+            {/* Buttons skeleton */}
+            <div className="grid grid-cols-2 gap-2">
+              <motion.div 
+                animate={{ opacity: [0.5, 1, 0.5] }}
+                transition={{ duration: 1.2, repeat: Infinity, delay: 0.2 }}
+                className="h-8 bg-[#222222] rounded-lg"
+              />
+              <motion.div 
+                animate={{ opacity: [0.5, 1, 0.5] }}
+                transition={{ duration: 1.2, repeat: Infinity, delay: 0.4 }}
+                className="h-8 bg-[#222222] rounded-lg"
+              />
+            </div>
+          </motion.div>
         ))}
       </div>
     )
