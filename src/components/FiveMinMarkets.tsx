@@ -148,7 +148,9 @@ export function FiveMinMarkets({ onBet }: FiveMinMarketProps) {
       }
       
       setMarkets(marketData)
-      setLoading(false)
+      
+      // Minimum loading time to show animation
+      setTimeout(() => setLoading(false), 1500)
       
       // Connect WebSocket for live prices
       MARKETS.forEach(m => {
