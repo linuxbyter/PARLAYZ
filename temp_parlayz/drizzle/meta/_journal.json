@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1776353411339,
+      "tag": "0000_public_photon",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1776354351243,
+      "tag": "0001_bouncy_madame_hydra",
+      "breakpoints": true
+    }
+  ]
+}
