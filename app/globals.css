@@ -50,7 +50,7 @@ body {
   ::-webkit-scrollbar-thumb:hover { background: var(--gold-dark); }
   
   * {
-    @apply border-border;
+    border-color: var(--black-border);
   }
   
   button:not(:disabled),
