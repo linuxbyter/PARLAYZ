@@ -131,9 +131,8 @@ export default function ParlayAI() {
   }
 
   function addSuggestionToSlip() {
-    selectedLegs.forEach((leg, i) => {
+    selectedLegs.forEach((leg) => {
       addBet({
-        id: `parlay-ai-${leg.marketId}-${i}`,
         marketId: leg.marketId,
         sport: leg.sport,
         homeTeam: leg.homeTeam,
