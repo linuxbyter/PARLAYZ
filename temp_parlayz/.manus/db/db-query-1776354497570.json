@@ -1,9 +1,0 @@
-{
-  "query": "CREATE TABLE IF NOT EXISTS `markets` (`id` int AUTO_INCREMENT NOT NULL, `sport` varchar(32) NOT NULL, `homeTeam` varchar(128) NOT NULL, `awayTeam` varchar(128) NOT NULL, `commenceTime` timestamp NOT NULL, `homeOddsML` int, `awayOddsML` int, `homeOddsSpread` int, `awayOddsSpread` int, `spreadLine` decimal(4,1), `overOdds` int, `underOdds` int, `totalLine` decimal(5,1), `homePublicPct` int DEFAULT 50, `status` enum('open','live','closed','resolved') NOT NULL DEFAULT 'open', `externalId` varchar(128), `createdAt` timestamp NOT NULL DEFAULT (now()), `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP, CONSTRAINT `markets_id` PRIMARY KEY(`id`))",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 372eeQ4kN6tXUQV.root --database gMt3JNrEnd5nRXvdNX4kUT --execute CREATE TABLE IF NOT EXISTS `markets` (`id` int AUTO_INCREMENT NOT NULL, `sport` varchar(32) NOT NULL, `homeTeam` varchar(128) NOT NULL, `awayTeam` varchar(128) NOT NULL, `commenceTime` timestamp NOT NULL, `homeOddsML` int, `awayOddsML` int, `homeOddsSpread` int, `awayOddsSpread` int, `spreadLine` decimal(4,1), `overOdds` int, `underOdds` int, `totalLine` decimal(5,1), `homePublicPct` int DEFAULT 50, `status` enum('open','live','closed','resolved') NOT NULL DEFAULT 'open', `externalId` varchar(128), `createdAt` timestamp NOT NULL DEFAULT (now()), `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP, CONSTRAINT `markets_id` PRIMARY KEY(`id`))",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 939
-}

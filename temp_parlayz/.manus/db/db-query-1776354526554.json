@@ -1,9 +1,0 @@
-{
-  "query": "CREATE TABLE IF NOT EXISTS `bets` (`id` int AUTO_INCREMENT NOT NULL, `userId` int NOT NULL, `marketId` int NOT NULL, `betType` enum('moneyline','spread','over','under') NOT NULL, `selection` varchar(128) NOT NULL, `odds` int NOT NULL, `stake` decimal(10,2) NOT NULL, `potentialPayout` decimal(10,2) NOT NULL, `status` enum('Pending','Won','Lost') NOT NULL DEFAULT 'Pending', `isParlay` int DEFAULT 0, `parlayId` varchar(64), `txHash` varchar(128), `createdAt` timestamp NOT NULL DEFAULT (now()), `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP, CONSTRAINT `bets_id` PRIMARY KEY(`id`))",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 372eeQ4kN6tXUQV.root --database gMt3JNrEnd5nRXvdNX4kUT --execute CREATE TABLE IF NOT EXISTS `bets` (`id` int AUTO_INCREMENT NOT NULL, `userId` int NOT NULL, `marketId` int NOT NULL, `betType` enum('moneyline','spread','over','under') NOT NULL, `selection` varchar(128) NOT NULL, `odds` int NOT NULL, `stake` decimal(10,2) NOT NULL, `potentialPayout` decimal(10,2) NOT NULL, `status` enum('Pending','Won','Lost') NOT NULL DEFAULT 'Pending', `isParlay` int DEFAULT 0, `parlayId` varchar(64), `txHash` varchar(128), `createdAt` timestamp NOT NULL DEFAULT (now()), `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP, CONSTRAINT `bets_id` PRIMARY KEY(`id`))",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 119
-}
