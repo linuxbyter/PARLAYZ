@@ -20,8 +20,8 @@ export default function BetSlip() {
     clearBets()
   }
 
-  const incrementStake = () => setStake((s) => Math.min(s + 10, 10000))
-  const decrementStake = () => setStake((s) => Math.max(s - 10, 1))
+  const incrementStake = () => setStake(Math.min(stake + 10, 10000))
+const decrementStake = () => setStake(Math.max(stake - 10, 1))
 
   const SlipContent = () => (
     <div className="flex flex-col h-full">
