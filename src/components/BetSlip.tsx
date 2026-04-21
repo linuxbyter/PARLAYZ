@@ -177,7 +177,7 @@ export default function BetSlip() {
               )}
               <span className="text-lg font-black">+</span>
             </button>
-          </Trigger>
+          </SheetTrigger>
           <SheetContent side="bottom" className="h-[85vh] rounded-t-2xl p-0 overflow-hidden">
             <SlipContent />
           </SheetContent>
