@@ -1,152 +1,116 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
-import { Activity, Clock, TrendingUp, TrendingDown } from "lucide-react"
-import { MarketData, formatOdds } from "@/src/lib/mockMarkets"
-import { Badge } from "@/src/components/ui/badge"
-import { cn } from "@/src/lib/utils"
+import { useState } from "react"
+import { Activity } from "lucide-react"
+import { useBetSlip } from "@/src/contexts/BetSlipContext"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/src/components/ui/dialog"
 
-interface MarketCardProps {
-  market: MarketData
-  activeBetType: "Moneyline" | "Spread" | "Over/Under"
-  onSelect?: (market: MarketData, selection: string, odds: number) => void
+interface PredictionMarket {
+  id: string
+  category: string
+  question: string
+  volume: string
+  endDate: string
+  yesPrice: number
+  noPrice: number
 }
 
-const SPORT_EMOJI: Record<string, string> = {
-  NFL: "🏈",
-  NBA: "🏀",
-  MLB: "⚾",
-  Soccer: "⚽",
-}
+export function MarketCard({ market }: { market: PredictionMarket }) {
+  const { addBet } = useBetSlip()
+  const [isOpen, setIsOpen] = useState(false)
 
-export default function MarketCard({ market, activeBetType, onSelect }: MarketCardProps) {
-  const [prevOdds, setPrevOdds] = useState(market.homeOddsML)
-  const [oddsDirection, setOddsDirection] = useState<"up" | "down" | null>(null)
-  const cardRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (market.homeOddsML !== prevOdds) {
-      if (market.homeOddsML > prevOdds) {
-        setOddsDirection("up")
-      } else {
-        setOddsDirection("down")
-      }
-      setPrevOdds(market.homeOddsML)
-      
-      const timer = setTimeout(() => setOddsDirection(null), 1000)
-      return () => clearTimeout(timer)
-    }
-  }, [market.homeOddsML, prevOdds])
-
-  const getOddsForBetType = () => {
-    switch (activeBetType) {
-      case "Moneyline":
-        return {
-          home: { label: market.homeTeam, odds: market.homeOddsML },
-          away: { label: market.awayTeam, odds: market.awayOddsML },
-        }
-      case "Spread":
-        const homeSpread = market.spread > 0 ? `+${market.spread}` : market.spread.toString()
-        const awaySpread = market.spread > 0 ? (market.spread * -1).toString() : `+${Math.abs(market.spread)}`
-        return {
-          home: { label: `${market.homeTeam} ${homeSpread}`, odds: -110 },
-          away: { label: `${market.awayTeam} ${awaySpread}`, odds: -110 },
-        }
-      case "Over/Under":
-        return {
-          home: { label: `Over ${market.total}`, odds: -110 },
-          away: { label: `Under ${market.total}`, odds: -110 },
-        }
-    }
+  const handleAddBet = (selection: "YES" | "NO", price: number) => {
+    addBet({
+      id: `${market.id}-${selection}`,
+      sport: market.category,
+      selection: selection,
+      homeTeam: market.question,
+      awayTeam: "",
+      betType: "Prediction Market",
+      odds: price,
+    })
   }
 
-  const odds = getOddsForBetType()
-
   return (
-    <div
-      ref={cardRef}
-      className="group relative bg-[var(--black-card)] border border-[var(--black-border)] rounded-xl overflow-hidden transition-all duration-200 hover:border-[var(--black-muted)] hover:shadow-[0_0_30px_rgba(0,0,0,0.5)]"
-    >
-      {/* Live indicator for live games */}
-      {market.status === "live" && (
-        <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-[var(--status-lost)] via-[var(--status-lost)] to-transparent" />
-      )}
-
-      <div className="p-4">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <span className="text-sm">{SPORT_EMOJI[market.sport] || "🏆"}</span>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--black-dim)]">
-              {market.sport}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            {market.status === "live" && (
-              <Badge variant="live">
-                <Activity className="w-2.5 h-2.5 mr-1" />
-                LIVE
-              </Badge>
-            )}
-            {market.status === "pregame" && (
-              <span className="flex items-center gap-1 text-[10px] text-[var(--black-dim)] font-medium">
-                <Clock className="w-3 h-3" />
-                {market.startTime}
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Matchup */}
-        <div className="mb-4">
-          <p className="text-[11px] text-[var(--black-dim)] truncate">
-            {market.awayTeam} @ {market.homeTeam}
-          </p>
-        </div>
-
-        {/* Odds */}
-        <div className="space-y-2">
-          {[odds.home, odds.away].map((option, idx) => (
-            <button
-              key={idx}
-              onClick={() => onSelect?.(market, option.label, option.odds)}
-              className="w-full flex items-center justify-between p-3 rounded-lg bg-[var(--black-soft)] border border-[var(--black-border)] hover:border-[var(--gold)]/50 hover:bg-[var(--black-border)] transition-all group/odds"
-            >
-              <span className="text-[11px] font-medium text-white truncate max-w-[60%]">
-                {option.label}
-              </span>
-              <div className="flex items-center gap-2">
-                {market.status === "live" && oddsDirection && idx === 0 && (
-                  oddsDirection === "up" ? (
-                    <TrendingUp className="w-3 h-3 text-[var(--status-won)]" />
-                  ) : (
-                    <TrendingDown className="w-3 h-3 text-[var(--status-lost)]" />
-                  )
-                )}
-                <span
-                  className={cn(
-                    "text-sm font-mono font-bold transition-colors",
-                    oddsDirection && idx === 0
-                      ? oddsDirection === "up"
-                        ? "text-[var(--status-won)] odds-up"
-                        : "text-[var(--status-lost)] odds-down"
-                      : "text-white group-hover/odds:text-[var(--gold)]"
-                  )}
-                >
-                  {formatOdds(option.odds)}
-                </span>
-              </div>
-            </button>
-          ))}
+    <div className="p-4 rounded-xl bg-[var(--black-card)] border border-[var(--black-border)] hover:border-[var(--black-dim)] transition-all flex flex-col justify-between h-full group">
+      <div className="flex justify-between items-start mb-3">
+        <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--gold)] px-2 py-1 bg-[var(--black-soft)] rounded">
+          {market.category}
+        </span>
+        <div className="flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#00D27D] animate-pulse"></span>
+          <span className="text-[10px] font-bold text-[#00D27D] uppercase tracking-tighter">Live</span>
         </div>
       </div>
 
-      {/* Bet type indicator */}
-      <div className="px-4 py-2 border-t border-[var(--black-border)] bg-[var(--black-soft)]/50">
-        <span className="text-[9px] font-bold uppercase tracking-wider text-[var(--black-subtle)]">
-          {activeBetType}
-        </span>
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogTrigger asChild>
+          <div className="cursor-pointer mb-6">
+            <h3 className="text-[15px] font-bold text-white leading-tight group-hover:text-[var(--gold)] transition-colors line-clamp-2">
+              {market.question}
+            </h3>
+          </div>
+        </DialogTrigger>
+
+        <DialogContent className="bg-[var(--black)] border-[var(--black-border)] text-white max-w-2xl p-6">
+          <DialogHeader className="mb-6">
+            <DialogTitle className="text-2xl font-bold leading-tight">{market.question}</DialogTitle>
+          </DialogHeader>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="md:col-span-2 space-y-4">
+              <div className="h-48 border border-[var(--black-border)] rounded-xl bg-[var(--black-soft)] relative flex items-end overflow-hidden">
+                <svg className="w-full h-full text-[var(--gold)] opacity-30" preserveAspectRatio="none" viewBox="0 0 100 100">
+                  <path d="M0,100 L0,70 Q25,80 50,40 T100,10 L100,100 Z" fill="currentColor" fillOpacity="0.1" />
+                  <path d="M0,70 Q25,80 50,40 T100,10" fill="none" stroke="currentColor" strokeWidth="2" />
+                </svg>
+                <div className="absolute top-4 left-4 text-3xl font-black text-[#00D27D]">{market.yesPrice}¢</div>
+              </div>
+              <div className="space-y-1">
+                <div className="flex justify-between text-[11px] font-black uppercase">
+                  <span className="text-[#00D27D]">YES {market.yesPrice}%</span>
+                  <span className="text-[#F23F43]">NO {market.noPrice}%</span>
+                </div>
+                <div className="h-2 rounded-full bg-[var(--black-border)] flex overflow-hidden">
+                  <div className="bg-[#00D27D] h-full" style={{ width: `${market.yesPrice}%` }}></div>
+                  <div className="bg-[#F23F43] h-full" style={{ width: `${market.noPrice}%` }}></div>
+                </div>
+              </div>
+            </div>
+            <div className="border border-[var(--black-border)] rounded-xl p-4 bg-[var(--black-soft)]">
+              <h4 className="text-[10px] font-black text-[var(--black-dim)] mb-4 uppercase">Orderbook</h4>
+              <div className="space-y-1 font-mono text-[11px]">
+                <div className="flex justify-between text-[#F23F43]"><span>0.28</span><span className="text-white/40">14k</span></div>
+                <div className="border-y border-[var(--black-border)] my-2 py-1 text-center text-white text-xs">0.265</div>
+                <div className="flex justify-between text-[#00D27D]"><span>0.25</span><span className="text-white/40">8.2k</span></div>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <div className="mt-auto pt-3 border-t border-[var(--black-border)]">
+        <div className="flex justify-between text-[10px] font-bold text-[var(--black-dim)] mb-3 uppercase">
+          <span className="flex items-center gap-1"><Activity size={10}/> {market.volume} Vol</span>
+          <span>{market.endDate}</span>
+        </div>
+        <div className="flex gap-2">
+          <button 
+            onClick={() => handleAddBet("YES", market.yesPrice)} 
+            className="flex-1 py-2.5 rounded-lg border border-[#00D27D]/30 bg-[#00D27D]/10 hover:bg-[#00D27D]/20 text-[#00D27D] font-black text-sm transition-all active:scale-95"
+          >
+            YES {market.yesPrice}¢
+          </button>
+          <button 
+            onClick={() => handleAddBet("NO", market.noPrice)} 
+            className="flex-1 py-2.5 rounded-lg border border-[#F23F43]/30 bg-[#F23F43]/10 hover:bg-[#F23F43]/20 text-[#F23F43] font-black text-sm transition-all active:scale-95"
+          >
+            NO {market.noPrice}¢
+          </button>
+        </div>
       </div>
     </div>
   )
 }
+
+export default MarketCard
