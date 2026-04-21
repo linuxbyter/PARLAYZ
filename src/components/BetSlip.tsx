@@ -21,21 +21,20 @@ export default function BetSlip() {
   }
 
   const incrementStake = () => setStake(Math.min(stake + 10, 10000))
-const decrementStake = () => setStake(Math.max(stake - 10, 1))
+  const decrementStake = () => setStake(Math.max(stake - 10, 1))
 
   const SlipContent = () => (
     <div className="flex flex-col h-full">
-      <SheetHeader className="px-4 py-3 border-b border-[var(--black-border)]">
-      .
+      <div className="px-4 py-3 border-b border-[var(--black-border)]">
         <div className="flex items-center justify-between">
-          <SheetTitle className="text-base font-bold flex items-center gap-2">
+          <h3 className="text-base font-bold flex items-center gap-2 text-white">
             Bet Slip
             {bets.length > 0 && (
               <span className="px-2 py-0.5 rounded-full bg-[var(--gold)] text-black text-xs font-bold">
                 {bets.length}
               </span>
             )}
-          </SheetTitle>
+          </h3>
           {bets.length > 0 && (
             <button
               onClick={clearBets}
@@ -45,7 +44,7 @@ const decrementStake = () => setStake(Math.max(stake - 10, 1))
             </button>
           )}
         </div>
-      </SheetHeader>
+      </div>
 
       <div className="flex-1 overflow-auto">
         {bets.length === 0 ? (
@@ -178,8 +177,8 @@ const decrementStake = () => setStake(Math.max(stake - 10, 1))
               )}
               <span className="text-lg font-black">+</span>
             </button>
-          </SheetTrigger>
-          <SheetContent side="bottom" className="h-[85vh] rounded-t-2xl">
+          </Trigger>
+          <SheetContent side="bottom" className="h-[85vh] rounded-t-2xl p-0 overflow-hidden">
             <SlipContent />
           </SheetContent>
         </Sheet>
