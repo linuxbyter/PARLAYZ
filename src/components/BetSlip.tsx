@@ -26,6 +26,7 @@ const decrementStake = () => setStake(Math.max(stake - 10, 1))
   const SlipContent = () => (
     <div className="flex flex-col h-full">
       <SheetHeader className="px-4 py-3 border-b border-[var(--black-border)]">
+      .
         <div className="flex items-center justify-between">
           <SheetTitle className="text-base font-bold flex items-center gap-2">
             Bet Slip

@@ -5,23 +5,28 @@
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800;900&display=swap');
 
 :root {
-  --gold: #D4AF37;
-  --gold-light: #E5C84A;
-  --gold-dark: #B8960C;
-  --gold-muted: rgba(212, 175, 55, 0.12);
-  --status-won: #22C55E;
-  --status-won-bg: rgba(34, 197, 94, 0.1);
-  --status-lost: #EF4444;
-  --status-lost-bg: rgba(239, 68, 68, 0.1);
+  /* Polymarket-inspired palette with minimal gold */
+  --gold: #A89060;
+  --gold-light: #B8A070;
+  --gold-dark: #8B7355;
+  --gold-muted: rgba(168, 144, 96, 0.12);
+  /* Green (Yes/Up) - Polymarket style */
+  --status-won: #00D27D;
+  --status-won-bg: rgba(0, 210, 125, 0.1);
+  /* Red (No/Down) - Polymarket style */
+  --status-lost: #F23F43;
+  --status-lost-bg: rgba(242, 63, 67, 0.1);
+  /* Pending/Yellow */
   --status-pending: #F59E0B;
   --status-pending-bg: rgba(245, 158, 11, 0.1);
-  --black: #000000;
-  --black-soft: #0A0A0A;
-  --black-card: #111111;
-  --black-border: #1F1F1F;
-  --black-muted: #2A2A2A;
-  --black-subtle: #3A3A3A;
-  --black-dim: #5A5A5A;
+  /* Dark backgrounds */
+  --black: #0D0D0D;
+  --black-soft: #141414;
+  --black-card: #1A1A1A;
+  --black-border: #2A2A2A;
+  --black-muted: #3A3A3A;
+  --black-subtle: #4A4A4A;
+  --black-dim: #6A6A6A;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
