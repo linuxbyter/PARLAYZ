@@ -2,9 +2,11 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 
-const CYCLE_MS = 10 * 60 * 1000
-const LOCK_MS = 5 * 60 * 1000
-const GRACE_END_MS = 6 * 60 * 1000
+// --- NECESSARY CHANGES: 5-MINUTE CYCLE LOGIC ---
+const CYCLE_MS = 5 * 60 * 1000       // Total cycle: 5 mins
+const LOCK_MS = 4 * 60 * 1000        // Betting closes at: 4 mins
+const GRACE_END_MS = 4.5 * 60 * 1000  // Grace period ends at: 4 mins 30 secs
+// ----------------------------------------------
 
 export type MarketPhase = 'OPEN' | 'LOCKED' | 'GRACE' | 'RESOLVED'
 
@@ -80,6 +82,7 @@ export function useMarketLogic(
   useEffect(() => {
     if (!houseSeeded.current) {
       houseSeeded.current = true
+      // House seeding for "vibe"
       const totalSeed = 30 + Math.random() * 50
       const upRatio = 0.3 + Math.random() * 0.4
       const upPool = Math.round(totalSeed * upRatio * 10) / 10
@@ -98,22 +101,24 @@ export function useMarketLogic(
     const tick = setInterval(() => {
       const now = Date.now()
       const phase = getPhase(now, lockAtMs.current, graceEndMs.current, resolveAtMs.current)
+      
+      // FIX: Ensure time remaining stays positive and relevant to phase
       const remaining = phase === 'OPEN'
         ? lockAtMs.current - now
-        : phase === 'LOCKED' || phase === 'GRACE'
-        ? resolveAtMs.current - now
-        : 0
+        : resolveAtMs.current - now
 
       setTimeRemaining(Math.max(0, remaining))
 
       setState(prev => {
         const next = { ...prev, phase, livePrice }
 
+        // Capture strike price exactly at the lock boundary
         if ((phase === 'LOCKED' || phase === 'GRACE' || phase === 'RESOLVED') && !strikeCaptured.current) {
           strikeCaptured.current = true
           next.strikePrice = livePrice
         }
 
+        // Keep history moving for the graph
         const total = next.upPool + next.downPool
         const upPct = total > 0 ? (next.upPool / total) * 100 : 50
         const lastHistory = prev.poolHistory[prev.poolHistory.length - 1]
@@ -121,6 +126,7 @@ export function useMarketLogic(
           next.poolHistory = [...prev.poolHistory.slice(-119), { time: now, upPct }]
         }
 
+        // Handle Resolution
         if (phase === 'RESOLVED' && !resolvedRef.current) {
           resolvedRef.current = true
           const strike = next.strikePrice ?? initialPrice
@@ -158,20 +164,15 @@ export function useMarketLogic(
     let refund = 0
     setState(prev => {
       const stake = side === 'UP' ? prev.userUpStake : prev.userDownStake
-      if (stake <= 0) return prev
-      if (prev.phase === 'RESOLVED') return prev
+      if (stake <= 0 || prev.phase === 'RESOLVED' || prev.phase === 'LOCKED') return prev
 
-      let refundRate = 1.0
-      if (prev.phase === 'GRACE') refundRate = 0.8
-      else if (prev.phase === 'LOCKED') return prev
-
+      const refundRate = prev.phase === 'GRACE' ? 0.8 : 1.0
       refund = stake * refundRate
-      const penalty = stake - refund
-
+      
       return {
         ...prev,
-        upPool: side === 'UP' ? Math.max(0, prev.upPool - penalty) : prev.upPool,
-        downPool: side === 'DOWN' ? Math.max(0, prev.downPool - penalty) : prev.downPool,
+        upPool: side === 'UP' ? Math.max(0, prev.upPool - stake) : prev.upPool,
+        downPool: side === 'DOWN' ? Math.max(0, prev.downPool - stake) : prev.downPool,
         userUpStake: side === 'UP' ? 0 : prev.userUpStake,
         userDownStake: side === 'DOWN' ? 0 : prev.userDownStake,
       }
@@ -182,11 +183,7 @@ export function useMarketLogic(
   const userTotalStake = state.userUpStake + state.userDownStake
   const canBet = state.phase === 'OPEN'
   const canChickenOut = (state.phase === 'OPEN' || state.phase === 'GRACE') && userTotalStake > 0
-  const chickenOutRefund = state.phase === 'OPEN'
-    ? userTotalStake
-    : state.phase === 'GRACE'
-    ? userTotalStake * 0.8
-    : 0
+  const chickenOutRefund = state.phase === 'OPEN' ? userTotalStake : userTotalStake * 0.8
 
   const totalPool = state.upPool + state.downPool
   const upProbability = totalPool > 0 ? (state.upPool / totalPool) * 100 : 50
