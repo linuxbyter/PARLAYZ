@@ -5,8 +5,9 @@ import { Activity } from "lucide-react"
 import { useBetSlip } from "@/src/contexts/BetSlipContext"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/src/components/ui/dialog"
 
+// Updated interface: id is now a number to match BetSlipItem requirements
 interface PredictionMarket {
-  id: string
+  id: number
   category: string
   question: string
   volume: string
@@ -21,13 +22,13 @@ export function MarketCard({ market }: { market: PredictionMarket }) {
 
   const handleAddBet = (selection: "YES" | "NO", price: number) => {
     addBet({
-      marketId: market.id, // This is the required property we missed
+      marketId: market.id, // Corrected: passing number to number
       sport: market.category,
       selection: selection,
       homeTeam: market.question,
       awayTeam: "",
       betType: "Prediction Market",
-      odds: price,
+      odds: price / 100, // Converts 74¢ to 0.74 decimal odds
     })
   }
 
