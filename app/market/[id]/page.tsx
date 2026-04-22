@@ -188,7 +188,7 @@ export default function MarketDetailPage() {
                </h1>
             </div>
             <div className="text-[#888888] flex items-center gap-2 text-sm font-medium">
-              Resolution: <span className="text-white font-mono font-bold">${formatPrice(targetPrice)}</span>
+              Resolution: <span className="text-white font-mono font-bold">${targetPrice.toFixed(2)}</span>
               <div className="w-1 h-1 rounded-full bg-[#444]" />
               Status: <span className={isAbove ? 'text-[#00D27D]' : 'text-[#FF4949]'}>{isAbove ? 'Above Target' : 'Below Target'}</span>
             </div>
@@ -198,7 +198,7 @@ export default function MarketDetailPage() {
              <div className="text-center">
                 <p className="text-[10px] text-[#888888] uppercase font-black mb-1">Live Feed</p>
                 <p className={`text-3xl font-mono font-black ${isAbove ? 'text-[#00D27D]' : 'text-[#FF4949]'}`}>
-                  ${formatPrice(livePrice)}
+                  ${livePrice.toFixed(2)}
                 </p>
              </div>
              <div className="w-[1px] h-12 bg-[#1F1F1F]" />
@@ -412,7 +412,7 @@ export default function MarketDetailPage() {
                 </div>
               </div>
               <p className="text-sm text-[#888888] leading-relaxed font-medium">
-                This market resolves to YES if the <span className="text-white font-bold">{inst.label}</span> price at resolution time is strictly above the strike price of <span className="text-white font-mono">${formatPrice(targetPrice)}</span>.
+                This market resolves to YES if the <span className="text-white font-bold">{inst.label}</span> price at resolution time is strictly above the strike price of <span className="text-white font-mono">${targetPrice.toFixed(2)}</span>.
                 Otherwise it resolves to NO. Price data is sourced directly from the Binance API WebSocket stream.
               </p>
             </div>
