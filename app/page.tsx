@@ -8,13 +8,14 @@ import MarketCard from "@/src/components/MarketCard"
 import BetSlip from "@/src/components/BetSlip"
 import { cn } from "@/src/lib/utils"
 
+// IDs converted to numbers to match the PredictionMarket interface
 const MOCK_MARKETS = [
-  { id: "1", category: "Politics", question: "Will Ruto complete his term to 2027?", volume: "$1.4M", endDate: "Apr 2027", yesPrice: 74, noPrice: 26 },
-  { id: "2", category: "Finance", question: "Will the Finance Bill 2026 pass in Kenya?", volume: "$920K", endDate: "Jun 21", yesPrice: 38, noPrice: 62 },
-  { id: "3", category: "Crypto", question: "Will Bitcoin hit $100k before June?", volume: "$5.4M", endDate: "Jun 1", yesPrice: 65, noPrice: 35 },
-  { id: "4", category: "Sports", question: "Will Arsenal finish top 4 in EPL 25/26?", volume: "$2.8M", endDate: "May 22", yesPrice: 72, noPrice: 28 },
-  { id: "5", category: "Tech", question: "Will OpenAI release GPT-5 by end of 2026?", volume: "$3.2M", endDate: "Dec 2026", yesPrice: 45, noPrice: 55 },
-  { id: "6", category: "Meme", question: "Will $SHIB hit $0.0001 by summer?", volume: "$890K", endDate: "Jul 2026", yesPrice: 28, noPrice: 72 },
+  { id: 1, category: "Politics", question: "Will Ruto complete his term to 2027?", volume: "$1.4M", endDate: "Apr 2027", yesPrice: 74, noPrice: 26 },
+  { id: 2, category: "Finance", question: "Will the Finance Bill 2026 pass in Kenya?", volume: "$920K", endDate: "Jun 21", yesPrice: 38, noPrice: 62 },
+  { id: 3, category: "Crypto", question: "Will Bitcoin hit $100k before June?", volume: "$5.4M", endDate: "Jun 1", yesPrice: 65, noPrice: 35 },
+  { id: 4, category: "Sports", question: "Will Arsenal finish top 4 in EPL 25/26?", volume: "$2.8M", endDate: "May 22", yesPrice: 72, noPrice: 28 },
+  { id: 5, category: "Tech", question: "Will OpenAI release GPT-5 by end of 2026?", volume: "$3.2M", endDate: "Dec 2026", yesPrice: 45, noPrice: 55 },
+  { id: 6, category: "Meme", question: "Will $SHIB hit $0.0001 by summer?", volume: "$890K", endDate: "Jul 2026", yesPrice: 28, noPrice: 72 },
 ]
 
 type Category = "ALL" | "Politics" | "Finance" | "Crypto" | "Sports" | "Tech" | "Meme" | "Futures"
