@@ -21,6 +21,7 @@ export function MarketCard({ market }: { market: PredictionMarket }) {
 
   const handleAddBet = (selection: "YES" | "NO", price: number) => {
     addBet({
+      marketId: market.id, // This is the required property we missed
       sport: market.category,
       selection: selection,
       homeTeam: market.question,
