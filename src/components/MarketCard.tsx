@@ -1,113 +1,185 @@
 "use client"
 
 import { useState } from "react"
-import { Activity } from "lucide-react"
 import { useBetSlip } from "@/src/contexts/BetSlipContext"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/src/components/ui/dialog"
 
 // Updated interface: id is now a number to match BetSlipItem requirements
-interface PredictionMarket {
+interface SportsMarket {
   id: number
-  category: string
-  question: string
-  volume: string
-  endDate: string
-  yesPrice: number
-  noPrice: number
+  sport: string
+  homeTeam: string
+  awayTeam: string
+  league?: string
+  startTime: string
+  homeOdds: number  // American odds format (e.g., 150 for +150, -200 for -200)
+  awayOdds: number  // American odds format
 }
 
-export function MarketCard({ market }: { market: PredictionMarket }) {
+export function MarketCard({ market }: { market: SportsMarket }) {
   const { addBet } = useBetSlip()
   const [isOpen, setIsOpen] = useState(false)
 
-  const handleAddBet = (selection: "YES" | "NO", price: number) => {
+  const handleAddBet = (team: "home" | "away", amount: number) => {
+    // For simplicity, we're using a fixed stake amount for now
+    // In a real implementation, this would use the selected amount
+    const odds = team === "home" ? market.homeOdds : market.awayOdds
     addBet({
-      marketId: market.id, // Corrected: passing number to number
-      sport: market.category,
-      selection: selection,
-      homeTeam: market.question,
-      awayTeam: "",
-      betType: "Prediction Market",
-      odds: price / 100, // Converts 74¢ to 0.74 decimal odds
+      marketId: market.id,
+      sport: market.sport,
+      selection: team === "home" ? market.homeTeam : market.awayTeam,
+      amount: amount, // This would come from a bet amount selector
+      odds: odds,
     })
   }
 
   return (
-    <div className="p-4 rounded-xl bg-[var(--black-card)] border border-[var(--black-border)] hover:border-[var(--black-dim)] transition-all flex flex-col justify-between h-full group">
-      <div className="flex justify-between items-start mb-3">
-        <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--gold)] px-2 py-1 bg-[var(--black-soft)] rounded">
-          {market.category}
-        </span>
-        <div className="flex items-center gap-1.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-[#00D27D] animate-pulse"></span>
-          <span className="text-[10px] font-bold text-[#00D27D] uppercase tracking-tighter">Live</span>
+    <div className="bg-[#111] border border-[#2D2D2D] rounded-xl overflow-hidden">
+      <div className="px-4 py-3">
+        <div className="flex justify-between items-start mb-2">
+          <span className="text-xs font-bold text-gray-500 uppercase">
+            {market.sport}
+          </span>
+          <span className="text-xs text-gray-400">
+            {market.league || ''}
+          </span>
+        </div>
+        
+        <div className="mb-3">
+          <h3 className="font-bold text-white text-lg">
+            {market.homeTeam}
+          </h3>
+          <p className="text-gray-400 text-sm mt-1">
+            vs
+          </p>
+          <h3 className="font-bold text-white text-lg">
+            {market.awayTeam}
+          </h3>
+        </div>
+        
+        <div className="text-xs text-gray-500 mb-2">
+          {new Date(market.startTime).toLocaleString(undefined, {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit'
+          })}
         </div>
       </div>
-
-      <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogTrigger asChild>
-          <div className="cursor-pointer mb-6">
-            <h3 className="text-[15px] font-bold text-white leading-tight group-hover:text-[var(--gold)] transition-colors line-clamp-2">
-              {market.question}
-            </h3>
-          </div>
-        </DialogTrigger>
-
-        <DialogContent className="bg-[var(--black)] border-[var(--black-border)] text-white max-w-2xl p-6">
-          <DialogHeader className="mb-6">
-            <DialogTitle className="text-2xl font-bold leading-tight">{market.question}</DialogTitle>
-          </DialogHeader>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="md:col-span-2 space-y-4">
-              <div className="h-48 border border-[var(--black-border)] rounded-xl bg-[var(--black-soft)] relative flex items-end overflow-hidden">
-                <svg className="w-full h-full text-[var(--gold)] opacity-30" preserveAspectRatio="none" viewBox="0 0 100 100">
-                  <path d="M0,100 L0,70 Q25,80 50,40 T100,10 L100,100 Z" fill="currentColor" fillOpacity="0.1" />
-                  <path d="M0,70 Q25,80 50,40 T100,10" fill="none" stroke="currentColor" strokeWidth="2" />
-                </svg>
-                <div className="absolute top-4 left-4 text-3xl font-black text-[#00D27D]">{market.yesPrice}¢</div>
+      
+      <div className="border-t border-[#2D2D2D]">
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+          <DialogTrigger asChild>
+            <div className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-[#1a1a1a]">
+              <div className="flex-1">
+                <p className="text-xs font-bold text-gray-500 uppercase">Place Bet</p>
+                <p className="text-sm text-white">Select team and enter amount</p>
               </div>
-              <div className="space-y-1">
-                <div className="flex justify-between text-[11px] font-black uppercase">
-                  <span className="text-[#00D27D]">YES {market.yesPrice}%</span>
-                  <span className="text-[#F23F43]">NO {market.noPrice}%</span>
+              <span className="text-xs text-gray-400">▼</span>
+            </div>
+          </DialogTrigger>
+          
+          <DialogContent className="bg-[#111] border border-[#2D2D2D] text-white p-4">
+            <DialogHeader className="mb-3">
+              <DialogTitle className="text-lg font-bold text-white">
+                Place your bet
+              </DialogTitle>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              {/* Team Selection */}
+              <div className="space-y-2">
+                <p className="text-xs font-bold text-gray-500 uppercase">Select Team</p>
+                <div className="flex gap-3">
+                  <label className="flex flex-col items-center flex-1">
+                    <input
+                      type="radio"
+                      name="team"
+                      value="home"
+                      defaultChecked
+                      className="hidden"
+                    />
+                    <div className="w-12 h-12 rounded-lg border border-[#2D2D2D] flex items-center justify-center mb-2">
+                      <span className="font-bold text-white text-xs">{market.homeTeam.slice(0, 3)}</span>
+                    </div>
+                    <span className="text-xs font-bold text-white mt-1">
+                      {market.homeTeam}
+                    </span>
+                  </label>
+                  <label className="flex flex-col items-center flex-1">
+                    <input
+                      type="radio"
+                      name="team"
+                      value="away"
+                      className="hidden"
+                    />
+                    <div className="w-12 h-12 rounded-lg border border-[#2D2D2D] flex items-center justify-center mb-2">
+                      <span className="font-bold text-white text-xs">{market.awayTeam.slice(0, 3)}</span>
+                    </div>
+                    <span className="text-xs font-bold text-white mt-1">
+                      {market.awayTeam}
+                    </span>
+                  </label>
                 </div>
-                <div className="h-2 rounded-full bg-[var(--black-border)] flex overflow-hidden">
-                  <div className="bg-[#00D27D] h-full" style={{ width: `${market.yesPrice}%` }}></div>
-                  <div className="bg-[#F23F43] h-full" style={{ width: `${market.noPrice}%` }}></div>
+              </div>
+              
+              {/* Amount Input */}
+              <div className="space-y-2">
+                <p className="text-xs font-bold text-gray-500 uppercase">Amount (KSh)</p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {/* Handle quick amount selection */}}
+                    className="flex-1 px-3 py-2 text-xs font-bold text-gray-400 bg-[#1a1a1a] border border-[#2D2D2D] hover:text-white hover:border-gray-400"
+                  >
+                    500
+                  </button>
+                  <button
+                    onClick={() => {/* Handle quick amount selection */}}
+                    className="flex-1 px-3 py-2 text-xs font-bold text-gray-400 bg-[#1a1a1a] border border-[#2D2D2D] hover:text-white hover:border-gray-400"
+                  >
+                    1000
+                  </button>
+                  <button
+                    onClick={() => {/* Handle quick amount selection */}}
+                    className="flex-1 px-3 py-2 text-xs font-bold text-gray-400 bg-[#1a1a1a] border border-[#2D2D2D] hover:text-white hover:border-gray-400"
+                  >
+                    2000
+                  </button>
                 </div>
+                <input
+                  type="number"
+                  placeholder="Enter amount"
+                  className="w-full px-3 py-2 text-xs font-bold text-white bg-[#1a1a1a] border border-[#2D2D2D] rounded-lg"
+                />
+              </div>
+              
+              {/* Potential Payout */}
+              <div className="space-y-2">
+                <p className="text-xs font-bold text-gray-500 uppercase">Potential Payout</p>
+                <p className="text-sm font-mono text-gray-400">KSh 0.00</p>
               </div>
             </div>
-            <div className="border border-[var(--black-border)] rounded-xl p-4 bg-[var(--black-soft)]">
-              <h4 className="text-[10px] font-black text-[var(--black-dim)] mb-4 uppercase">Orderbook</h4>
-              <div className="space-y-1 font-mono text-[11px]">
-                <div className="flex justify-between text-[#F23F43]"><span>0.28</span><span className="text-white/40">14k</span></div>
-                <div className="border-y border-[var(--black-border)] my-2 py-1 text-center text-white text-xs">0.265</div>
-                <div className="flex justify-between text-[#00D27D]"><span>0.25</span><span className="text-white/40">8.2k</span></div>
-              </div>
+            
+            <div className="mt-4 pt-3 border-t border-[#2D2D2D]">
+              <button
+                onClick={() => {
+                  setIsOpen(false)
+                  // In a real implementation, we would collect the selected values and place the bet
+                }}
+                className="w-full px-4 py-2 text-xs font-bold text-white bg-gradient-to-r from-[#1E3A8A] to-[#3B82F6] rounded-lg hover:opacity-90 transition"
+              >
+                Place Bet
+              </button>
             </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <div className="mt-auto pt-3 border-t border-[var(--black-border)]">
-        <div className="flex justify-between text-[10px] font-bold text-[var(--black-dim)] mb-3 uppercase">
-          <span className="flex items-center gap-1"><Activity size={10}/> {market.volume} Vol</span>
-          <span>{market.endDate}</span>
-        </div>
-        <div className="flex gap-2">
-          <button 
-            onClick={() => handleAddBet("YES", market.yesPrice)} 
-            className="flex-1 py-2.5 rounded-lg border border-[#00D27D]/30 bg-[#00D27D]/10 hover:bg-[#00D27D]/20 text-[#00D27D] font-black text-sm transition-all active:scale-95"
-          >
-            YES {market.yesPrice}¢
-          </button>
-          <button 
-            onClick={() => handleAddBet("NO", market.noPrice)} 
-            className="flex-1 py-2.5 rounded-lg border border-[#F23F43]/30 bg-[#F23F43]/10 hover:bg-[#F23F43]/20 text-[#F23F43] font-black text-sm transition-all active:scale-95"
-          >
-            NO {market.noPrice}¢
-          </button>
+          </DialogContent>
+        </Dialog>
+      </div>
+      
+      <div className="px-4 py-3 text-xs text-gray-500">
+        <div className="flex justify-between">
+          <span>Home Odds: {market.homeOdds > 0 ? `+${market.homeOdds}` : market.homeOdds}</span>
+          <span>Away Odds: {market.awayOdds > 0 ? `+${market.awayOdds}` : market.awayOdds}</span>
         </div>
       </div>
     </div>

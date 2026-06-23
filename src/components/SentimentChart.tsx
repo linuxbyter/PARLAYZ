@@ -1,102 +1,70 @@
 'use client'
 
-import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, ReferenceLine } from 'recharts'
+import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer } from 'recharts'
 import { format } from 'date-fns'
-import { motion } from 'framer-motion'
 
-interface PoolWeightData {
+interface BettingTrendData {
   time: number
-  upPct: number
+  homePercentage: number
 }
 
-interface SentimentChartProps {
-  data: PoolWeightData[]
+interface SportsChartProps {
+  data: BettingTrendData[]
   height?: number
-  frozen?: boolean
 }
 
-export const SentimentChart: React.FC<SentimentChartProps> = ({ data, height = 240, frozen = false }) => {
+export const SportsChart: React.FC<SportsChartProps> = ({ data, height = 200 }) => {
   if (data.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center bg-[#111] rounded-2xl border border-[#1F1F1F]" style={{ height }}>
-        {/* Web3 Orb Loading Animation */}
-        <div className="relative w-16 h-16 mb-3">
-          <motion.div
-            className="absolute inset-0 rounded-full border-2 border-[#C5A059]/30"
-            animate={{ rotate: 360 }}
-            transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
-          />
-          <motion.div
-            className="absolute inset-2 rounded-full border-2 border-t-[#C5A059] border-r-transparent border-b-[#C5A059]/50 border-l-transparent"
-            animate={{ rotate: -360 }}
-            transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
-          />
-          <motion.div
-            className="absolute inset-4 rounded-full bg-[#C5A059]/20"
-            animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.6, 0.3] }}
-            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-          />
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-2 h-2 rounded-full bg-[#C5A059] animate-pulse" />
-          </div>
+      <div className="flex flex-col items-center justify-center bg-[#111] rounded-2xl border border-[#2D2D2D]" style={{ height }}>
+        <div className="w-12 h-12">
+          <span className="w-6 h-6">📊</span>
         </div>
-        <p className="text-xs text-gray-500 font-mono">Collecting pool data...</p>
+        <p className="text-xs text-gray-500">No trend data available</p>
       </div>
     )
   }
 
   const chartData = data.map(d => ({
     time: d.time,
-    probability: d.upPct,
+    homePercentage: d.homePercentage,
     label: format(new Date(d.time), 'HH:mm'),
   }))
 
-  const currentProb = data[data.length - 1].upPct
+  const currentHomePct = data[data.length - 1].homePercentage
 
   return (
-    <div className="bg-[#111] border border-[#1F1F1F] rounded-2xl p-4">
+    <div className="bg-[#111] border border-[#2D2D2D] rounded-xl p-4">
       <div className="flex items-center justify-between mb-2">
         <div>
-          <h4 className="text-[10px] font-bold uppercase tracking-wider text-gray-500">UP Probability</h4>
-          <p className="text-2xl font-black font-mono text-[#C5A059]">
-            {currentProb.toFixed(1)}%
+          <h4 className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Home Team Support</h4>
+          <p className="text-2xl font-black font-mono text-white">
+            {currentHomePct.toFixed(1)}%
           </p>
         </div>
-        {frozen && (
-          <span className="text-[10px] font-bold uppercase tracking-widest text-[#B8860B] bg-[#B8860B]/10 px-2 py-1 rounded">
-            Locked
-          </span>
-        )}
       </div>
       <ResponsiveContainer width="100%" height={height}>
         <AreaChart data={chartData}>
-          <defs>
-            <linearGradient id="goldGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#C5A059" stopOpacity="0.3" />
-              <stop offset="100%" stopColor="#C5A059" stopOpacity="0" />
-            </linearGradient>
-          </defs>
           <XAxis
             dataKey="label"
-            tick={{ fill: '#555', fontSize: 9 }}
+            tick={{ fill: '#777', fontSize: 9 }}
             axisLine={false}
             tickLine={false}
           />
           <YAxis
             domain={[0, 100]}
-            tick={{ fill: '#555', fontSize: 9 }}
+            tick={{ fill: '#777', fontSize: 9 }}
             axisLine={false}
             tickLine={false}
             width={30}
             tickFormatter={(v: number) => v + '%'}
           />
-          <ReferenceLine y={50} stroke="#333" strokeDasharray="4 4" />
           <Area
             type="monotone"
-            dataKey="probability"
-            stroke="#C5A059"
+            dataKey="homePercentage"
+            stroke="#1E3A8A"
             strokeWidth={2}
-            fill="url(#goldGradient)"
+            fill="#1E3A8A/10"
             isAnimationActive={false}
             connectNulls
           />
