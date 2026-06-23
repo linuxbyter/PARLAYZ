@@ -58,6 +58,7 @@ export default function ParlayAI() {
   const [selectedLegs, setSelectedLegs] = useState<ParlayLeg[]>([])
   const [result, setResult] = useState<ParlaySuggestionResult | null>(null)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [analysisError, setAnalysisError] = useState('')
   const { addBet } = useBetSlip()
 
   function addLeg(market: typeof MOCK_MARKETS[0]) {
@@ -79,7 +80,7 @@ export default function ParlayAI() {
         awayTeam: market.awayTeam,
         betType: "Moneyline",
         selection: market.homeTeam,
-        odds: market.homeOddsML,
+        odds: market.homeOdds,
       },
     ])
     setResult(null)
@@ -95,10 +96,13 @@ export default function ParlayAI() {
       toast.warning("Add at least 2 legs to build a parlay")
       return
     }
+    setAnalysisError('')
     setIsAnalyzing(true)
     
     setTimeout(() => {
-      const mockSuggestions: ParlaySuggestionResult = {
+      try {
+        if (Math.random() < 0.1) throw new Error('AI service temporarily unavailable')
+        const mockSuggestions: ParlaySuggestionResult = {
         insight: `Based on current market conditions and historical data, your ${selectedLegs.length}-leg parlay shows interesting value patterns. The combined odds suggest moderate variance.`,
         suggestions: [
           {
@@ -118,7 +122,12 @@ export default function ParlayAI() {
         ],
       }
       setResult(mockSuggestions)
+    } catch {
+      setAnalysisError('AI analysis failed. Please try again.')
+      setResult(null)
+    } finally {
       setIsAnalyzing(false)
+    }
     }, 2000)
   }
 
@@ -178,7 +187,7 @@ export default function ParlayAI() {
                   <div
                     key={market.id}
                     className={cn(
-                      "flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer",
+                      "flex items-center gap-3 p-3 sm:p-2.5 min-h-[52px] rounded-xl border transition-all cursor-pointer",
                       isAdded
                         ? "border-[var(--gold)] bg-[var(--gold-muted)]"
                         : "border-[var(--black-border)] bg-[var(--black-card)] hover:border-[var(--black-muted)]"
@@ -204,7 +213,7 @@ export default function ParlayAI() {
                       <div className="text-right">
                         <p className="text-[9px] text-[var(--black-dim)]">ML</p>
                         <p className="text-xs font-mono font-bold text-white">
-                          {formatOdds(market.homeOddsML)}
+                          {formatOdds(market.homeOdds)}
                         </p>
                       </div>
                       <button
@@ -309,6 +318,16 @@ export default function ParlayAI() {
                 </button>
               </div>
             </div>
+
+            {analysisError && (
+              <div className="bg-[var(--status-lost-bg)] border border-[var(--status-lost)]/30 rounded-xl p-4 flex items-start gap-3">
+                <AlertTriangle className="w-4 h-4 text-[var(--status-lost)] shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-[11px] font-bold text-[var(--status-lost)]">Analysis Error</p>
+                  <p className="text-[10px] text-[var(--black-dim)] mt-1">{analysisError}</p>
+                </div>
+              </div>
+            )}
 
             {result && (
               <div className="space-y-3 animate-fade-in-up">

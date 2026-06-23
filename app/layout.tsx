@@ -4,8 +4,8 @@ import { Providers } from './providers'
 import { CurrencyProvider } from '@/src/hooks/useWallet'
 
 export const metadata = {
-  title: 'PARLAYZ - Crypto Prediction Markets on Base',
-  description: 'Non-custodial betting on Base L2. USDT only.',
+  title: 'PARLAYZ - Sports Betting',
+  description: 'Sports prediction markets. Bet on your favorite teams.',
 }
 
 export const dynamic = 'force-dynamic'

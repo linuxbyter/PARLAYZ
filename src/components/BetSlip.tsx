@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { X, Plus, Minus, Trash2, Loader2, ChevronDown, ChevronUp } from "lucide-react"
+import { X, Plus, Minus, Loader2 } from "lucide-react"
+import { toast } from "sonner"
 import { useBetSlip } from "@/src/contexts/BetSlipContext"
 import { Button } from "@/src/components/ui/button"
 import { formatOdds } from "@/src/lib/mockMarkets"
@@ -15,9 +16,14 @@ export default function BetSlip() {
 
   const handlePlaceBet = async () => {
     setIsPlacing(true)
-    await new Promise((r) => setTimeout(r, 1500))
-    setIsPlacing(false)
-    clearBets()
+    try {
+      await new Promise((r) => setTimeout(r, 1500))
+      clearBets()
+    } catch {
+      toast.error("Failed to place bet")
+    } finally {
+      setIsPlacing(false)
+    }
   }
 
   const incrementStake = () => setStake(Math.min(stake + 10, 10000))
@@ -116,7 +122,7 @@ export default function BetSlip() {
               <input
                 type="number"
                 value={stake}
-                onChange={(e) => setStake(Number(e.target.value))}
+                onChange={(e) => setStake(Math.min(10000, Math.max(1, Number(e.target.value) || 1)))}
                 className="w-20 bg-transparent text-center text-lg font-mono font-bold text-white focus:outline-none"
               />
               <button

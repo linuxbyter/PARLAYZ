@@ -21,7 +21,6 @@ interface MarketInfo {
   resolved: boolean
   winningOutcome: number
   totalPool: bigint
-  isCrypto: boolean
 }
 
 export default function AdminResolutionPage() {
@@ -76,7 +75,7 @@ export default function AdminResolutionPage() {
       try {
         const resp = await fetch(`/api/markets/${i}`)
         const data = await resp.json()
-        if (data && !data.isCrypto && !data.resolved) {
+        if (data && !data.resolved) {
           loaded.push({
             id: BigInt(i),
             title: data.title,
@@ -86,7 +85,6 @@ export default function AdminResolutionPage() {
             resolved: data.resolved,
             winningOutcome: data.winningOutcome,
             totalPool: BigInt(data.totalPool),
-            isCrypto: data.isCrypto,
           })
         }
       } catch (e) {}
@@ -205,7 +203,7 @@ export default function AdminResolutionPage() {
           <div className="bg-[#111] border border-[#1F1F1F] rounded-2xl p-12 text-center">
             <Shield className="w-12 h-12 text-gray-700 mx-auto mb-4" />
             <p className="text-gray-400 font-bold">No markets pending resolution</p>
-            <p className="text-sm text-gray-600 mt-1">All non-crypto markets are resolved or still open.</p>
+            <p className="text-sm text-gray-600 mt-1">All markets are resolved or still open for betting.</p>
           </div>
         ) : (
           <div className="space-y-4">

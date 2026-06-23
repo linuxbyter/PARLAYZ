@@ -3,14 +3,13 @@
 import Header from '@/src/components/Header'
 import { SignedIn, SignedOut, SignInButton, useUser } from '@clerk/nextjs'
 import { useState } from 'react'
+import { Loader2, CheckCircle, AlertCircle, Wallet } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
 export default function WalletPage() {
   const { user } = useUser()
-
-  // Mock balance for now - will be replaced with Supabase integration
-  const [balance, setBalance] = useState(0)
+  const [balance, setBalance] = useState(125000)
   const [showDepositModal, setShowDepositModal] = useState(false)
   const [showWithdrawModal, setShowWithdrawModal] = useState(false)
   const [depositStatus, setDepositStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle')
@@ -21,6 +20,95 @@ export default function WalletPage() {
   const [withdrawMessage, setWithdrawMessage] = useState('')
   const [withdrawAmount, setWithdrawAmount] = useState('')
   const [withdrawPhone, setWithdrawPhone] = useState('')
+
+  const handleDeposit = async () => {
+    const amount = parseFloat(depositAmount)
+    if (!amount || amount < 1) {
+      setDepositMessage('Minimum deposit is KSh 1')
+      setDepositStatus('error')
+      return
+    }
+    if (!depositPhone) {
+      setDepositMessage('Enter your M-Pesa phone number')
+      setDepositStatus('error')
+      return
+    }
+    setDepositStatus('processing')
+    setDepositMessage('Processing deposit...')
+    try {
+      const res = await fetch('/api/kotani/deposit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount,
+          phone: depositPhone,
+          userId: user?.id || 'anonymous',
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Deposit failed')
+      setBalance(prev => prev + amount)
+      setDepositStatus('success')
+      setDepositMessage(data.message || `KSh ${amount} deposit initiated!`)
+      setDepositAmount('')
+      setDepositPhone('')
+    } catch (err) {
+      setDepositStatus('error')
+      setDepositMessage(err instanceof Error ? err.message : 'Failed to initiate deposit')
+    }
+  }
+
+  const handleWithdraw = async () => {
+    const amount = parseFloat(withdrawAmount)
+    if (!amount || amount < 1) {
+      setWithdrawMessage('Minimum withdrawal is KSh 1')
+      setWithdrawStatus('error')
+      return
+    }
+    if (!withdrawPhone) {
+      setWithdrawMessage('Enter your M-Pesa phone number')
+      setWithdrawStatus('error')
+      return
+    }
+    if (amount > balance) {
+      setWithdrawMessage('Insufficient balance')
+      setWithdrawStatus('error')
+      return
+    }
+    setWithdrawStatus('processing')
+    setWithdrawMessage('Processing withdrawal...')
+    try {
+      const res = await fetch('/api/kotani/withdraw', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount,
+          phone: withdrawPhone,
+          userId: user?.id || 'anonymous',
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Withdrawal failed')
+      setBalance(prev => prev - amount)
+      setWithdrawStatus('success')
+      setWithdrawMessage(data.message || `KSh ${amount} sent to ${withdrawPhone}`)
+      setWithdrawAmount('')
+      setWithdrawPhone('')
+    } catch (err) {
+      setWithdrawStatus('error')
+      setWithdrawMessage(err instanceof Error ? err.message : 'Failed to process withdrawal')
+    }
+  }
+
+  const resetDeposit = () => {
+    setDepositStatus('idle')
+    setDepositMessage('')
+  }
+
+  const resetWithdraw = () => {
+    setWithdrawStatus('idle')
+    setWithdrawMessage('')
+  }
 
    return (
      <div className="min-h-screen bg-[#000000] text-white">
@@ -42,7 +130,7 @@ export default function WalletPage() {
            {/* Action Buttons */}
            <div className="grid grid-cols-2 gap-3 mb-6">
              <button
-               onClick={() => { setShowDepositModal(true); setDepositStatus('idle'); setDepositMessage('') }}
+               onClick={() => { setShowDepositModal(true); resetDeposit() }}
                className="w-full bg-gradient-to-r from-[#1E3A8A] to-[#3B82F6] text-white font-bold py-3 rounded-xl transition flex items-center justify-center gap-2 text-sm uppercase tracking-wider hover:opacity-90"
              >
                Deposit
@@ -126,7 +214,7 @@ export default function WalletPage() {
                    <p className="text-sm font-bold text-red-500 mb-1">Error</p>
                    <p className="text-xs text-gray-400">{depositMessage}</p>
                  </div>
-                 <button onClick={() => setDepositStatus('idle')} className="w-full bg-[#111] border border-[#2D2D2D] text-white font-bold py-3 rounded-xl text-sm hover:border-[#1E3A8A]/50 transition">Try Again</button>
+                 <button onClick={resetDeposit} className="w-full bg-[#111] border border-[#2D2D2D] text-white font-bold py-3 rounded-xl text-sm hover:border-[#1E3A8A]/50 transition">Try Again</button>
                </div>
              )}
            </div>
@@ -181,7 +269,7 @@ export default function WalletPage() {
                      <p className="text-sm font-bold text-red-500 mb-1">Error</p>
                      <p className="text-xs text-gray-400">{withdrawMessage}</p>
                    </div>
-                   <button onClick={() => setWithdrawStatus('idle')} className="w-full bg-[#111] border border-[#2D2D2D] text-white font-bold py-3 rounded-xl text-sm hover:border-[#1E3A8A]/50 transition">Try Again</button>
+                   <button onClick={resetWithdraw} className="w-full bg-[#111] border border-[#2D2D2D] text-white font-bold py-3 rounded-xl text-sm hover:border-[#1E3A8A]/50 transition">Try Again</button>
                  </div>
                )}
                
